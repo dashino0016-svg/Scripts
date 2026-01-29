@@ -9,6 +9,9 @@ public class LockMarkerFollower : MonoBehaviour
     [Header("Follow")]
     public Vector3 worldOffset = Vector3.zero;
 
+    [Tooltip("强制锁定时使用目标中心（忽略 worldOffset），避免旧 Prefab 保留头顶偏移。")]
+    public bool forceCenterWhenLocked = true;
+
     [Tooltip("如果勾选：锁定目标时会计算一次“渲染器中心偏移”，之后不再每帧重新算（避免抖动）")]
     public bool useRendererCenterOnce = false;
 
@@ -92,7 +95,8 @@ public class LockMarkerFollower : MonoBehaviour
         }
 
         // 目标点 = 目标位置 + 偏移（+ 可选缓存中心偏移）
-        Vector3 targetPos = LockTargetPointUtility.GetCapsuleCenter(_target) + worldOffset;
+        Vector3 offset = forceCenterWhenLocked ? Vector3.zero : worldOffset;
+        Vector3 targetPos = LockTargetPointUtility.GetCapsuleCenter(_target) + offset;
         if (useRendererCenterOnce && _hasCachedOffset)
             targetPos += _cachedCenterOffset;
 
