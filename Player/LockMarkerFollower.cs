@@ -7,7 +7,7 @@ public class LockMarkerFollower : MonoBehaviour
     [SerializeField] Camera cam;
 
     [Header("Follow")]
-    public Vector3 worldOffset = new Vector3(0f, 1.1f, 0f);
+    public Vector3 worldOffset = Vector3.zero;
 
     [Tooltip("如果勾选：锁定目标时会计算一次“渲染器中心偏移”，之后不再每帧重新算（避免抖动）")]
     public bool useRendererCenterOnce = false;
