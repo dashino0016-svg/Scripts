@@ -14,56 +14,40 @@ public class LockOnSystem : MonoBehaviour
     [Header("Auto Relock")]
     [SerializeField] bool autoRelockOnTargetLost = true;
 
-    // ✅ 对外：相机 / UI / 面向 等都应该用这个点（胶囊中心）
-    public Transform CurrentTarget => (CurrentTargetStats != null) ? EnsureTargetPoint() : null;
+    public Transform CurrentTarget => CurrentTargetStats != null ? CurrentTargetStats.transform : null;
     public bool IsLocked => CurrentTargetStats != null;
 
-    public CombatStats CurrentTargetStats { get; private set; }        // UI/逻辑仍可用
+    public CombatStats CurrentTargetStats { get; private set; }        // ✅ 仍保留（UI/逻辑用）
     public event Action<CombatStats> OnTargetChanged;
 
+    Transform player;
     CharacterController selfCC;
 
     bool hadTarget;
 
-    // 运行时的“锁定点”对象（跟随目标胶囊中心）
-    Transform currentTargetPoint;
-
-    const string TargetPointName = "__LockOnTargetPoint";
-
     void Awake()
     {
+        player = transform;
         selfCC = GetComponent<CharacterController>();
 
         if (viewTransform == null && Camera.main != null)
             viewTransform = Camera.main.transform;
-
-        EnsureTargetPoint();
     }
 
     void Update()
     {
-        // ===== 没目标（或目标被 Destroy 了导致 == null）=====
+        // 没锁定：不做自动锁（除非上一帧有目标且目标丢失）
         if (CurrentTargetStats == null)
         {
-            if (hadTarget)
+            if (hadTarget && autoRelockOnTargetLost)
             {
-                if (autoRelockOnTargetLost)
-                {
-                    if (!TryLockNearestInternal(out _))
-                        ClearLock();
-                }
-                else
-                {
+                if (!TryLockNearestInternal(out _))
                     ClearLock();
-                }
             }
             return;
         }
 
         hadTarget = true;
-
-        // ✅ 每帧刷新锁定点位置：保证相机/UI 永远对准“胶囊中心”
-        RefreshCurrentTargetPoint();
 
         // 目标死亡：自动锁最近存活敌人；没有就清锁
         if (CurrentTargetStats.CurrentHP <= 0f)
@@ -95,32 +79,14 @@ public class LockOnSystem : MonoBehaviour
     {
         if (selfCC == null) selfCC = GetComponent<CharacterController>();
         if (selfCC != null) return selfCC.bounds.center;
-        return transform.position;
+        if (player == null) player = transform;
+        return player.position;
     }
 
     Vector3 GetWorldPoint(CombatStats stats)
     {
         if (stats == null) return Vector3.zero;
         return LockTargetPointUtility.GetCapsuleCenter(stats.transform);
-    }
-
-    Transform EnsureTargetPoint()
-    {
-        if (currentTargetPoint != null) return currentTargetPoint;
-
-        var go = new GameObject(TargetPointName);
-        go.hideFlags = HideFlags.HideInHierarchy;
-        currentTargetPoint = go.transform;
-        currentTargetPoint.SetParent(transform, worldPositionStays: false);
-        currentTargetPoint.localPosition = Vector3.zero;
-
-        return currentTargetPoint;
-    }
-
-    void RefreshCurrentTargetPoint()
-    {
-        if (CurrentTargetStats == null) return;
-        EnsureTargetPoint().position = GetWorldPoint(CurrentTargetStats);
     }
 
     // ================= Public API =================
@@ -164,11 +130,10 @@ public class LockOnSystem : MonoBehaviour
 
     public void ClearLock()
     {
-        // ✅ 允许“目标被 Destroy 了”时也能正确清理 hadTarget，避免每帧重复尝试
-        if (CurrentTargetStats == null && !hadTarget)
+        if (CurrentTargetStats == null)
             return;
-
         CurrentTargetStats = null;
+
         hadTarget = false;
 
         OnTargetChanged?.Invoke(null);
@@ -202,6 +167,7 @@ public class LockOnSystem : MonoBehaviour
         if (candidates.Count <= 1) return;
 
         Vector3 refFwd = GetReferenceForward();
+
         Vector3 self = GetSelfWorldPoint();
 
         Vector3 curDir = GetWorldPoint(CurrentTargetStats) - self;
@@ -315,9 +281,6 @@ public class LockOnSystem : MonoBehaviour
     {
         CurrentTargetStats = stats;
         hadTarget = true;
-
-        RefreshCurrentTargetPoint();
-
         OnTargetChanged?.Invoke(CurrentTargetStats);
     }
 
