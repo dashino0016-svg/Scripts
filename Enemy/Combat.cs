@@ -143,12 +143,20 @@ public class Combat : MonoBehaviour, IEnemyCombat
     [Header("Smoothing")]
     public float speedLevelChangeRate = 5f;
 
-    [Header("Ability - Heal")]
+    [Header("Ability - Decision (Probability + Distance)")]
+    [Tooltip("AI will only roll ability usage at this interval to avoid spamming per-frame.")]
+    public float abilityDecisionMinInterval = 0.35f;
+    public float abilityDecisionMaxInterval = 0.65f;
+
+    [Header("Ability - Heal (Ability3)")]
     public bool enableAbilityHeal = true;
     [Range(0f, 1f)] public float abilityHealHpThreshold = 0.3f;
+    [Range(0f, 1f)] public float abilityHealChance = 0.6f;
 
-    [Header("Ability - Shockwave")]
+    [Header("Ability - Shockwave (Ability1 = Cone / Ability2 = AoE)")]
     public bool enableAbilityShockwave = true;
+    [Range(0f, 1f)] public float abilityShockwaveConeChance = 0.35f;
+    [Range(0f, 1f)] public float abilityShockwaveAoeChance = 0.35f;
 
     EnemyMove move;
     EnemyNavigator navigator;
@@ -185,7 +193,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
     bool runAttackPlanIsA = true;
     float nextRunAttackAllowedTime;
     bool runAttackRolledInBand;
-
+    float nextAbilityDecisionTime;
     float nextHeavyAllowedTime;
 
     float blockReleaseTime;
@@ -294,6 +302,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
         nextEngageRunBurstRollTime = Time.time;
 
         cooldownInited = false;
+        nextAbilityDecisionTime = Time.time;
 
         if (anim != null)
         {
@@ -634,9 +643,20 @@ public class Combat : MonoBehaviour, IEnemyCombat
     {
         if (ability == null) return false;
 
-        if (enableAbilityHeal && ShouldStartHeal())
+        // ✅ 概率 + 距离：为了避免每帧都 roll，这里加一个 decision interval gate
+        if (Time.time < nextAbilityDecisionTime)
+            return false;
+
+        float minI = Mathf.Max(0.05f, abilityDecisionMinInterval);
+        float maxI = Mathf.Max(minI, abilityDecisionMaxInterval);
+        nextAbilityDecisionTime = Time.time + Random.Range(minI, maxI);
+
+        // =========================
+        // Ability3：Heal
+        // =========================
+        if (enableAbilityHeal && ShouldStartHeal() && Random.value <= abilityHealChance)
         {
-            if (ability.TryCast(EnemyAbilitySystem.AbilityType.Heal, target))
+            if (ability.TryCast(EnemyAbilitySystem.AbilityType.Ability3, target))
             {
                 if (block != null) block.RequestBlock(false);
                 ResetPlan();
@@ -646,9 +666,33 @@ public class Combat : MonoBehaviour, IEnemyCombat
             }
         }
 
-        if (enableAbilityShockwave && ShouldStartShockwave(distance))
+        // =========================
+        // Ability1/2：Shockwave（Cone / AoE）
+        // =========================
+        if (!enableAbilityShockwave)
+            return false;
+
+        float maxShockRange = ability.ShockwaveDecisionRange;
+        if (maxShockRange > 0f && distance > maxShockRange)
+            return false;
+
+        // 近距离优先 AoE（Ability2）
+        if (ShouldStartShockwaveAoe() && Random.value <= abilityShockwaveAoeChance)
         {
-            if (ability.TryCast(EnemyAbilitySystem.AbilityType.Shockwave, target))
+            if (ability.TryCast(EnemyAbilitySystem.AbilityType.Ability2, target))
+            {
+                if (block != null) block.RequestBlock(false);
+                ResetPlan();
+                StopMove();
+                EnterState(State.Ability);
+                return true;
+            }
+        }
+
+        // 扇形（Ability1）
+        if (ShouldStartShockwaveCone() && Random.value <= abilityShockwaveConeChance)
+        {
+            if (ability.TryCast(EnemyAbilitySystem.AbilityType.Ability1, target))
             {
                 if (block != null) block.RequestBlock(false);
                 ResetPlan();
@@ -664,17 +708,22 @@ public class Combat : MonoBehaviour, IEnemyCombat
     bool ShouldStartHeal()
     {
         if (selfStats == null) return false;
-        if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.Heal)) return false;
+        if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.Ability3)) return false;
 
         float hpPercent = (float)selfStats.CurrentHP / Mathf.Max(1f, selfStats.maxHP);
         return hpPercent <= abilityHealHpThreshold;
     }
 
-    bool ShouldStartShockwave(float distance)
+    bool ShouldStartShockwaveCone()
     {
-        if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.Shockwave)) return false;
-        if (distance > ability.ShockwaveDecisionRange && ability.ShockwaveDecisionRange > 0f) return false;
-        return ability.CanShockwaveTarget(target);
+        if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.Ability1)) return false;
+        return ability.CanAbility1Target(target);
+    }
+
+    bool ShouldStartShockwaveAoe()
+    {
+        if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.Ability2)) return false;
+        return ability.CanAbility2Target(target);
     }
 
     void HandleHitLanded(AttackData data)
