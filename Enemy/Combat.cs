@@ -163,6 +163,9 @@ public class Combat : MonoBehaviour, IEnemyCombat
     public float abilityDecisionMinInterval = 0.25f;
     public float abilityDecisionMaxInterval = 0.6f;
 
+    [Header("Ability - Shockwave")]
+    public bool enableAbilityShockwave = true;
+
     EnemyMove move;
     EnemyNavigator navigator;
     EnemyController controller;
@@ -670,6 +673,10 @@ public class Combat : MonoBehaviour, IEnemyCombat
         {
             if (Random.value <= abilityShockwaveAoeChance &&
                 ability.TryCast(EnemyAbilitySystem.AbilityType.ShockwaveAoe, target))
+
+        if (enableAbilityHeal && ShouldStartHeal())
+        {
+            if (ability.TryCast(EnemyAbilitySystem.AbilityType.Heal, target))
             {
                 if (block != null) block.RequestBlock(false);
                 ResetPlan();
@@ -683,6 +690,9 @@ public class Combat : MonoBehaviour, IEnemyCombat
         {
             if (Random.value <= abilityShockwaveConeChance &&
                 ability.TryCast(EnemyAbilitySystem.AbilityType.ShockwaveCone, target))
+        if (enableAbilityShockwave && ShouldStartShockwave(distance))
+        {
+            if (ability.TryCast(EnemyAbilitySystem.AbilityType.Shockwave, target))
             {
                 if (block != null) block.RequestBlock(false);
                 ResetPlan();
@@ -699,6 +709,9 @@ public class Combat : MonoBehaviour, IEnemyCombat
     {
         if (selfStats == null) return false;
         if (distance > abilityHealDecisionDistance) return false;
+    bool ShouldStartHeal()
+    {
+        if (selfStats == null) return false;
         if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.Heal)) return false;
 
         float hpPercent = (float)selfStats.CurrentHP / Mathf.Max(1f, selfStats.maxHP);
@@ -717,6 +730,11 @@ public class Combat : MonoBehaviour, IEnemyCombat
         if (distance > abilityShockwaveConeDecisionDistance) return false;
         if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.ShockwaveCone)) return false;
         return ability.CanConeTarget(target);
+    bool ShouldStartShockwave(float distance)
+    {
+        if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.Shockwave)) return false;
+        if (distance > ability.ShockwaveDecisionRange && ability.ShockwaveDecisionRange > 0f) return false;
+        return ability.CanShockwaveTarget(target);
     }
 
     void HandleHitLanded(AttackData data)
