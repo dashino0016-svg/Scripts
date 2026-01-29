@@ -77,7 +77,11 @@ public class LockOnSystem : MonoBehaviour
 
     Vector3 GetSelfWorldPoint()
     {
-        return selfCC != null ? selfCC.bounds.center : player.position;
+        if (player == null) player = transform;
+        if (selfCC == null) selfCC = GetComponent<CharacterController>();
+
+        if (selfCC != null) return selfCC.bounds.center;
+        return player.position;
     }
 
     Vector3 GetWorldPoint(CombatStats stats)
