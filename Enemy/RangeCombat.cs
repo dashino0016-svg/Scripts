@@ -144,22 +144,6 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     [Header("Ability - Heal")]
     public bool enableAbilityHeal = true;
     [Range(0f, 1f)] public float abilityHealHpThreshold = 0.3f;
-    [Range(0f, 1f)] public float abilityHealChance = 0.6f;
-    public float abilityHealDecisionDistance = 6f;
-
-    [Header("Ability - Shockwave AOE")]
-    public bool enableAbilityShockwaveAoe = true;
-    [Range(0f, 1f)] public float abilityShockwaveAoeChance = 0.6f;
-    public float abilityShockwaveAoeDecisionDistance = 6f;
-
-    [Header("Ability - Shockwave Cone")]
-    public bool enableAbilityShockwaveCone = true;
-    [Range(0f, 1f)] public float abilityShockwaveConeChance = 0.6f;
-    public float abilityShockwaveConeDecisionDistance = 6f;
-
-    [Header("Ability - Decision")]
-    public float abilityDecisionMinInterval = 0.25f;
-    public float abilityDecisionMaxInterval = 0.6f;
 
     [Header("Ability - Shockwave")]
     public bool enableAbilityShockwave = true;
@@ -190,7 +174,6 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     float currentSpeedLevel;
 
     bool cachedPlayerGuardBroken;
-    float nextAbilityDecisionTime;
 
     enum Zone { Approach, Shoot, Buffer, Melee }
     Zone zone = Zone.Approach;
@@ -691,29 +674,6 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     bool TryStartAbility(float distance)
     {
         if (ability == null) return false;
-        if (Time.time < nextAbilityDecisionTime) return false;
-
-        float minI = Mathf.Max(0.05f, abilityDecisionMinInterval);
-        float maxI = Mathf.Max(minI, abilityDecisionMaxInterval);
-        nextAbilityDecisionTime = Time.time + Random.Range(minI, maxI);
-
-        if (enableAbilityHeal && ShouldStartHeal(distance))
-        {
-            if (Random.value <= abilityHealChance &&
-                ability.TryCast(EnemyAbilitySystem.AbilityType.Heal, target))
-            {
-                if (block != null) block.RequestBlock(false);
-                ResetPlan();
-                StopMove();
-                EnterState(State.Ability);
-                return true;
-            }
-        }
-
-        if (enableAbilityShockwaveAoe && ShouldStartShockwaveAoe(distance))
-        {
-            if (Random.value <= abilityShockwaveAoeChance &&
-                ability.TryCast(EnemyAbilitySystem.AbilityType.ShockwaveAoe, target))
 
         if (enableAbilityHeal && ShouldStartHeal())
         {
@@ -727,10 +687,6 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
             }
         }
 
-        if (enableAbilityShockwaveCone && ShouldStartShockwaveCone(distance))
-        {
-            if (Random.value <= abilityShockwaveConeChance &&
-                ability.TryCast(EnemyAbilitySystem.AbilityType.ShockwaveCone, target))
         if (enableAbilityShockwave && ShouldStartShockwave(distance))
         {
             if (ability.TryCast(EnemyAbilitySystem.AbilityType.Shockwave, target))
@@ -746,10 +702,6 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         return false;
     }
 
-    bool ShouldStartHeal(float distance)
-    {
-        if (selfStats == null) return false;
-        if (distance > abilityHealDecisionDistance) return false;
     bool ShouldStartHeal()
     {
         if (selfStats == null) return false;
@@ -759,18 +711,6 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         return hpPercent <= abilityHealHpThreshold;
     }
 
-    bool ShouldStartShockwaveAoe(float distance)
-    {
-        if (distance > abilityShockwaveAoeDecisionDistance) return false;
-        if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.ShockwaveAoe)) return false;
-        return ability.CanAoeTarget(target);
-    }
-
-    bool ShouldStartShockwaveCone(float distance)
-    {
-        if (distance > abilityShockwaveConeDecisionDistance) return false;
-        if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.ShockwaveCone)) return false;
-        return ability.CanConeTarget(target);
     bool ShouldStartShockwave(float distance)
     {
         if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.Shockwave)) return false;
