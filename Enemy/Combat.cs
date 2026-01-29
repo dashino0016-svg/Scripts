@@ -143,12 +143,33 @@ public class Combat : MonoBehaviour, IEnemyCombat
     [Header("Smoothing")]
     public float speedLevelChangeRate = 5f;
 
+    [Header("Ability - Heal")]
+    public bool enableAbilityHeal = true;
+    [Range(0f, 1f)] public float abilityHealHpThreshold = 0.3f;
+    [Range(0f, 1f)] public float abilityHealChance = 0.6f;
+    public float abilityHealDecisionDistance = 6f;
+
+    [Header("Ability - Shockwave AOE")]
+    public bool enableAbilityShockwaveAoe = true;
+    [Range(0f, 1f)] public float abilityShockwaveAoeChance = 0.6f;
+    public float abilityShockwaveAoeDecisionDistance = 6f;
+
+    [Header("Ability - Shockwave Cone")]
+    public bool enableAbilityShockwaveCone = true;
+    [Range(0f, 1f)] public float abilityShockwaveConeChance = 0.6f;
+    public float abilityShockwaveConeDecisionDistance = 6f;
+
+    [Header("Ability - Decision")]
+    public float abilityDecisionMinInterval = 0.25f;
+    public float abilityDecisionMaxInterval = 0.6f;
+
     EnemyMove move;
     EnemyNavigator navigator;
     EnemyController controller;
     Animator anim;
     CombatReceiver receiver;
     MeleeFighter fighter;
+    EnemyAbilitySystem ability;
 
     BlockController block;
     CombatStats selfStats;
@@ -164,7 +185,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
     float outOfRangeTimer;
     float chaseEnterTime;
 
-    enum State { Chase, Engage, Block, Attack, Retreat, Cooldown }
+    enum State { Chase, Engage, Block, Attack, Retreat, Ability, Cooldown }
     State state = State.Chase;
 
     float stateTimer;
@@ -172,6 +193,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
     float dt;
 
     bool cachedPlayerGuardBroken;
+    float nextAbilityDecisionTime;
 
     bool runAttackArming;
     bool runAttackPlanIsA = true;
@@ -230,6 +252,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
         anim = GetComponent<Animator>();
         receiver = GetComponent<CombatReceiver>();
         fighter = GetComponent<MeleeFighter>();
+        ability = GetComponent<EnemyAbilitySystem>();
 
         block = GetComponent<BlockController>();
         selfStats = GetComponent<CombatStats>();
@@ -343,6 +366,12 @@ public class Combat : MonoBehaviour, IEnemyCombat
             return;
         }
 
+        if (ability != null && ability.IsInAbilityLock)
+        {
+            StopMove();
+            return;
+        }
+
         if (targetFighter == null || targetStats == null) CacheTargetRefs();
 
         Vector3 toTarget = GetTargetPoint() - transform.position;
@@ -356,6 +385,9 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
         bool motionLock = (fighter != null && fighter.enabled &&
                            (fighter.IsInAttackLock || fighter.IsInComboWindow));
+
+        if (state == State.Ability && (ability == null || !ability.IsInAbilityLock))
+            EnterState(State.Cooldown);
 
         UpdateRangeMode(distance);
 
@@ -430,6 +462,9 @@ public class Combat : MonoBehaviour, IEnemyCombat
                 UpdateAttack();
                 break;
             case State.Retreat:
+                break;
+            case State.Ability:
+                StopMove();
                 break;
             case State.Cooldown:
                 UpdateCooldown(distance, toTarget, playerGuardBroken);
@@ -572,6 +607,9 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
     void UpdateEngage(float distance, Vector3 toTarget, bool playerGuardBroken)
     {
+        if (TryStartAbility(distance))
+            return;
+
         if (!playerGuardBroken && distance <= defenseDistance && ShouldStartBlock(distance))
         {
             EnterState(State.Block);
@@ -604,6 +642,81 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
         StartNormalPlan(playerGuardBroken);
         EnterState(State.Attack);
+    }
+
+    bool TryStartAbility(float distance)
+    {
+        if (ability == null) return false;
+        if (Time.time < nextAbilityDecisionTime) return false;
+
+        float minI = Mathf.Max(0.05f, abilityDecisionMinInterval);
+        float maxI = Mathf.Max(minI, abilityDecisionMaxInterval);
+        nextAbilityDecisionTime = Time.time + Random.Range(minI, maxI);
+
+        if (enableAbilityHeal && ShouldStartHeal(distance))
+        {
+            if (Random.value <= abilityHealChance &&
+                ability.TryCast(EnemyAbilitySystem.AbilityType.Heal, target))
+            {
+                if (block != null) block.RequestBlock(false);
+                ResetPlan();
+                StopMove();
+                EnterState(State.Ability);
+                return true;
+            }
+        }
+
+        if (enableAbilityShockwaveAoe && ShouldStartShockwaveAoe(distance))
+        {
+            if (Random.value <= abilityShockwaveAoeChance &&
+                ability.TryCast(EnemyAbilitySystem.AbilityType.ShockwaveAoe, target))
+            {
+                if (block != null) block.RequestBlock(false);
+                ResetPlan();
+                StopMove();
+                EnterState(State.Ability);
+                return true;
+            }
+        }
+
+        if (enableAbilityShockwaveCone && ShouldStartShockwaveCone(distance))
+        {
+            if (Random.value <= abilityShockwaveConeChance &&
+                ability.TryCast(EnemyAbilitySystem.AbilityType.ShockwaveCone, target))
+            {
+                if (block != null) block.RequestBlock(false);
+                ResetPlan();
+                StopMove();
+                EnterState(State.Ability);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool ShouldStartHeal(float distance)
+    {
+        if (selfStats == null) return false;
+        if (distance > abilityHealDecisionDistance) return false;
+        if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.Heal)) return false;
+
+        float hpPercent = (float)selfStats.CurrentHP / Mathf.Max(1f, selfStats.maxHP);
+        return hpPercent <= abilityHealHpThreshold;
+    }
+
+    bool ShouldStartShockwaveAoe(float distance)
+    {
+        if (distance > abilityShockwaveAoeDecisionDistance) return false;
+        if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.ShockwaveAoe)) return false;
+        return ability.CanAoeTarget(target);
+    }
+
+    bool ShouldStartShockwaveCone(float distance)
+    {
+        if (distance > abilityShockwaveConeDecisionDistance) return false;
+        if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.ShockwaveCone)) return false;
+        return ability.CanConeTarget(target);
     }
 
     void HandleHitLanded(AttackData data)
@@ -996,6 +1109,14 @@ public class Combat : MonoBehaviour, IEnemyCombat
         {
             cooldownInited = false;
             ExitCooldownPosture();
+        }
+
+        if (s == State.Ability)
+        {
+            navigator.Stop();
+            StopMove();
+            ExitCooldownPosture();
+            cooldownInited = false;
         }
 
         if (s != State.Attack)
