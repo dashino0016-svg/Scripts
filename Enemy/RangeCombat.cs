@@ -141,6 +141,13 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     [Header("Smoothing")]
     public float speedLevelChangeRate = 5f;
 
+    [Header("Ability - Heal")]
+    public bool enableAbilityHeal = true;
+    [Range(0f, 1f)] public float abilityHealHpThreshold = 0.3f;
+
+    [Header("Ability - Shockwave")]
+    public bool enableAbilityShockwave = true;
+
     // =========================
     // runtime refs
     // =========================
@@ -150,6 +157,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     EnemyController controller;
     Animator anim;
     CombatReceiver receiver;
+    EnemyAbilitySystem ability;
 
     MeleeFighter meleeFighter;     // enemy melee weapon
     RangeFighter rangeFighter;     // enemy ranged weapon
@@ -170,7 +178,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     enum Zone { Approach, Shoot, Buffer, Melee }
     Zone zone = Zone.Approach;
 
-    enum State { Approach, Shoot, RangedAttack, Engage, Block, Attack, Retreat, Cooldown }
+    enum State { Approach, Shoot, RangedAttack, Engage, Block, Attack, Retreat, Ability, Cooldown }
     State state = State.Approach;
 
     // ranged decision gating
@@ -228,6 +236,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         controller = GetComponent<EnemyController>();
         anim = GetComponent<Animator>();
         receiver = GetComponent<CombatReceiver>();
+        ability = GetComponent<EnemyAbilitySystem>();
 
         meleeFighter = GetComponent<MeleeFighter>();
         rangeFighter = GetComponent<RangeFighter>();
@@ -327,6 +336,12 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
             return;
         }
 
+        if (ability != null && ability.IsInAbilityLock)
+        {
+            StopMove();
+            return;
+        }
+
         if (targetFighter == null || targetStats == null) CacheTargetRefs();
 
         Vector3 toTarget3D = GetTargetPoint() - transform.position;
@@ -341,6 +356,20 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
         // zone update with hysteresis
         zone = UpdateZone(zone, distance);
+
+        if (state == State.Ability && (ability == null || !ability.IsInAbilityLock))
+        {
+            if (zone == Zone.Melee)
+            {
+                EnterState(State.Cooldown);
+                cooldownContext = CooldownContext.Melee;
+                cooldownReturnState = State.Engage;
+            }
+            else
+            {
+                EnterState(State.Shoot);
+            }
+        }
 
         // self retreat (guard broken) has highest priority
         bool retreatActive = (selfStats != null) && selfStats.IsGuardBroken;
@@ -409,7 +438,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
                     EnterState(State.Shoot);
                 }
 
-                UpdateRanged(zone, toTarget);
+                UpdateRanged(zone, toTarget, distance);
                 return;
 
             case Zone.Melee:
@@ -503,7 +532,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         move.SetMoveSpeedLevel(Mathf.RoundToInt(currentSpeedLevel));
     }
 
-    void UpdateRanged(Zone z, Vector3 toTarget)
+    void UpdateRanged(Zone z, Vector3 toTarget, float distance)
     {
         if (state == State.Cooldown)
         {
@@ -513,6 +542,9 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
             UpdateCooldown(toTarget, cachedPlayerGuardBroken);
             return;
         }
+
+        if (state == State.Shoot && TryStartAbility(distance))
+            return;
 
         if (state == State.RangedAttack)
         {
@@ -603,6 +635,9 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
     void UpdateMeleeEngage(float distance, Vector3 toTarget, bool playerGuardBroken)
     {
+        if (TryStartAbility(distance))
+            return;
+
         if (!playerGuardBroken && distance <= defenseDistance && ShouldStartBlock(distance))
         {
             EnterState(State.Block);
@@ -634,6 +669,53 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
         StartNormalPlan(playerGuardBroken);
         EnterState(State.Attack);
+    }
+
+    bool TryStartAbility(float distance)
+    {
+        if (ability == null) return false;
+
+        if (enableAbilityHeal && ShouldStartHeal())
+        {
+            if (ability.TryCast(EnemyAbilitySystem.AbilityType.Heal, target))
+            {
+                if (block != null) block.RequestBlock(false);
+                ResetPlan();
+                StopMove();
+                EnterState(State.Ability);
+                return true;
+            }
+        }
+
+        if (enableAbilityShockwave && ShouldStartShockwave(distance))
+        {
+            if (ability.TryCast(EnemyAbilitySystem.AbilityType.Shockwave, target))
+            {
+                if (block != null) block.RequestBlock(false);
+                ResetPlan();
+                StopMove();
+                EnterState(State.Ability);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool ShouldStartHeal()
+    {
+        if (selfStats == null) return false;
+        if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.Heal)) return false;
+
+        float hpPercent = (float)selfStats.CurrentHP / Mathf.Max(1f, selfStats.maxHP);
+        return hpPercent <= abilityHealHpThreshold;
+    }
+
+    bool ShouldStartShockwave(float distance)
+    {
+        if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.Shockwave)) return false;
+        if (distance > ability.ShockwaveDecisionRange && ability.ShockwaveDecisionRange > 0f) return false;
+        return ability.CanShockwaveTarget(target);
     }
 
     void WalkApproach(Vector3 toTarget)
@@ -983,6 +1065,14 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         {
             cooldownInited = false;
             ExitCooldownPosture();
+        }
+
+        if (s == State.Ability)
+        {
+            navigator.Stop();
+            StopMove();
+            ExitCooldownPosture();
+            cooldownInited = false;
         }
 
         // only keep plan when actively in melee Attack state
