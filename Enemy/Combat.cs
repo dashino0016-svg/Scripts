@@ -149,12 +149,12 @@ public class Combat : MonoBehaviour, IEnemyCombat
     public float abilityDecisionMaxInterval = 0.65f;
 
     [Header("Ability - Heal (Ability3)")]
-    public bool enableAbilityHeal = true;
+    public bool enableAbilityHeal = false;
     [Range(0f, 1f)] public float abilityHealHpThreshold = 0.3f;
     [Range(0f, 1f)] public float abilityHealChance = 0.6f;
 
     [Header("Ability - Shockwave (Ability1 = Cone / Ability2 = AoE)")]
-    public bool enableAbilityShockwave = true;
+    public bool enableAbilityShockwave = false;
     [Range(0f, 1f)] public float abilityShockwaveConeChance = 0.35f;
     [Range(0f, 1f)] public float abilityShockwaveAoeChance = 0.35f;
 

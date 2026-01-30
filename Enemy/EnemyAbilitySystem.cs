@@ -67,10 +67,6 @@ public class EnemyAbilitySystem : MonoBehaviour
     [FormerlySerializedAs("shockwaveAoeRange")]
     [SerializeField] float shockwaveAoeRange = 6f;
 
-    // 兼容旧序列化：不再消耗“能力槽”，只保留字段避免丢 Inspector 值
-    [HideInInspector, FormerlySerializedAs("shockwaveCost")]
-    [SerializeField] int deprecatedShockwaveCost = 0;
-
     // =========================
     // Heal (Ability3)
     // =========================
@@ -80,10 +76,6 @@ public class EnemyAbilitySystem : MonoBehaviour
 
     [FormerlySerializedAs("healCooldown")]
     [SerializeField] float healCooldown = 10f;
-
-    // 兼容旧序列化：不再消耗“能力槽”，只保留字段避免丢 Inspector 值
-    [HideInInspector, FormerlySerializedAs("healCost")]
-    [SerializeField] int deprecatedHealCost = 0;
 
     // =========================
     // runtime
