@@ -685,15 +685,6 @@ public class Combat : MonoBehaviour, IEnemyCombat
         return false;
     }
 
-    bool ShouldStartHeal()
-    {
-        if (selfStats == null) return false;
-        if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.Ability3)) return false;
-
-        float hpPercent = (float)selfStats.CurrentHP / Mathf.Max(1f, selfStats.maxHP);
-        return hpPercent <= abilityHealHpThreshold;
-    }
-
     bool ShouldStartShockwaveCone()
     {
         if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.Ability1)) return false;
