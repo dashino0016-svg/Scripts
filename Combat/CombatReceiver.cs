@@ -11,6 +11,7 @@ public class CombatReceiver : MonoBehaviour, IHittable
     Animator anim;
     BlockController block;
     CombatStats stats;
+    HitReactionFilter reactionFilter;
 
     Transform lastAttacker;
     bool isInHitLock;
@@ -108,6 +109,7 @@ public class CombatReceiver : MonoBehaviour, IHittable
         anim = GetComponent<Animator>();
         block = GetComponent<BlockController>();
         stats = GetComponent<CombatStats>();
+        reactionFilter = GetComponent<HitReactionFilter>();
 
         reactLayer = anim.GetLayerIndex("React Layer");
         if (reactLayer < 0) reactLayer = 0; // 找不到就回退到0层
@@ -215,7 +217,12 @@ public class CombatReceiver : MonoBehaviour, IHittable
         }
 
         // 3 命中
-        return new HitResult(HitResultType.Hit, attackData.hitReaction);
+        HitReactionType reaction = attackData.hitReaction;
+        if (reactionFilter != null)
+            reaction = reactionFilter.Filter(reaction);
+
+        return new HitResult(HitResultType.Hit, reaction);
+
     }
 
     // ✅ 攻击型能力（Ability1/Ability2）造成的伤害不计入特殊值积累
