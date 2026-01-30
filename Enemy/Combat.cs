@@ -148,11 +148,6 @@ public class Combat : MonoBehaviour, IEnemyCombat
     public float abilityDecisionMinInterval = 0.35f;
     public float abilityDecisionMaxInterval = 0.65f;
 
-    [Header("Ability - Heal (Ability3)")]
-    public bool enableAbilityHeal = false;
-    [Range(0f, 1f)] public float abilityHealHpThreshold = 0.3f;
-    [Range(0f, 1f)] public float abilityHealChance = 0.6f;
-
     [Header("Ability - Shockwave (Ability1 = Cone / Ability2 = AoE)")]
     public bool enableAbilityShockwave = false;
     [Range(0f, 1f)] public float abilityShockwaveConeChance = 0.35f;
@@ -650,21 +645,6 @@ public class Combat : MonoBehaviour, IEnemyCombat
         float minI = Mathf.Max(0.05f, abilityDecisionMinInterval);
         float maxI = Mathf.Max(minI, abilityDecisionMaxInterval);
         nextAbilityDecisionTime = Time.time + Random.Range(minI, maxI);
-
-        // =========================
-        // Ability3：Heal
-        // =========================
-        if (enableAbilityHeal && ShouldStartHeal() && Random.value <= abilityHealChance)
-        {
-            if (ability.TryCast(EnemyAbilitySystem.AbilityType.Ability3, target))
-            {
-                if (block != null) block.RequestBlock(false);
-                ResetPlan();
-                StopMove();
-                EnterState(State.Ability);
-                return true;
-            }
-        }
 
         // =========================
         // Ability1/2：Shockwave（Cone / AoE）

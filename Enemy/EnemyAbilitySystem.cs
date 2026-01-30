@@ -7,7 +7,6 @@ public class EnemyAbilitySystem : MonoBehaviour
     /// Animator triggers (固定)：
     /// - Ability1: Shockwave Cone
     /// - Ability2: Shockwave AoE
-    /// - Ability3: Heal
     ///
     /// Event authority:
     /// - AbilityBegin / AbilityEnd 控制 isInAbilityLock
@@ -17,17 +16,14 @@ public class EnemyAbilitySystem : MonoBehaviour
     {
         // legacy names (保持旧代码可编译)
         Shockwave = 0,
-        Heal = 2,
 
         // new explicit actions / animations
         Ability1 = 0,
         Ability2 = 1,
-        Ability3 = 2,
     }
 
     const string TriggerAbility1 = "Ability1";
     const string TriggerAbility2 = "Ability2";
-    const string TriggerAbility3 = "Ability3";
 
     [Header("Refs")]
     [SerializeField] CombatStats stats;
@@ -68,16 +64,6 @@ public class EnemyAbilitySystem : MonoBehaviour
     [SerializeField] float shockwaveAoeRange = 6f;
 
     // =========================
-    // Heal (Ability3)
-    // =========================
-    [Header("Heal (Ability3)")]
-    [SerializeField] bool enableHeal = true;
-    [SerializeField] int healAmount = 20;
-
-    [FormerlySerializedAs("healCooldown")]
-    [SerializeField] float healCooldown = 10f;
-
-    // =========================
     // runtime
     // =========================
     AbilityType pending;
@@ -87,7 +73,6 @@ public class EnemyAbilitySystem : MonoBehaviour
     bool isInAbilityLock;
 
     float nextShockwaveAllowedTime;
-    float nextHealAllowedTime;
 
     public bool IsInAbilityLock => isInAbilityLock;
 
@@ -214,7 +199,6 @@ public class EnemyAbilitySystem : MonoBehaviour
         {
             AbilityType.Ability1 => enableShockwave && shockwaveUseCone,
             AbilityType.Ability2 => enableShockwave && shockwaveUseAoe,
-            AbilityType.Ability3 => enableHeal,
             _ => false
         };
     }
@@ -225,7 +209,6 @@ public class EnemyAbilitySystem : MonoBehaviour
         {
             AbilityType.Ability1 => Time.time >= nextShockwaveAllowedTime,
             AbilityType.Ability2 => Time.time >= nextShockwaveAllowedTime,
-            AbilityType.Ability3 => Time.time >= nextHealAllowedTime,
             _ => false
         };
     }
@@ -238,9 +221,6 @@ public class EnemyAbilitySystem : MonoBehaviour
             case AbilityType.Ability2:
                 nextShockwaveAllowedTime = Time.time + Mathf.Max(0f, shockwaveCooldown);
                 break;
-            case AbilityType.Ability3:
-                nextHealAllowedTime = Time.time + Mathf.Max(0f, healCooldown);
-                break;
         }
     }
 
@@ -252,7 +232,6 @@ public class EnemyAbilitySystem : MonoBehaviour
         {
             AbilityType.Ability1 => TriggerAbility1,
             AbilityType.Ability2 => TriggerAbility2,
-            AbilityType.Ability3 => TriggerAbility3,
             _ => string.Empty
         };
 
@@ -294,10 +273,6 @@ public class EnemyAbilitySystem : MonoBehaviour
                 break;
             case AbilityType.Ability2:
                 PerformShockwaveAoe(pendingTarget);
-                break;
-            case AbilityType.Ability3:
-                if (stats != null)
-                    stats.HealHP(healAmount);
                 break;
         }
 
