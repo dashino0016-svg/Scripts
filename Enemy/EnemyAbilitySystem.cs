@@ -106,6 +106,9 @@ public class EnemyAbilitySystem : MonoBehaviour
         // 受击锁期间：取消 pending（避免 Impact 时结算）
         if (hasPending && IsInHitLock())
             CancelPending();
+
+        if (isInAbilityLock && IsInHitLock())
+            isInAbilityLock = false;
     }
 
     bool IsInHitLock()
