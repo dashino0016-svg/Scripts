@@ -145,8 +145,8 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
     [Header("Ability - Decision (Probability + Distance)")]
     [Tooltip("AI will only roll ability usage at this interval to avoid spamming per-frame.")]
-    public float abilityDecisionMinInterval = 0.35f;
-    public float abilityDecisionMaxInterval = 0.65f;
+    public float abilityDecisionMinInterval = 10f;
+    public float abilityDecisionMaxInterval = 20f;
 
     [Header("Ability - Shockwave (Ability1 = Cone / Ability2 = AoE)")]
     public bool enableAbilityShockwave = false;

@@ -52,7 +52,7 @@ public class EnemyAbilitySystem : MonoBehaviour
     [SerializeField] AttackConfig shockwaveAoeAttackConfig;
 
     [FormerlySerializedAs("shockwaveCooldown")]
-    [SerializeField] float shockwaveCooldown = 6f;
+    [SerializeField] float shockwaveCooldown = 20f;
 
     [FormerlySerializedAs("shockwaveConeRange")]
     [SerializeField] float shockwaveConeRange = 6f;
