@@ -7,6 +7,10 @@ public class EnemyNavigator : MonoBehaviour
     NavMeshAgent agent;
     EnemyController enemyController;
 
+    [Header("NavMesh")]
+    [SerializeField] float navMeshSampleRadius = 2f;
+    [SerializeField] int navMeshAreaMask = NavMesh.AllAreas;
+
     // ✅ 基准参数（未缩放）
     float baseSpeed;
     float baseAngularSpeed;
@@ -71,10 +75,16 @@ public class EnemyNavigator : MonoBehaviour
 
     public void SetTarget(Vector3 worldPos)
     {
+        EnsureAgentOnNavMesh(transform.position);
+
         if (!IsAgentReady())
             return;
 
-        agent.SetDestination(worldPos);
+        Vector3 targetPos = worldPos;
+        if (TryGetNavMeshPosition(worldPos, out var sampled))
+            targetPos = sampled;
+
+        agent.SetDestination(targetPos);
     }
 
     public void Stop()
@@ -104,11 +114,10 @@ public class EnemyNavigator : MonoBehaviour
         if (agent == null)
             return;
 
+        EnsureAgentOnNavMesh(worldPos);
+
         if (!agent.isOnNavMesh)
-        {
-            agent.Warp(worldPos);
             return;
-        }
 
         agent.nextPosition = worldPos;
     }
@@ -118,6 +127,33 @@ public class EnemyNavigator : MonoBehaviour
     bool IsAgentReady()
     {
         return agent != null && agent.isOnNavMesh;
+    }
+
+    void EnsureAgentOnNavMesh(Vector3 worldPos)
+    {
+        if (agent == null || agent.isOnNavMesh)
+            return;
+
+        if (TryGetNavMeshPosition(worldPos, out var sampled))
+        {
+            agent.Warp(sampled);
+        }
+        else
+        {
+            agent.Warp(worldPos);
+        }
+    }
+
+    bool TryGetNavMeshPosition(Vector3 worldPos, out Vector3 sampled)
+    {
+        if (NavMesh.SamplePosition(worldPos, out var hit, navMeshSampleRadius, navMeshAreaMask))
+        {
+            sampled = hit.position;
+            return true;
+        }
+
+        sampled = worldPos;
+        return false;
     }
 
 #if UNITY_EDITOR
