@@ -570,11 +570,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
         navigator.SetTarget(GetTargetPoint());
 
         Vector3 dir = navigator.GetMoveDirection();
-
-        if (dir == Vector3.zero)
-        {
-            dir = Vector3.zero;
-        }
+        if (dir == Vector3.zero) dir = toTarget.normalized;
 
         int targetSpeed = runAttackArming ? sprintSpeedLevel : runSpeedLevel;
 
@@ -718,11 +714,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
         navigator.SetTarget(GetTargetPoint());
 
         Vector3 dir = navigator.GetMoveDirection();
-
-        if (dir == Vector3.zero)
-        {
-            dir = Vector3.zero;
-        }
+        if (dir == Vector3.zero) dir = toTarget.normalized;
 
         currentSpeedLevel = Mathf.MoveTowards(
             currentSpeedLevel, walkSpeedLevel, speedLevelChangeRate * dt);
@@ -736,11 +728,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
         navigator.SetTarget(GetTargetPoint());
 
         Vector3 dir = navigator.GetMoveDirection();
-
-        if (dir == Vector3.zero)
-        {
-            dir = Vector3.zero;
-        }
+        if (dir == Vector3.zero) dir = toTarget.normalized;
 
         currentSpeedLevel = Mathf.MoveTowards(
             currentSpeedLevel, runSpeedLevel, speedLevelChangeRate * dt);

@@ -4,26 +4,14 @@ using UnityEngine.AI;
 [RequireComponent(typeof(NavMeshAgent))]
 public class EnemyNavigator : MonoBehaviour
 {
-    [Header("Repath")]
-    [SerializeField] float repathInterval = 0.2f;
-    [SerializeField] float destinationChangeThreshold = 0.25f;
-
-    [Header("Destination Sampling")]
-    [SerializeField] float sampleRadius = 2f;
-
-    [Header("Sync")]
-    [SerializeField] float warpThreshold = 1.0f;
-
     NavMeshAgent agent;
     EnemyController enemyController;
 
+    // ✅ 基准参数（未缩放）
     float baseSpeed;
     float baseAngularSpeed;
     float baseAcceleration;
     float baseStoppingDistance;
-
-    float nextRepathTime;
-    Vector3 lastDestination;
 
     public bool HasPath =>
         agent != null &&
@@ -31,21 +19,22 @@ public class EnemyNavigator : MonoBehaviour
         agent.hasPath &&
         !agent.pathPending;
 
-    public bool HasCompletePath =>
-        HasPath && agent.pathStatus == NavMeshPathStatus.PathComplete;
-
     void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
         enemyController = GetComponent<EnemyController>();
 
-        // 我们自己移动（CharacterController），NavMeshAgent 只负责算路
         agent.updatePosition = false;
         agent.updateRotation = false;
 
-        // ✅ 不要把 speed/acceleration 设 0，否则 desiredVelocity 永远是 0
+        // 你的原始初始化
+        agent.speed = 0f;
+        agent.angularSpeed = 0f;
+        agent.acceleration = 0f;
+        agent.stoppingDistance = 0f;
+
+        // 记录基准
         CaptureBaseFromAgent();
-        lastDestination = transform.position;
     }
 
     void Update()
@@ -54,30 +43,20 @@ public class EnemyNavigator : MonoBehaviour
 
         float scale = (enemyController != null) ? enemyController.LocalTimeScale : 1f;
 
-        agent.speed = baseSpeed * scale;
-        agent.angularSpeed = baseAngularSpeed * scale;
-        agent.acceleration = baseAcceleration * scale;
-        agent.stoppingDistance = baseStoppingDistance;
-    }
-
-    void LateUpdate()
-    {
-        if (agent == null) return;
-
-        // ✅ 把 agent 的“内部位置”拉回真实位置，避免走散
-        Vector3 pos = transform.position;
-
-        if (!agent.isOnNavMesh)
+        // scale=1 时允许外部逻辑修改 agent 参数（我们同步更新基准）
+        if (Mathf.Abs(scale - 1f) < 0.0001f)
         {
-            agent.Warp(pos);
+            CaptureBaseFromAgent();
             return;
         }
 
-        float sqr = (agent.nextPosition - pos).sqrMagnitude;
-        if (sqr > warpThreshold * warpThreshold)
-            agent.Warp(pos);
-        else
-            agent.nextPosition = pos;
+        // scale!=1 时，用“基准 * scale”
+        agent.speed = baseSpeed * scale;
+        agent.angularSpeed = baseAngularSpeed * scale;
+        agent.acceleration = baseAcceleration * scale;
+
+        // stoppingDistance 通常不应缩放（距离是空间量），保持基准
+        agent.stoppingDistance = baseStoppingDistance;
     }
 
     void CaptureBaseFromAgent()
@@ -95,21 +74,6 @@ public class EnemyNavigator : MonoBehaviour
         if (!IsAgentReady())
             return;
 
-        // 降低 SetDestination 频率（性能 + 抖动）
-        if (Time.time < nextRepathTime)
-            return;
-
-        // 目标点变化不大就不重算
-        if ((worldPos - lastDestination).sqrMagnitude < destinationChangeThreshold * destinationChangeThreshold)
-            return;
-
-        nextRepathTime = Time.time + repathInterval;
-        lastDestination = worldPos;
-
-        // ✅ 把目标投影到 NavMesh 上（避免目标点在空中/不可走面）
-        if (NavMesh.SamplePosition(worldPos, out var hit, sampleRadius, agent.areaMask))
-            worldPos = hit.position;
-
         agent.SetDestination(worldPos);
     }
 
@@ -123,22 +87,22 @@ public class EnemyNavigator : MonoBehaviour
 
     public Vector3 GetMoveDirection()
     {
-        if (!HasCompletePath)
+        if (!HasPath)
             return Vector3.zero;
 
-        // ✅ 用 steeringTarget 作为下一步路点（不依赖 desiredVelocity）
-        Vector3 to = agent.steeringTarget - transform.position;
-        to.y = 0f;
+        Vector3 desired = agent.desiredVelocity;
+        desired.y = 0f;
 
-        if (to.sqrMagnitude < 0.0001f)
+        if (desired.sqrMagnitude < 0.0001f)
             return Vector3.zero;
 
-        return to.normalized;
+        return desired.normalized;
     }
 
     public void SyncPosition(Vector3 worldPos)
     {
-        if (agent == null) return;
+        if (agent == null)
+            return;
 
         if (!agent.isOnNavMesh)
         {
@@ -149,8 +113,27 @@ public class EnemyNavigator : MonoBehaviour
         agent.nextPosition = worldPos;
     }
 
+    /* ================= Internal ================= */
+
     bool IsAgentReady()
     {
         return agent != null && agent.isOnNavMesh;
     }
+
+#if UNITY_EDITOR
+    void OnDrawGizmosSelected()
+    {
+        if (!HasPath)
+            return;
+
+        Gizmos.color = Color.green;
+        Vector3 prev = transform.position;
+
+        foreach (var c in agent.path.corners)
+        {
+            Gizmos.DrawLine(prev, c);
+            prev = c;
+        }
+    }
+#endif
 }
