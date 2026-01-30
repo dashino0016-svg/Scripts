@@ -384,6 +384,9 @@ public class PlayerController : MonoBehaviour
 
     void HandleLockOnInput()
     {
+        if (sword == null || lockOn == null)
+            return;
+
         if (!sword.IsArmed)
             return;
 
@@ -494,6 +497,9 @@ public class PlayerController : MonoBehaviour
 
     void HandleSwordInput()
     {
+        if (sword == null)
+            return;
+
         // ✅ 空中/跳跃/下落：禁止拔剑/收剑
         if (move != null && !move.IsGrounded)
             return;
@@ -510,7 +516,7 @@ public class PlayerController : MonoBehaviour
 
         if (IsInActionLock || isBlocking) return;
 
-        if (lockOn.IsLocked && sword.IsArmed)
+        if (lockOn != null && lockOn.IsLocked && sword.IsArmed)
             return;
 
         if (sword.IsArmed)
@@ -689,6 +695,12 @@ public class PlayerController : MonoBehaviour
 
     void HandleBlockInput()
     { // ✅ 1) 空中（跳/下落）禁止防御
+        if (block == null)
+        {
+            isBlocking = false;
+            return;
+        }
+
         if (move != null && !move.IsGrounded)
         {
             block.RequestBlock(false);
@@ -718,7 +730,7 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        if (!sword.IsArmed)
+        if (sword == null || !sword.IsArmed)
         {
             block.RequestBlock(false);
             isBlocking = false;

@@ -100,7 +100,6 @@ public class PlayerMove : MonoBehaviour
     }
 
     Vector3 airHorizontalVelocity;
-    float airBaseSpeed;
 
     float velocityY;
     float lastAirVelocityY;
@@ -362,8 +361,7 @@ public class PlayerMove : MonoBehaviour
         velocityY = jf;
 
         Vector3 dir = CalculateMoveDirection();
-        airBaseSpeed = GetMoveSpeed(dir);
-        airHorizontalVelocity = dir * airBaseSpeed;
+        airHorizontalVelocity = dir * GetMoveSpeed(dir);
 
         if (input.sqrMagnitude > 0.01f)
         {
@@ -477,7 +475,6 @@ public class PlayerMove : MonoBehaviour
 
             velocityY = groundedGravity;
             airHorizontalVelocity = Vector3.zero;
-            airBaseSpeed = 0f;
         }
     }
 
