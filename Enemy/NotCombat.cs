@@ -142,6 +142,13 @@ public class NotCombat : MonoBehaviour
             return;
         }
 
+        if (dir == Vector3.zero)
+        {
+            move.SetMoveDirection(Vector3.zero);
+            move.SetMoveSpeedLevel(0);
+            return;
+        }
+
         move.SetMoveDirection(dir.normalized);
         move.SetMoveSpeedLevel(1); // Walk
     }
@@ -155,8 +162,6 @@ public class NotCombat : MonoBehaviour
         if (navDir != Vector3.zero)
             return navDir;
 
-        Vector3 dir = fallbackTarget - transform.position;
-        dir.y = 0f;
-        return dir.normalized;
+        return Vector3.zero;
     }
 }
