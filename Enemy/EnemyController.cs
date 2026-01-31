@@ -25,7 +25,7 @@ public class EnemyController : MonoBehaviour
     public LayerMask obstacleMask;
 
     [Header("Combat Lose Buffer")]
-    public float combatLoseDelay = 4f;
+    public float combatLoseDelay = 6f;
 
     [Header("Combat Sticky Target (Recommended)")]
     public bool stickyTargetInCombat = true;
