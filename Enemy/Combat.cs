@@ -570,22 +570,12 @@ public class Combat : MonoBehaviour, IEnemyCombat
         navigator.SetTarget(GetTargetPoint());
 
         Vector3 dir = navigator.GetMoveDirection();
-        if (dir == Vector3.zero)
-        {
-            currentSpeedLevel = Mathf.MoveTowards(
-                currentSpeedLevel, 0f, speedLevelChangeRate * dt);
-            move.SetMoveDirection(Vector3.zero);
-            move.SetMoveSpeedLevel(Mathf.RoundToInt(currentSpeedLevel));
-            dir = Vector3.zero;
-        }
+        if (dir == Vector3.zero) dir = toTarget.normalized;
 
         int targetSpeed = runAttackArming ? sprintSpeedLevel : runSpeedLevel;
 
-        if (dir != Vector3.zero)
-        {
-            currentSpeedLevel = Mathf.MoveTowards(
-                currentSpeedLevel, targetSpeed, speedLevelChangeRate * dt);
-        }
+        currentSpeedLevel = Mathf.MoveTowards(
+            currentSpeedLevel, targetSpeed, speedLevelChangeRate * dt);
 
         move.SetMoveDirection(dir);
         move.SetMoveSpeedLevel(Mathf.RoundToInt(currentSpeedLevel));
@@ -724,14 +714,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
         navigator.SetTarget(GetTargetPoint());
 
         Vector3 dir = navigator.GetMoveDirection();
-        if (dir == Vector3.zero)
-        {
-            currentSpeedLevel = Mathf.MoveTowards(
-                currentSpeedLevel, 0f, speedLevelChangeRate * dt);
-            move.SetMoveDirection(Vector3.zero);
-            move.SetMoveSpeedLevel(Mathf.RoundToInt(currentSpeedLevel));
-            return;
-        }
+        if (dir == Vector3.zero) dir = toTarget.normalized;
 
         currentSpeedLevel = Mathf.MoveTowards(
             currentSpeedLevel, walkSpeedLevel, speedLevelChangeRate * dt);
@@ -745,14 +728,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
         navigator.SetTarget(GetTargetPoint());
 
         Vector3 dir = navigator.GetMoveDirection();
-        if (dir == Vector3.zero)
-        {
-            currentSpeedLevel = Mathf.MoveTowards(
-                currentSpeedLevel, 0f, speedLevelChangeRate * dt);
-            move.SetMoveDirection(Vector3.zero);
-            move.SetMoveSpeedLevel(Mathf.RoundToInt(currentSpeedLevel));
-            return;
-        }
+        if (dir == Vector3.zero) dir = toTarget.normalized;
 
         currentSpeedLevel = Mathf.MoveTowards(
             currentSpeedLevel, runSpeedLevel, speedLevelChangeRate * dt);
