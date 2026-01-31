@@ -126,7 +126,12 @@ public class LostTarget : MonoBehaviour
         navigator.SetTarget(homePoint.position);
 
         Vector3 dir = navigator.GetMoveDirection();
-        if (dir == Vector3.zero) dir = toHome.normalized;
+        if (dir == Vector3.zero)
+        {
+            move.SetMoveDirection(Vector3.zero);
+            move.SetMoveSpeedLevel(0);
+            return;
+        }
 
         move.SetMoveDirection(dir.normalized);
         move.SetMoveSpeedLevel(returnHomeSpeedLevel);
