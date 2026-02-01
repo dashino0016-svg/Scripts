@@ -519,7 +519,8 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         navigator.Stop();
         StopMove();
         RotateToTarget(toTarget);
-
+        if (!CanStartAttackFacingGate())
+            return;
         if (Time.time < nextRangedDecisionTime)
             return;
 
@@ -603,6 +604,9 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         }
 
         StopMove();
+
+        if (!CanStartAttackFacingGate())
+            return;
 
         if (!playerGuardBroken && ShouldStartBlock(distance))
         {
@@ -1242,6 +1246,15 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         currentSpeedLevel = 0f;
         move.SetMoveDirection(Vector3.zero);
         move.SetMoveSpeedLevel(0);
+    }
+
+    bool CanStartAttackFacingGate()
+    {
+        if (!requireTargetInFrontToAttack) return true;
+        if (receiver == null) return true;
+        if (!receiver.DirectionalBlockEnabled) return true;
+
+        return receiver.IsWorldPointInFront(GetTargetPoint());
     }
 
     void RotateToTarget(Vector3 dir)

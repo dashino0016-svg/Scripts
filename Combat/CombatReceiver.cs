@@ -41,9 +41,26 @@ public class CombatReceiver : MonoBehaviour, IHittable
 
     [Header("Directional Block (Front Only)")]
     [SerializeField] bool enableDirectionalBlock = true;
+    [SerializeField, Range(0f, 180f)] float blockEffectiveAngle = 120f;
+    // ===== Public read-only access (for AI gating) =====
+    public bool DirectionalBlockEnabled => enableDirectionalBlock;
+    public float BlockEffectiveAngle => blockEffectiveAngle;
 
-    // 180 = 身前半圆都能防（dot>=0）；你想更严格就改小，比如 120
-    [SerializeField, Range(0f, 180f)] float blockEffectiveAngle = 180f;
+    /// <summary>
+    /// 使用与防御完全一致的“前方扇形”判定：传入一个世界坐标点，判断它是否位于我前方有效角度内。
+    /// </summary>
+    public bool IsWorldPointInFront(Vector3 worldPoint)
+    {
+        if (!enableDirectionalBlock) return true;
+
+        Vector3 dir = worldPoint - transform.position;
+        dir.y = 0f;
+        if (dir.sqrMagnitude < 0.0001f) return true;
+        dir.Normalize();
+
+        float threshold = Mathf.Cos(0.5f * blockEffectiveAngle * Mathf.Deg2Rad);
+        return Vector3.Dot(transform.forward, dir) >= threshold;
+    }
 
     bool IsAttackFromFront(Transform attacker)
     {

@@ -621,6 +621,9 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
         StopMove();
 
+        if (!CanStartAttackFacingGate())
+            return;
+
         if (!playerGuardBroken && ShouldStartBlock(distance))
         {
             EnterState(State.Block);
@@ -1302,6 +1305,15 @@ public class Combat : MonoBehaviour, IEnemyCombat
         currentSpeedLevel = Mathf.MoveTowards(currentSpeedLevel, walkSpeedLevel, speedLevelChangeRate * dt);
         move.SetMoveDirection(worldDir);
         move.SetMoveSpeedLevel(Mathf.RoundToInt(currentSpeedLevel));
+    }
+
+    bool CanStartAttackFacingGate()
+    {
+        if (!requireTargetInFrontToAttack) return true;
+        if (receiver == null) return true;
+        if (!receiver.DirectionalBlockEnabled) return true;
+
+        return receiver.IsWorldPointInFront(GetTargetPoint());
     }
 
     void RotateToTarget(Vector3 dir)
