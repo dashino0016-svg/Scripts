@@ -1,19 +1,6 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// Ranged enemy combat AI.
-///
-/// Zones (far -> near):
-/// 1) Approach: run towards player until entering Shoot zone.
-/// 2) Shoot: shoot or reposition cooldown.
-/// 3) Buffer (too close): shoot or reposition cooldown (biased to walk back).
-/// 4) Melee: Combat-style melee decision (block/heavy/normal + cooldown).
-///
-/// Event authority: attack locks are only controlled by animation events
-/// (MeleeFighter: Begin~Combo~End, RangeFighter: Begin~End).
-/// This script only consumes IsInAttackLock / IsInComboWindow.
-/// </summary>
 [RequireComponent(typeof(EnemyMove))]
 [RequireComponent(typeof(EnemyNavigator))]
 public class RangeCombat : MonoBehaviour, IEnemyCombat
@@ -34,6 +21,10 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
     [Tooltip("Zone hysteresis to prevent thrashing when distance fluctuates around boundaries.")]
     public float zoneHysteresis = 0.6f;
+
+    [Header("Retreat (Guard Break)")]
+    [Tooltip("true=Retreat(破防/昏厥)期间锁定当前朝向(不再转向玩家)；false=保持原逻辑(持续朝向玩家)。默认 false")]
+    public bool retreatLockTurn = false;
 
     [Header("Rotate")]
     public float rotateSpeed = 4f;
@@ -346,7 +337,8 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
             navigator.Stop();
             StopMove();
 
-            RotateToTarget(toTarget);
+            if (!retreatLockTurn)
+                RotateToTarget(toTarget);
 
             if (state != State.Retreat)
                 EnterState(State.Retreat);

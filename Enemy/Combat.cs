@@ -27,6 +27,10 @@ public class Combat : MonoBehaviour, IEnemyCombat
     [Tooltip("只要进入该距离：允许防御/普通攻击/重攻击/反击等动作参与决策")]
     public float attackDecisionDistance = 1.2f;
 
+    [Header("Retreat (Guard Break)")]
+    [Tooltip("true=Retreat(破防/昏厥)期间锁定当前朝向(不再转向玩家)；false=保持原逻辑(持续朝向玩家)。默认 false")]
+    public bool retreatLockTurn = false;
+
     [Header("Rotate")]
     public float rotateSpeed = 4f;
 
@@ -396,7 +400,8 @@ public class Combat : MonoBehaviour, IEnemyCombat
             navigator.Stop();
             StopMove();
 
-            RotateToTarget(toTarget);
+            if (!retreatLockTurn)
+                RotateToTarget(toTarget);
 
             if (!motionLock && state != State.Retreat)
                 EnterState(State.Retreat);
