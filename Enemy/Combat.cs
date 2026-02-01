@@ -31,6 +31,10 @@ public class Combat : MonoBehaviour, IEnemyCombat
     [Tooltip("true=Retreat(破防/昏厥)期间锁定当前朝向(不再转向玩家)；false=保持原逻辑(持续朝向玩家)。默认 false")]
     public bool retreatLockTurn = false;
 
+    [Header("Attack Facing Gate")]
+    [Tooltip("攻击前要求目标位于前方扇形内（范围与 CombatReceiver 的 Directional Block 一致）。")]
+    public bool requireTargetInFrontToAttack = true;
+
     [Header("Rotate")]
     public float rotateSpeed = 4f;
 
