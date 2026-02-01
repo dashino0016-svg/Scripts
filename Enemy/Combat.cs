@@ -129,7 +129,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
     public float cooldownPostureMaxTime = 2f;
 
     public float cooldownIdleWeight = 1f;
-    public float cooldownWalkBackWeight = 2f;
+    public float cooldownWalkBackWeight = 1f;
     public float cooldownWalkLeftWeight = 2f;
     public float cooldownWalkRightWeight = 2f;
 
