@@ -30,7 +30,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     public float bufferZoneDistance = 5f;
 
     [Tooltip("(bufferZoneDistance, shootZoneDistance]: shoot zone: shoot + cooldown")]
-    public float shootZoneDistance = 12f;
+    public float shootZoneDistance = 20f;
 
     [Tooltip("Zone hysteresis to prevent thrashing when distance fluctuates around boundaries.")]
     public float zoneHysteresis = 0.6f;

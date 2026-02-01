@@ -154,7 +154,6 @@ public class CombatReceiver : MonoBehaviour, IHittable
         lastPerfectBlockTriggeredCounter = false;
 
         HitResult result = ResolveHit(attackData);
-        Debug.Log($"[ReceiveProjectile] target={name} blockComp={(block != null)} blocking={(block != null && block.IsBlocking)} perfect={(block != null && block.IsInPerfectWindow)} parryable={attackData.canBeParried} result={result.resultType}");
 
         // ✅ 记录本次是否为“防御命中”
         lastHitWasBlocked = (result.resultType == HitResultType.Blocked);

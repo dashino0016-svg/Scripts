@@ -19,8 +19,8 @@ public class Combat : MonoBehaviour, IEnemyCombat
     public int sprintSpeedLevel = 3;
 
     [Header("Range (Chase <-> Engage)")]
-    public float enterEngageDistance = 8f;
-    public float exitEngageDistance = 10f;
+    public float enterEngageDistance = 15f;
+    public float exitEngageDistance = 20f;
     public float outOfRangeGraceTime = 0.6f;
 
     [Header("Engage Distances (Only One Action Gate)")]

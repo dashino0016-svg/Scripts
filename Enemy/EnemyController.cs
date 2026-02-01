@@ -31,7 +31,7 @@ public class EnemyController : MonoBehaviour
     public bool stickyTargetInCombat = true;
 
     [Range(1f, 2f)]
-    public float combatMaintainRadiusMultiplier = 1.25f;
+    public float combatMaintainRadiusMultiplier = 2f;
 
     Transform target;
     CombatStats targetStats;
