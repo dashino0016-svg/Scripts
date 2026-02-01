@@ -25,7 +25,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
     [Header("Engage Distances (Only One Action Gate)")]
     [Tooltip("只要进入该距离：允许防御/普通攻击/重攻击/反击等动作参与决策")]
-    public float attackDecisionDistance = 1f;
+    public float attackDecisionDistance = 1.2f;
 
     [Header("Rotate")]
     public float rotateSpeed = 4f;
@@ -35,13 +35,13 @@ public class Combat : MonoBehaviour, IEnemyCombat
     public bool enableEngageRunBurst = true;
 
     [Range(0f, 1f)]
-    public float engageRunBurstChance = 0.5f;
+    public float engageRunBurstChance = 0.2f;
 
     [Range(0f, 1f)]
     public float engageRunBurstChanceWhenPlayerGuardBroken = 1f;
 
     [Tooltip("距离 >= 该值时才允许触发 Run 贴近（避免贴脸来回切速度）。")]
-    public float engageRunBurstMinDistance = 1f;
+    public float engageRunBurstMinDistance = 1.2f;
 
     [Tooltip("Run 贴近持续时间范围（秒）。")]
     public float engageRunBurstMinDuration = 2f;
@@ -97,9 +97,9 @@ public class Combat : MonoBehaviour, IEnemyCombat
     public bool enableDefense = true;
 
     [Tooltip("防御反应距离：只要玩家出手且距离 <= 该值，就允许进入防御。")]
-    public float defenseDistance = 1.5f;
+    public float defenseDistance = 2f;
 
-    [Range(0f, 1f)] public float blockChanceWhenPlayerAttacking = 1f;
+    [Range(0f, 1f)] public float blockChanceWhenPlayerAttacking = 0.7f;
     public float blockHoldMin = 1f;
     public float blockHoldMax = 2f;
     public float blockCooldown = 0f;
