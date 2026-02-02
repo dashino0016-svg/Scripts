@@ -165,9 +165,6 @@ public class RangeFighter : MonoBehaviour
         // Instantiate
         RangeProjectile p = Instantiate(projectilePrefab, muzzle.position, Quaternion.LookRotation(dir));
         p.Init(transform, dir, data);
-
-        // 单发：发射一次后清 pending（仍保持锁到 End）
-        pendingShoot = false;
     }
 
     AttackData BuildAttackDataFromConfig(AttackConfig cfg)
