@@ -25,6 +25,7 @@ public class PlayerController : MonoBehaviour
     public KeyCode ability2Key = KeyCode.R;
     public KeyCode ability3Key = KeyCode.T;
     public KeyCode ability4Key = KeyCode.H;
+    public KeyCode helicopterKey = KeyCode.Y;
 
     [Header("Ability Triggers (Animator)")]
     [SerializeField] string ability1Trigger = "Ability1";
@@ -812,6 +813,12 @@ public class PlayerController : MonoBehaviour
         {
             if (abilitySystem != null && abilitySystem.TryRequest(PlayerAbilitySystem.AbilityType.Ability4))
                 anim.SetTrigger(ability4Trigger);
+        }
+
+        if (Input.GetKeyDown(helicopterKey))
+        {
+            if (abilitySystem != null)
+                abilitySystem.TrySummonHelicopter();
         }
     }
 
