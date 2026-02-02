@@ -1,16 +1,17 @@
-﻿using UnityEngine;
+﻿using System;
+using UnityEngine;
 
 public class AssistDroneController : MonoBehaviour
 {
     [Header("Refs")]
     [Tooltip("整机/机身旋转的节点。为空则使用本物体 transform。")]
-    [SerializeField] private Transform bodyPivot;
+    [SerializeField] Transform bodyPivot;
 
-    [SerializeField] private Transform muzzle;
+    [SerializeField] Transform muzzle;
 
     [Header("Projectile (reuse RangeProjectile)")]
-    [SerializeField] private RangeProjectile projectilePrefab;
-    [SerializeField] private AttackConfig shotConfig;
+    [SerializeField] RangeProjectile projectilePrefab;
+    [SerializeField] AttackConfig shotConfig;
 
     [Header("Follow")]
     public Vector3 followOffset = new Vector3(0f, 2.2f, 0f);
@@ -35,50 +36,82 @@ public class AssistDroneController : MonoBehaviour
     public float fireRate = 4f; // shots per second
     public float fireRange = 30f;
     public bool requireLineOfSight = true;
-    [SerializeField, Range(0f, 10f)] private float spreadDegrees = 0.8f;
+    [SerializeField, Range(0f, 10f)] float spreadDegrees = 0.8f;
 
-    [Header("Lifetime / Depart")]
-    public float lifetime = 12f;
-    public float departUpSpeed = 6f;
-    public float departDuration = 1.2f;
+    Transform owner;
+    Transform attackerRoot;
 
-    private Transform player;
-    private float orbitPhase;
-    private float nextFireTime;
+    float orbitPhase;
+    float nextFireTime;
 
-    private Transform currentTarget;
-    private float targetLostTimer;
+    Transform currentTarget;
+    float targetLostTimer;
 
-    private bool departing;
-    private float lifeTimer;
+    bool warnedMissingRefs;
 
-    private bool warnedMissingRefs;
+    float highAltitudeHeight;
+    float enterDuration;
+    float exitDuration;
+    float lifetime;
 
-    public void Init(Transform playerTransform, float newLifetime)
+    float enterSpeed;
+    float exitSpeed;
+
+    float lifeTimer;
+
+    bool canFire;
+
+    enum DroneState
     {
-        player = playerTransform;
-        lifetime = newLifetime;
-
-        departing = false;
-        CancelInvoke(nameof(DestroySelf));
-
-        currentTarget = null;
-        targetLostTimer = 0f;
-
-        lifeTimer = 0f;
-        orbitPhase = Random.value * Mathf.PI * 2f;
-
-        if (player != null)
-            transform.position = player.position + followOffset;
-
-        if (bodyPivot == null) bodyPivot = transform;
+        Entering,
+        Active,
+        Exiting
     }
 
-    private void Update()
-    {
-        // 没初始化就等着（不自毁）
-        if (player == null) return;
+    DroneState state = DroneState.Entering;
 
+    Action onDespawned;
+
+    public void Init(
+        Transform ownerTransform,
+        Vector3 hoverOffset,
+        float highAltitude,
+        float enterDurationSeconds,
+        float exitDurationSeconds,
+        float newLifetime,
+        Action onDespawn
+    )
+    {
+        owner = ownerTransform;
+        followOffset = hoverOffset;
+        highAltitudeHeight = Mathf.Max(0f, highAltitude);
+        enterDuration = Mathf.Max(0f, enterDurationSeconds);
+        exitDuration = Mathf.Max(0f, exitDurationSeconds);
+        lifetime = Mathf.Max(0f, newLifetime);
+        onDespawned = onDespawn;
+
+        if (owner != null)
+        {
+            transform.position = owner.position + Vector3.up * highAltitudeHeight;
+        }
+
+        if (bodyPivot == null) bodyPivot = transform;
+
+        orbitPhase = UnityEngine.Random.value * Mathf.PI * 2f;
+        nextFireTime = 0f;
+        lifeTimer = 0f;
+        canFire = false;
+        state = DroneState.Entering;
+
+        Vector3 hoverPos = GetHoverPosition();
+        float distance = Vector3.Distance(transform.position, hoverPos);
+        enterSpeed = enterDuration <= 0.0001f ? float.MaxValue : distance / enterDuration;
+
+        SetAttackerRoot(owner);
+    }
+
+    void Update()
+    {
         if (!warnedMissingRefs)
         {
             if (muzzle == null || projectilePrefab == null || shotConfig == null)
@@ -88,33 +121,121 @@ public class AssistDroneController : MonoBehaviour
             }
         }
 
-        if (departing) return;
+        if (state == DroneState.Entering)
+        {
+            UpdateEntering();
+            return;
+        }
+
+        if (state == DroneState.Exiting)
+        {
+            UpdateExiting();
+            return;
+        }
+
+        UpdateActive();
+    }
+
+    void LateUpdate()
+    {
+        if (state != DroneState.Active)
+            return;
+
+        AimWholeBodyLate();
+    }
+
+    void UpdateEntering()
+    {
+        canFire = false;
+
+        Vector3 targetPos = GetHoverPosition();
+        if (enterSpeed == float.MaxValue)
+        {
+            transform.position = targetPos;
+            EnterActive();
+            return;
+        }
+
+        transform.position = Vector3.MoveTowards(transform.position, targetPos, enterSpeed * Time.deltaTime);
+
+        if (Vector3.Distance(transform.position, targetPos) <= 0.05f)
+            EnterActive();
+    }
+
+    void EnterActive()
+    {
+        state = DroneState.Active;
+        canFire = true;
+        lifeTimer = 0f;
+        currentTarget = null;
+        targetLostTimer = 0f;
+    }
+
+    void UpdateActive()
+    {
+        if (owner == null)
+        {
+            BeginExit();
+            return;
+        }
 
         lifeTimer += Time.deltaTime;
         if (lifeTimer >= lifetime)
         {
-            BeginDepart();
+            BeginExit();
             return;
         }
 
         FollowAndOrbit();
         AcquireOrKeepTarget();
-
-        // 开火在 Update（不受 Animator 覆盖影响）
         AutoFire();
     }
 
-    private void LateUpdate()
+    void BeginExit()
     {
-        if (player == null) return;
+        if (state == DroneState.Exiting)
+            return;
 
-        if (departing)
+        state = DroneState.Exiting;
+        canFire = false;
+        currentTarget = null;
+
+        Vector3 exitTarget = GetHighAltitudePosition();
+        float distance = Vector3.Distance(transform.position, exitTarget);
+        exitSpeed = exitDuration <= 0.0001f ? float.MaxValue : distance / exitDuration;
+    }
+
+    void UpdateExiting()
+    {
+        Vector3 exitTarget = GetHighAltitudePosition();
+
+        if (exitSpeed == float.MaxValue)
         {
-            transform.position += Vector3.up * (departUpSpeed * Time.deltaTime);
+            transform.position = exitTarget;
+            DestroySelf();
             return;
         }
 
-        AimWholeBodyLate(); // ✅ 帧末整机转向，避免被动画覆盖
+        transform.position = Vector3.MoveTowards(transform.position, exitTarget, exitSpeed * Time.deltaTime);
+
+        if (Vector3.Distance(transform.position, exitTarget) <= 0.05f)
+            DestroySelf();
+    }
+
+    Vector3 GetHoverPosition()
+    {
+        if (owner == null)
+            return transform.position;
+
+        return owner.position + followOffset;
+    }
+
+    Vector3 GetHighAltitudePosition()
+    {
+        if (owner == null)
+            return transform.position + Vector3.up * highAltitudeHeight;
+
+        return owner.position + Vector3.up * highAltitudeHeight;
     }
 
     void FollowAndOrbit()
@@ -127,7 +248,7 @@ public class AssistDroneController : MonoBehaviour
             Mathf.Sin(orbitPhase) * orbitRadius
         );
 
-        Vector3 targetPos = player.position + followOffset + orbitOffset;
+        Vector3 targetPos = GetHoverPosition() + orbitOffset;
         transform.position = Vector3.Lerp(transform.position, targetPos, 1f - Mathf.Exp(-followSmooth * Time.deltaTime));
     }
 
@@ -158,14 +279,19 @@ public class AssistDroneController : MonoBehaviour
 
         for (int i = 0; i < hits.Length; i++)
         {
-            Transform t = hits[i].transform;
-            float d = (t.position - transform.position).sqrMagnitude;
+            Transform candidate = hits[i].transform;
+            CombatStats stats = candidate.GetComponentInParent<CombatStats>();
+            Transform root = stats != null ? stats.transform : candidate;
+
+            Vector3 pos = LockTargetPointUtility.GetCapsuleCenter(root);
+            float d = (pos - transform.position).sqrMagnitude;
             if (d < bestDist)
             {
                 bestDist = d;
-                best = t;
+                best = root;
             }
         }
+
         return best;
     }
 
@@ -173,15 +299,11 @@ public class AssistDroneController : MonoBehaviour
     {
         if (bodyPivot == null) bodyPivot = transform;
 
-        Vector3 aimDir;
-
         if (currentTarget == null)
-        {
-            // 没目标：保持当前朝向（你也可以在这里做“缓慢回正/朝玩家方向”）
             return;
-        }
 
-        aimDir = currentTarget.position - bodyPivot.position;
+        Vector3 aimPoint = GetAimPoint(currentTarget);
+        Vector3 aimDir = aimPoint - bodyPivot.position;
 
         if (yawOnly)
             aimDir.y = 0f;
@@ -189,18 +311,17 @@ public class AssistDroneController : MonoBehaviour
         if (aimDir.sqrMagnitude < 0.0001f) return;
 
         Quaternion targetRot = Quaternion.LookRotation(aimDir.normalized, Vector3.up);
-
-        // 平滑旋转（指数平滑，手感更稳定）
         float t = 1f - Mathf.Exp(-aimTurnSpeed * Time.deltaTime);
         bodyPivot.rotation = Quaternion.Slerp(bodyPivot.rotation, targetRot, t);
     }
 
     void AutoFire()
     {
+        if (!canFire) return;
         if (projectilePrefab == null || muzzle == null || shotConfig == null) return;
         if (currentTarget == null) return;
 
-        Vector3 aimPoint = currentTarget.position;
+        Vector3 aimPoint = GetAimPoint(currentTarget);
         Vector3 toTarget = aimPoint - muzzle.position;
         if (toTarget.sqrMagnitude > fireRange * fireRange) return;
 
@@ -214,23 +335,34 @@ public class AssistDroneController : MonoBehaviour
         nextFireTime = Time.time + interval;
     }
 
+    Vector3 GetAimPoint(Transform targetRoot)
+    {
+        if (targetRoot == null)
+            return transform.position + transform.forward;
+
+        return LockTargetPointUtility.GetCapsuleCenter(targetRoot);
+    }
+
     bool HasLineOfSight(Vector3 aimPoint)
     {
+        if (muzzle == null) return false;
+
         Vector3 from = muzzle.position;
         Vector3 dir = aimPoint - from;
         float dist = dir.magnitude;
         if (dist < 0.01f) return true;
 
-        // obstacleMask 只放墙/地形，不要把敌人层放进去
-        return !Physics.Raycast(from, dir.normalized, dist, obstacleMask, QueryTriggerInteraction.Ignore);
+        int losMask = obstacleMask.value & ~enemyMask.value;
+        if (losMask == 0) return true;
+
+        return !Physics.Raycast(from, dir.normalized, dist, losMask, QueryTriggerInteraction.Ignore);
     }
 
     void FireOnce(Vector3 dir)
     {
-        // 轻微散布（只做 yaw 更像激光扫射）
         if (spreadDegrees > 0.001f)
         {
-            float yaw = Random.Range(-spreadDegrees, spreadDegrees);
+            float yaw = UnityEngine.Random.Range(-spreadDegrees, spreadDegrees);
             dir = Quaternion.Euler(0f, yaw, 0f) * dir;
             dir.Normalize();
         }
@@ -238,13 +370,13 @@ public class AssistDroneController : MonoBehaviour
         AttackData data = BuildAttackDataFromConfig(shotConfig);
 
         RangeProjectile p = Instantiate(projectilePrefab, muzzle.position, Quaternion.LookRotation(dir));
-        p.Init(transform, dir, data); // ✅ 不 Init 子弹不会动
+        p.Init(attackerRoot != null ? attackerRoot : transform, dir, data);
     }
 
     AttackData BuildAttackDataFromConfig(AttackConfig cfg)
     {
         var data = new AttackData(
-            transform,
+            attackerRoot != null ? attackerRoot : transform,
             cfg.sourceType,
             cfg.hitReaction,
             cfg.hpDamage,
@@ -259,15 +391,22 @@ public class AssistDroneController : MonoBehaviour
         return data;
     }
 
-    void BeginDepart()
+    void SetAttackerRoot(Transform ownerTransform)
     {
-        departing = true;
-        currentTarget = null;
-        Invoke(nameof(DestroySelf), departDuration);
+        if (ownerTransform == null)
+        {
+            attackerRoot = null;
+            return;
+        }
+
+        CombatStats stats = ownerTransform.GetComponentInParent<CombatStats>() ??
+                            ownerTransform.GetComponentInChildren<CombatStats>();
+        attackerRoot = stats != null ? stats.transform : ownerTransform;
     }
 
     void DestroySelf()
     {
+        onDespawned?.Invoke();
         Destroy(gameObject);
     }
 }
