@@ -22,10 +22,10 @@ public class AssistDroneController : MonoBehaviour
     public float orbitSpeed = 2.0f; // radians per second
 
     [Header("Targeting")]
-    public float detectRadius = 12f;
+    public float detectRadius = 15f;
     public LayerMask enemyMask;
     public LayerMask obstacleMask;
-    public float loseTargetDelay = 1.0f;
+    public float loseTargetDelay = 0f;
 
     [Header("Aiming (Whole Body)")]
     public float aimTurnSpeed = 10f;
@@ -37,6 +37,25 @@ public class AssistDroneController : MonoBehaviour
     public float fireRange = 30f;
     public bool requireLineOfSight = true;
     [SerializeField, Range(0f, 10f)] float spreadDegrees = 0.8f;
+
+    [Header("Transition Firing")]
+    [Tooltip("下降(Entering)阶段是否允许射击。默认关闭。")]
+    [SerializeField] bool fireWhileEntering = false;
+
+    [Tooltip("上升(Exiting)阶段是否允许射击。默认关闭。")]
+    [SerializeField] bool fireWhileExiting = false;
+
+    [Header("Visual - Rotors")]
+    [SerializeField] Transform mainRotor;
+    [SerializeField] Vector3 mainRotorLocalAxis = Vector3.up;
+    [SerializeField] float mainRotorRPM = 1000f;
+
+    [SerializeField] Transform tailRotor;
+    [SerializeField] Vector3 tailRotorLocalAxis = Vector3.right;
+    [SerializeField] float tailRotorRPM = 1000f;
+
+    [SerializeField] bool spinRotorsInEntering = true;
+    [SerializeField] bool spinRotorsInExiting = true;
 
     Transform owner;
     Transform attackerRoot;
@@ -59,7 +78,7 @@ public class AssistDroneController : MonoBehaviour
 
     float lifeTimer;
 
-    bool canFire;
+    Vector3 exitTargetPos; // ✅ 离场目标点：BeginExit 时锁定，不追随玩家
 
     enum DroneState
     {
@@ -72,6 +91,7 @@ public class AssistDroneController : MonoBehaviour
 
     Action onDespawned;
 
+    // 由 PlayerAbilitySystem 调用
     public void Init(
         Transform ownerTransform,
         Vector3 hoverOffset,
@@ -91,16 +111,16 @@ public class AssistDroneController : MonoBehaviour
         onDespawned = onDespawn;
 
         if (owner != null)
-        {
             transform.position = owner.position + Vector3.up * highAltitudeHeight;
-        }
 
         if (bodyPivot == null) bodyPivot = transform;
 
         orbitPhase = UnityEngine.Random.value * Mathf.PI * 2f;
         nextFireTime = 0f;
+
+        // ✅ lifeTimer 从生成开始计时（Entering 也计入 lifetime）
         lifeTimer = 0f;
-        canFire = false;
+
         state = DroneState.Entering;
 
         Vector3 hoverPos = GetHoverPosition();
@@ -108,16 +128,33 @@ public class AssistDroneController : MonoBehaviour
         enterSpeed = enterDuration <= 0.0001f ? float.MaxValue : distance / enterDuration;
 
         SetAttackerRoot(owner);
+
+        // 防止未初始化就 BeginExit 时 exitTargetPos 未赋值
+        exitTargetPos = transform.position + Vector3.up * highAltitudeHeight;
     }
 
     void Update()
     {
+        // ✅ 旋翼：放最前，避免 Entering/Exiting return 时不转
+        UpdateRotors();
+
         if (!warnedMissingRefs)
         {
             if (muzzle == null || projectilePrefab == null || shotConfig == null)
             {
                 Debug.LogWarning($"[AssistDrone] Missing refs on {name}: muzzle/projectilePrefab/shotConfig", this);
                 warnedMissingRefs = true;
+            }
+        }
+
+        // ✅ lifetime 计入 Entering + Active（不计入 Exiting）
+        if (state != DroneState.Exiting)
+        {
+            lifeTimer += Time.deltaTime;
+            if (lifeTimer >= lifetime)
+            {
+                BeginExit();
+                // BeginExit 后让下面逻辑走 Exiting 分支
             }
         }
 
@@ -138,17 +175,36 @@ public class AssistDroneController : MonoBehaviour
 
     void LateUpdate()
     {
-        if (state != DroneState.Active)
+        // Active 一直瞄准；Entering/Exiting 只有勾选“过渡也开火”时才瞄准（跟射击保持一致）
+        if (!IsAimEnabledNow())
             return;
 
         AimWholeBodyLate();
     }
 
+    bool IsFireEnabledNow()
+    {
+        if (state == DroneState.Active) return true;
+        if (state == DroneState.Entering) return fireWhileEntering;
+        if (state == DroneState.Exiting) return fireWhileExiting;
+        return false;
+    }
+
+    bool IsAimEnabledNow()
+    {
+        return IsFireEnabledNow();
+    }
+
     void UpdateEntering()
     {
-        canFire = false;
+        if (owner == null)
+        {
+            BeginExit();
+            return;
+        }
 
         Vector3 targetPos = GetHoverPosition();
+
         if (enterSpeed == float.MaxValue)
         {
             transform.position = targetPos;
@@ -158,6 +214,9 @@ public class AssistDroneController : MonoBehaviour
 
         transform.position = Vector3.MoveTowards(transform.position, targetPos, enterSpeed * Time.deltaTime);
 
+        AcquireOrKeepTarget();
+        AutoFire(); // 是否真的发射由 fireWhileEntering 控制
+
         if (Vector3.Distance(transform.position, targetPos) <= 0.05f)
             EnterActive();
     }
@@ -165,22 +224,12 @@ public class AssistDroneController : MonoBehaviour
     void EnterActive()
     {
         state = DroneState.Active;
-        canFire = true;
-        lifeTimer = 0f;
-        currentTarget = null;
-        targetLostTimer = 0f;
+        // ✅ 不再重置 lifeTimer（Entering 时间计入 lifetime）
     }
 
     void UpdateActive()
     {
         if (owner == null)
-        {
-            BeginExit();
-            return;
-        }
-
-        lifeTimer += Time.deltaTime;
-        if (lifeTimer >= lifetime)
         {
             BeginExit();
             return;
@@ -197,17 +246,24 @@ public class AssistDroneController : MonoBehaviour
             return;
 
         state = DroneState.Exiting;
-        canFire = false;
-        currentTarget = null;
 
-        Vector3 exitTarget = GetHighAltitudePosition();
-        float distance = Vector3.Distance(transform.position, exitTarget);
+        // 只有不允许离场射击时才清目标
+        if (!fireWhileExiting)
+            currentTarget = null;
+
+        // ✅ 离场不追玩家：锁定一次“垂直上升”目标点
+        // 目标高度：owner 当前高度 + highAltitudeHeight；XZ 使用当前直升机位置
+        float baseY = owner != null ? owner.position.y : transform.position.y;
+        float targetY = baseY + highAltitudeHeight;
+        exitTargetPos = new Vector3(transform.position.x, targetY, transform.position.z);
+
+        float distance = Vector3.Distance(transform.position, exitTargetPos);
         exitSpeed = exitDuration <= 0.0001f ? float.MaxValue : distance / exitDuration;
     }
 
     void UpdateExiting()
     {
-        Vector3 exitTarget = GetHighAltitudePosition();
+        Vector3 exitTarget = exitTargetPos;
 
         if (exitSpeed == float.MaxValue)
         {
@@ -217,6 +273,10 @@ public class AssistDroneController : MonoBehaviour
         }
 
         transform.position = Vector3.MoveTowards(transform.position, exitTarget, exitSpeed * Time.deltaTime);
+
+        // 离场过程中按需继续锁敌/开火
+        AcquireOrKeepTarget();
+        AutoFire(); // 是否真的发射由 fireWhileExiting 控制
 
         if (Vector3.Distance(transform.position, exitTarget) <= 0.05f)
             DestroySelf();
@@ -228,14 +288,6 @@ public class AssistDroneController : MonoBehaviour
             return transform.position;
 
         return owner.position + followOffset;
-    }
-
-    Vector3 GetHighAltitudePosition()
-    {
-        if (owner == null)
-            return transform.position + Vector3.up * highAltitudeHeight;
-
-        return owner.position + Vector3.up * highAltitudeHeight;
     }
 
     void FollowAndOrbit()
@@ -280,6 +332,7 @@ public class AssistDroneController : MonoBehaviour
         for (int i = 0; i < hits.Length; i++)
         {
             Transform candidate = hits[i].transform;
+
             CombatStats stats = candidate.GetComponentInParent<CombatStats>();
             Transform root = stats != null ? stats.transform : candidate;
 
@@ -317,7 +370,7 @@ public class AssistDroneController : MonoBehaviour
 
     void AutoFire()
     {
-        if (!canFire) return;
+        if (!IsFireEnabledNow()) return;
         if (projectilePrefab == null || muzzle == null || shotConfig == null) return;
         if (currentTarget == null) return;
 
@@ -408,5 +461,26 @@ public class AssistDroneController : MonoBehaviour
     {
         onDespawned?.Invoke();
         Destroy(gameObject);
+    }
+
+    void UpdateRotors()
+    {
+        if (state == DroneState.Entering && !spinRotorsInEntering) return;
+        if (state == DroneState.Exiting && !spinRotorsInExiting) return;
+
+        float dt = Time.deltaTime;
+
+        // 用 TransformDirection + Space.World 更稳（模型有 -90° 等预旋转也不怕）
+        if (mainRotor != null)
+        {
+            Vector3 axisW = mainRotor.TransformDirection(mainRotorLocalAxis).normalized;
+            mainRotor.Rotate(axisW, mainRotorRPM * 6f * dt, Space.World);
+        }
+
+        if (tailRotor != null)
+        {
+            Vector3 axisW = tailRotor.TransformDirection(tailRotorLocalAxis).normalized;
+            tailRotor.Rotate(axisW, tailRotorRPM * 6f * dt, Space.World);
+        }
     }
 }
