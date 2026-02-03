@@ -79,7 +79,7 @@ public class EnemyMove : MonoBehaviour
     }
 
     public bool IsGrounded => isGrounded;
-
+    public int DesiredSpeedLevel => desiredSpeedLevel;
     /* ================= Unity ================= */
 
     void Awake()

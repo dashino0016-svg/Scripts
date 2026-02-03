@@ -119,6 +119,8 @@ public class PlayerMove : MonoBehaviour
     public bool IsSprinting => isSprinting;
     public bool IsRunning => shiftHeld && !isSprinting && input.sqrMagnitude > 0.1f;
     public bool IsGrounded => isGrounded;
+    public bool IsWalking => input.sqrMagnitude > 0.01f && !isSprinting && (!shiftHeld || forceWalkThisFrame);
+    public bool IsMoving => input.sqrMagnitude > 0.01f;
 
     void Start()
     {

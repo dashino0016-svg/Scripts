@@ -24,6 +24,10 @@ public class EnemyController : MonoBehaviour
     public LayerMask targetMask;
     public LayerMask obstacleMask;
 
+    [Header("Hearing")]
+    [Tooltip("听觉检测的最大搜索半径（需 >= 角色发声半径）。0 表示关闭听觉。")]
+    public float hearingRadius = 12f;
+
     [Header("Combat Lose Buffer")]
     public float combatLoseDelay = 6f;
 
@@ -365,7 +369,12 @@ public class EnemyController : MonoBehaviour
         );
 
         if (hits.Length == 0)
+        {
+            if (TryHearTarget())
+                return;
+
             return;
+        }
 
         for (int i = 0; i < hits.Length; i++)
         {
@@ -388,6 +397,60 @@ public class EnemyController : MonoBehaviour
 
             return;
         }
+
+        TryHearTarget();
+    }
+
+    bool TryHearTarget()
+    {
+        if (hearingRadius <= 0f)
+            return false;
+
+        Collider[] hits = Physics.OverlapSphere(
+            transform.position,
+            hearingRadius,
+            targetMask,
+            QueryTriggerInteraction.Ignore
+        );
+
+        if (hits.Length == 0)
+            return false;
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Transform candidate = hits[i].transform;
+
+            CombatStats cs = candidate.GetComponentInParent<CombatStats>();
+            if (cs == null) continue;
+            if (cs.IsDead) continue;
+
+            NoiseEmitter noise = cs.GetComponentInParent<NoiseEmitter>();
+            if (noise == null)
+                noise = cs.GetComponentInChildren<NoiseEmitter>();
+
+            if (noise == null)
+                continue;
+
+            float radius = noise.CurrentNoiseRadius;
+            if (radius <= 0f)
+                continue;
+
+            Vector3 targetPos = LockTargetPointUtility.GetCapsuleCenter(cs.transform);
+            float distance = Vector3.Distance(transform.position, targetPos);
+            if (distance > radius)
+                continue;
+
+            target = cs.transform;
+            targetStats = cs;
+            targetVisibleThisFrame = true;
+
+            if (enemyState.Current != EnemyStateType.Combat)
+                enemyState.EnterCombat();
+
+            return true;
+        }
+
+        return false;
     }
 
     bool CanMaintainTargetInCombat(Transform t)
