@@ -131,7 +131,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
     public float cooldownAfterAttackChanceWhenPlayerGuardBroken = 0f;
 
     // ✅ 你要的：Cooldown 四种姿态（只用于 cooldown，不影响其它状态）
-    [Header("Cooldown Postures (Idle / WalkBack / WalkLeft / WalkRight)")]
+    [Header("Cooldown Postures (Idle / WalkBack / WalkLeft / WalkRight / WalkForward)")]
     public bool enableCooldownPostures = true;
     public float cooldownPostureMinTime = 1f;
     public float cooldownPostureMaxTime = 2f;
@@ -140,6 +140,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
     public float cooldownWalkBackWeight = 1f;
     public float cooldownWalkLeftWeight = 2f;
     public float cooldownWalkRightWeight = 2f;
+    public float cooldownWalkForwardWeight = 0f;
 
     [Header("Cooldown Strafe Setup")]
     [Tooltip("Cooldown 横移/后退时，是否用“面向目标的基准轴”来生成左右/后退方向（更稳定）。")]
@@ -224,7 +225,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
     // =========================
     // ✅ Cooldown posture runtime
     // =========================
-    enum CooldownPosture { Idle, WalkBack, WalkLeft, WalkRight }
+    enum CooldownPosture { Idle, WalkBack, WalkLeft, WalkRight, WalkForward }
     CooldownPosture cooldownPosture = CooldownPosture.Idle;
     bool cooldownInited;
     float cooldownEndTime;
@@ -1218,6 +1219,13 @@ public class Combat : MonoBehaviour, IEnemyCombat
             return;
         }
 
+        if (cooldownPosture == CooldownPosture.WalkForward && distance <= attackDecisionDistance)
+        {
+            ExitCooldownPosture();
+            EnterState(State.Engage);
+            return;
+        }
+
         if (Time.time >= cooldownEndTime)
         {
             ExitCooldownPosture();
@@ -1267,7 +1275,8 @@ public class Combat : MonoBehaviour, IEnemyCombat
         float wBack = Mathf.Max(0f, cooldownWalkBackWeight);
         float wL = Mathf.Max(0f, cooldownWalkLeftWeight);
         float wR = Mathf.Max(0f, cooldownWalkRightWeight);
-        float sum = wIdle + wBack + wL + wR;
+        float wF = Mathf.Max(0f, cooldownWalkForwardWeight);
+        float sum = wIdle + wBack + wL + wR + wF;
 
         if (sum <= 0.0001f)
         {
@@ -1279,7 +1288,8 @@ public class Combat : MonoBehaviour, IEnemyCombat
         if (r < wIdle) cooldownPosture = CooldownPosture.Idle;
         else if ((r -= wIdle) < wBack) cooldownPosture = CooldownPosture.WalkBack;
         else if ((r -= wBack) < wL) cooldownPosture = CooldownPosture.WalkLeft;
-        else cooldownPosture = CooldownPosture.WalkRight;
+        else if ((r -= wL) < wR) cooldownPosture = CooldownPosture.WalkRight;
+        else cooldownPosture = CooldownPosture.WalkForward;
 
         // 一旦选了移动 posture，按你的设定：不混合、不对角
         if (cooldownPosture == CooldownPosture.Idle)
@@ -1367,6 +1377,9 @@ public class Combat : MonoBehaviour, IEnemyCombat
             case CooldownPosture.WalkRight:
                 worldDir = cooldownUseTargetBasis ? right : transform.right;
                 break;
+            case CooldownPosture.WalkForward:
+                worldDir = cooldownUseTargetBasis ? fwd : transform.forward;
+                break;
             default:
                 worldDir = Vector3.zero;
                 break;
@@ -1407,6 +1420,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
             case CooldownPosture.WalkBack: x = 0f; y = -1f; break;
             case CooldownPosture.WalkLeft: x = -1f; y = 0f; break;
             case CooldownPosture.WalkRight: x = 1f; y = 0f; break;
+            case CooldownPosture.WalkForward: x = 0f; y = 1f; break;
         }
 
         anim.SetFloat(AnimMoveX, x);
