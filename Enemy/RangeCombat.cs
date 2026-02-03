@@ -55,6 +55,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     public float rangedShootWalkBackWeight = 1f;
     public float rangedShootWalkLeftWeight = 2f;
     public float rangedShootWalkRightWeight = 2f;
+    public float rangedShootWalkForwardWeight = 0f;
 
     [Header("Ranged Cooldown (Buffer Zone)")]
     public float rangedBufferCooldownDuration = 2f;
@@ -67,6 +68,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     public float rangedBufferWalkBackWeight = 4.0f;
     public float rangedBufferWalkLeftWeight = 1.0f;
     public float rangedBufferWalkRightWeight = 1.0f;
+    public float rangedBufferWalkForwardWeight = 0f;
 
     // =========================
     // Melee section (Combat-like)
@@ -119,7 +121,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     [Range(0f, 1f)] public float cooldownAfterAttackChance = 0.7f;
     [Range(0f, 1f)] public float cooldownAfterAttackChanceWhenPlayerGuardBroken = 0f;
 
-    [Header("Melee Cooldown Postures (Idle / WalkBack / WalkLeft / WalkRight)")]
+    [Header("Melee Cooldown Postures (Idle / WalkBack / WalkLeft / WalkRight / WalkForward)")]
     public bool meleeEnableCooldownPostures = true;
     public float meleeCooldownPostureMinTime = 1f;
     public float meleeCooldownPostureMaxTime = 2f;
@@ -128,6 +130,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     public float meleeCooldownWalkBackWeight = 2f;
     public float meleeCooldownWalkLeftWeight = 1f;
     public float meleeCooldownWalkRightWeight = 1f;
+    public float meleeCooldownWalkForwardWeight = 0f;
 
     [Header("Cooldown Strafe Setup")]
     public bool cooldownUseTargetBasis = true;
@@ -188,7 +191,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     float playerNotAttackingTimer;
 
     // cooldown runtime (shared)
-    enum CooldownPosture { Idle, WalkBack, WalkLeft, WalkRight }
+    enum CooldownPosture { Idle, WalkBack, WalkLeft, WalkRight, WalkForward }
     CooldownPosture cooldownPosture = CooldownPosture.Idle;
     bool cooldownInited;
     float cooldownEndTime;
@@ -501,7 +504,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
             cooldownContext = (z == Zone.Buffer) ? CooldownContext.BufferZone : CooldownContext.ShootZone;
             cooldownReturnState = State.Shoot;
 
-            UpdateCooldown(toTarget, cachedPlayerGuardBroken);
+            UpdateCooldown(distance, toTarget, cachedPlayerGuardBroken);
             return;
         }
         if (state == State.RangedAttack)
@@ -580,7 +583,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
             case State.Cooldown:
                 cooldownContext = CooldownContext.Melee;
                 cooldownReturnState = State.Engage;
-                UpdateCooldown(toTarget, playerGuardBroken);
+                UpdateCooldown(distance, toTarget, playerGuardBroken);
                 break;
             default:
                 EnterState(State.Engage);
@@ -1010,13 +1013,13 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     // Cooldown (shared)
     // =========================
 
-    void UpdateCooldown(Vector3 toTarget, bool playerGuardBroken)
+    void UpdateCooldown(float distance, Vector3 toTarget, bool playerGuardBroken)
     {
         float cd;
         bool enablePostures;
         float postureMin;
         float postureMax;
-        float wIdle, wBack, wL, wR;
+        float wIdle, wBack, wL, wR, wF;
 
         if (cooldownContext == CooldownContext.Melee)
         {
@@ -1031,6 +1034,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
             wBack = meleeCooldownWalkBackWeight;
             wL = meleeCooldownWalkLeftWeight;
             wR = meleeCooldownWalkRightWeight;
+            wF = meleeCooldownWalkForwardWeight;
         }
         else if (cooldownContext == CooldownContext.BufferZone)
         {
@@ -1044,6 +1048,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
             wBack = rangedBufferWalkBackWeight;
             wL = rangedBufferWalkLeftWeight;
             wR = rangedBufferWalkRightWeight;
+            wF = rangedBufferWalkForwardWeight;
         }
         else
         {
@@ -1057,6 +1062,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
             wBack = rangedShootWalkBackWeight;
             wL = rangedShootWalkLeftWeight;
             wR = rangedShootWalkRightWeight;
+            wF = rangedShootWalkForwardWeight;
         }
 
         cd = Mathf.Max(0f, cd);
@@ -1072,7 +1078,16 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         {
             cooldownInited = true;
             cooldownEndTime = Time.time + cd;
-            PickNextCooldownPosture(postureMin, postureMax, wIdle, wBack, wL, wR);
+            PickNextCooldownPosture(postureMin, postureMax, wIdle, wBack, wL, wR, wF);
+        }
+
+        if (cooldownContext == CooldownContext.Melee
+            && cooldownPosture == CooldownPosture.WalkForward
+            && distance <= attackDecisionDistance)
+        {
+            ExitCooldownPosture();
+            EnterState(State.Engage);
+            return;
         }
 
         if (Time.time >= cooldownEndTime)
@@ -1092,7 +1107,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         }
 
         if (Time.time >= cooldownPostureEndTime)
-            PickNextCooldownPosture(postureMin, postureMax, wIdle, wBack, wL, wR);
+            PickNextCooldownPosture(postureMin, postureMax, wIdle, wBack, wL, wR, wF);
 
         if (anim != null) anim.SetBool(AnimIsRetreating, false);
         RestoreRootMotionIfNeeded();
@@ -1111,7 +1126,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         ApplyCooldownWalk(toTarget, cooldownPosture);
     }
 
-    void PickNextCooldownPosture(float postureMin, float postureMax, float wIdle, float wBack, float wL, float wR)
+    void PickNextCooldownPosture(float postureMin, float postureMax, float wIdle, float wBack, float wL, float wR, float wF)
     {
         float minT = Mathf.Max(0.01f, postureMin);
         float maxT = Mathf.Max(minT, postureMax);
@@ -1122,8 +1137,9 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         wBack = Mathf.Max(0f, wBack);
         wL = Mathf.Max(0f, wL);
         wR = Mathf.Max(0f, wR);
+        wF = Mathf.Max(0f, wF);
 
-        float sum = wIdle + wBack + wL + wR;
+        float sum = wIdle + wBack + wL + wR + wF;
         if (sum <= 0.0001f)
         {
             cooldownPosture = CooldownPosture.Idle;
@@ -1135,7 +1151,8 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         if (r < wIdle) cooldownPosture = CooldownPosture.Idle;
         else if ((r -= wIdle) < wBack) cooldownPosture = CooldownPosture.WalkBack;
         else if ((r -= wBack) < wL) cooldownPosture = CooldownPosture.WalkLeft;
-        else cooldownPosture = CooldownPosture.WalkRight;
+        else if ((r -= wL) < wR) cooldownPosture = CooldownPosture.WalkRight;
+        else cooldownPosture = CooldownPosture.WalkForward;
 
         if (cooldownPosture == CooldownPosture.Idle)
             ResetCooldownMove2D();
@@ -1163,6 +1180,9 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
                 break;
             case CooldownPosture.WalkRight:
                 worldDir = cooldownUseTargetBasis ? right : transform.right;
+                break;
+            case CooldownPosture.WalkForward:
+                worldDir = cooldownUseTargetBasis ? fwd : transform.forward;
                 break;
             default:
                 worldDir = Vector3.zero;
@@ -1193,6 +1213,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
             case CooldownPosture.WalkBack: x = 0f; y = -1f; break;
             case CooldownPosture.WalkLeft: x = -1f; y = 0f; break;
             case CooldownPosture.WalkRight: x = 1f; y = 0f; break;
+            case CooldownPosture.WalkForward: x = 0f; y = 1f; break;
         }
 
         anim.SetFloat(AnimMoveX, x);
