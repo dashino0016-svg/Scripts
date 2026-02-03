@@ -230,6 +230,9 @@ public class Combat : MonoBehaviour, IEnemyCombat
     float cooldownEndTime;
     float cooldownPostureEndTime;
 
+    bool engageApproachActive;
+    float engageApproachEnterTime;
+
     // =========================
     // ✅ Block return policy
     // =========================
@@ -495,6 +498,8 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
         if (distance > exitEngageDistance)
         {
+            if (runAttackArming) return;
+
             outOfRangeTimer += dt;
             if (outOfRangeTimer >= outOfRangeGraceTime)
             {
@@ -502,6 +507,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
                 outOfRangeTimer = 0f;
 
                 runAttackArming = false;
+                engageApproachActive = false;
                 chaseEnterTime = Time.time;
                 runAttackRolledInBand = false;
 
@@ -530,6 +536,104 @@ public class Combat : MonoBehaviour, IEnemyCombat
     {
         bool playerAttacking = (targetFighter != null) && targetFighter.IsInAttackLock;
 
+        UpdateSprintAttackPlan(distance, playerAttacking, chaseEnterTime);
+
+        navigator.SetTarget(GetTargetPoint());
+
+        Vector3 dir = navigator.GetMoveDirection();
+        if (dir == Vector3.zero) dir = toTarget.normalized;
+
+        int targetSpeed = runAttackArming ? sprintSpeedLevel : runSpeedLevel;
+
+        currentSpeedLevel = Mathf.MoveTowards(
+            currentSpeedLevel, targetSpeed, speedLevelChangeRate * dt);
+
+        move.SetMoveDirection(dir);
+        move.SetMoveSpeedLevel(Mathf.RoundToInt(currentSpeedLevel));
+
+        TryTriggerSprintAttack(distance, setRangeModeEngage: true);
+    }
+
+    void UpdateEngage(float distance, Vector3 toTarget, bool playerGuardBroken)
+    {
+        UpdateSprintAttackBand(distance);
+
+        if (TryTriggerSprintAttack(distance, setRangeModeEngage: false))
+            return;
+
+        if (runAttackArming)
+        {
+            SprintApproach(toTarget);
+            TryTriggerSprintAttack(distance, setRangeModeEngage: false);
+            return;
+        }
+
+        if (TryStartAbility(distance))
+            return;
+
+        if (!playerGuardBroken && distance <= defenseDistance && ShouldStartBlock(distance))
+        {
+            EnterState(State.Block);
+            StartBlock();
+            return;
+        }
+
+        if (distance > attackDecisionDistance)
+        {
+            if (!engageApproachActive)
+            {
+                engageApproachActive = true;
+                engageApproachEnterTime = Time.time;
+            }
+
+            bool playerAttacking = (targetFighter != null) && targetFighter.IsInAttackLock;
+            UpdateSprintAttackPlan(distance, playerAttacking, engageApproachEnterTime);
+
+            if (runAttackArming)
+            {
+                SprintApproach(toTarget);
+                TryTriggerSprintAttack(distance, setRangeModeEngage: false);
+                return;
+            }
+
+            ApproachUntilDecision(distance, toTarget, playerGuardBroken);
+            return;
+        }
+        engageApproachActive = false;
+        engageRunBurstActive = false;
+
+        StopMove();
+
+        if (!CanStartAttackFacingGate())
+            return;
+
+        if (!playerGuardBroken && ShouldStartBlock(distance))
+        {
+            EnterState(State.Block);
+            StartBlock();
+            return;
+        }
+
+        if (ShouldStartHeavy(playerGuardBroken, out bool heavyIsA))
+        {
+            StartHeavyAttack(heavyIsA);
+            EnterState(State.Attack);
+            return;
+        }
+
+        StartNormalPlan(playerGuardBroken);
+        EnterState(State.Attack);
+    }
+
+    void UpdateSprintAttackBand(float distance)
+    {
+        bool inBand = distance >= sprintAttackMinDist && distance <= sprintAttackMaxDist;
+        if (!inBand)
+            runAttackRolledInBand = false;
+    }
+
+    void UpdateSprintAttackPlan(float distance, bool playerAttacking, float approachEnterTime)
+    {
         if (runAttackArming)
         {
             // 超时仍未进入触发距离：取消本次冲刺攻击计划
@@ -554,96 +658,45 @@ public class Combat : MonoBehaviour, IEnemyCombat
         if (!inBand)
         {
             runAttackRolledInBand = false;
+            return;
         }
-        else
-        {
-            bool anySprintAttackEnabled = CanUseSprintAttackA() || CanUseSprintAttackB();
 
-            if (anySprintAttackEnabled &&
-                !runAttackArming &&
-                !runAttackRolledInBand &&
-                Time.time >= nextRunAttackAllowedTime &&
-                Time.time >= chaseEnterTime + sprintAttackArmDelayAfterEnterChase &&
-                !playerAttacking)
+        bool anySprintAttackEnabled = CanUseSprintAttackA() || CanUseSprintAttackB();
+
+        if (anySprintAttackEnabled &&
+            !runAttackArming &&
+            !runAttackRolledInBand &&
+            Time.time >= nextRunAttackAllowedTime &&
+            Time.time >= approachEnterTime + sprintAttackArmDelayAfterEnterChase &&
+            !playerAttacking)
+        {
+            runAttackRolledInBand = true;
+            if (Random.value <= sprintAttackChance)
             {
-                runAttackRolledInBand = true;
-                if (Random.value <= sprintAttackChance)
-                {
-                    runAttackArming = true;
-                    runAttackPlanIsA = ChooseSprintAttackIsA();
-                    runAttackArmingStartTime = Time.time;
-                }
+                runAttackArming = true;
+                runAttackPlanIsA = ChooseSprintAttackIsA();
+                runAttackArmingStartTime = Time.time;
             }
-        }
-
-        navigator.SetTarget(GetTargetPoint());
-
-        Vector3 dir = navigator.GetMoveDirection();
-        if (dir == Vector3.zero) dir = toTarget.normalized;
-
-        int targetSpeed = runAttackArming ? sprintSpeedLevel : runSpeedLevel;
-
-        currentSpeedLevel = Mathf.MoveTowards(
-            currentSpeedLevel, targetSpeed, speedLevelChangeRate * dt);
-
-        move.SetMoveDirection(dir);
-        move.SetMoveSpeedLevel(Mathf.RoundToInt(currentSpeedLevel));
-
-        if (runAttackArming && distance <= sprintAttackTriggerDist)
-        {
-            runAttackArming = false;
-            nextRunAttackAllowedTime = Time.time + sprintAttackCooldown;
-
-            if (fighter != null && fighter.enabled)
-                fighter.TryAttack(runAttackPlanIsA, AttackMoveType.Sprint);
-
-            rangeMode = RangeMode.Engage;
-            EnterCooldownOrEngageAfterAttack();
-
-            StopMove();
         }
     }
 
-    void UpdateEngage(float distance, Vector3 toTarget, bool playerGuardBroken)
+    bool TryTriggerSprintAttack(float distance, bool setRangeModeEngage)
     {
-        if (TryStartAbility(distance))
-            return;
+        if (!runAttackArming || distance > sprintAttackTriggerDist)
+            return false;
 
-        if (!playerGuardBroken && distance <= defenseDistance && ShouldStartBlock(distance))
-        {
-            EnterState(State.Block);
-            StartBlock();
-            return;
-        }
+        runAttackArming = false;
+        nextRunAttackAllowedTime = Time.time + sprintAttackCooldown;
 
-        if (distance > attackDecisionDistance)
-        {
-            ApproachUntilDecision(distance, toTarget, playerGuardBroken);
-            return;
-        }
-        engageRunBurstActive = false;
+        if (fighter != null && fighter.enabled)
+            fighter.TryAttack(runAttackPlanIsA, AttackMoveType.Sprint);
 
+        if (setRangeModeEngage)
+            rangeMode = RangeMode.Engage;
+
+        EnterCooldownOrEngageAfterAttack();
         StopMove();
-
-        if (!CanStartAttackFacingGate())
-            return;
-
-        if (!playerGuardBroken && ShouldStartBlock(distance))
-        {
-            EnterState(State.Block);
-            StartBlock();
-            return;
-        }
-
-        if (ShouldStartHeavy(playerGuardBroken, out bool heavyIsA))
-        {
-            StartHeavyAttack(heavyIsA);
-            EnterState(State.Attack);
-            return;
-        }
-
-        StartNormalPlan(playerGuardBroken);
-        EnterState(State.Attack);
+        return true;
     }
 
     bool TryStartAbility(float distance)
@@ -730,6 +783,20 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
         currentSpeedLevel = Mathf.MoveTowards(
             currentSpeedLevel, walkSpeedLevel, speedLevelChangeRate * dt);
+
+        move.SetMoveDirection(dir);
+        move.SetMoveSpeedLevel(Mathf.RoundToInt(currentSpeedLevel));
+    }
+
+    void SprintApproach(Vector3 toTarget)
+    {
+        navigator.SetTarget(GetTargetPoint());
+
+        Vector3 dir = navigator.GetMoveDirection();
+        if (dir == Vector3.zero) dir = toTarget.normalized;
+
+        currentSpeedLevel = Mathf.MoveTowards(
+            currentSpeedLevel, sprintSpeedLevel, speedLevelChangeRate * dt);
 
         move.SetMoveDirection(dir);
         move.SetMoveSpeedLevel(Mathf.RoundToInt(currentSpeedLevel));
