@@ -70,11 +70,11 @@ public class Combat : MonoBehaviour, IEnemyCombat
     [Tooltip("两者都允许时，用 B 的概率（0=总是A，1=总是B）。")]
     [Range(0f, 1f)] public float sprintAttackUseBChance = 0f;
 
-    public float sprintAttackMinDist = 5f;
-    public float sprintAttackMaxDist = 10f;
+    public float sprintAttackMinDist = 10f;
+    public float sprintAttackMaxDist = 20f;
     public float sprintAttackTriggerDist = 1.5f;
 
-    public float sprintAttackCooldown = 10f;
+    public float sprintAttackCooldown = 20f;
     [Range(0f, 1f)] public float sprintAttackChance = 0.5f;
 
     public float sprintAttackArmDelayAfterEnterChase = 0.35f;
