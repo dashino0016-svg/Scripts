@@ -25,7 +25,7 @@ public class CombatStats : MonoBehaviour
     public float guardBreakBlockThreshold = 1f;
 
     [Header("Special")]
-    public int maxSpecial = 300;
+    public int maxSpecial = 0;
     public int CurrentSpecial { get; private set; }
 
     public bool IsDead { get; private set; }

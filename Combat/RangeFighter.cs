@@ -13,7 +13,7 @@ public class RangeFighter : MonoBehaviour
     [SerializeField] AttackConfig shotConfig;          // 远程单发的攻击配置（伤害/体力/可格挡/可完美等）
 
     [Header("Shoot")]
-    [SerializeField] float cooldownSeconds = 0.6f;     // 开火冷却
+    [SerializeField] float cooldownSeconds = 0f;     // 开火冷却
     [SerializeField, Range(0f, 10f)] float spreadDegrees = 1.5f; // 散布（星战味道）
 
     [Header("Animator")]
@@ -23,7 +23,7 @@ public class RangeFighter : MonoBehaviour
     [Tooltip("AttackLayer 的空状态名。")]
     [SerializeField] string emptyStateName = "Empty";
 
-    [SerializeField, Range(0f, 0.15f)] float crossFade = 0.05f;
+    [SerializeField, Range(0f, 0.15f)] float crossFade = 0f;
 
     // ===== runtime =====
     float nextShootTime;

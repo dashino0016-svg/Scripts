@@ -34,10 +34,10 @@ public class CombatReceiver : MonoBehaviour, IHittable
 
     // ✅ 新增：命中获得能量倍率（默认1=旧行为）
     [Tooltip("未防御命中(Hit)时：受击者获得的特殊能力槽倍率。增量=实际扣血量×倍率（四舍五入）。默认1=保持旧行为。")]
-    [SerializeField, Range(0f, 5f)] float specialGainScaleVictim = 1f;
+    [SerializeField, Range(0f, 5f)] float specialGainScaleVictim = 0f;
 
     [Tooltip("未防御命中(Hit)时：攻击者获得的特殊能力槽倍率。增量=实际扣血量×倍率（四舍五入）。默认1=保持旧行为。")]
-    [SerializeField, Range(0f, 5f)] float specialGainScaleAttacker = 1f;
+    [SerializeField, Range(0f, 5f)] float specialGainScaleAttacker = 0.5f;
 
     [Header("Directional Block (Front Only)")]
     [SerializeField] bool enableDirectionalBlock = true;
