@@ -31,14 +31,13 @@ public class EnemyNavigator : MonoBehaviour
         agent.updatePosition = false;
         agent.updateRotation = false;
 
-        // 你的原始初始化
-        agent.speed = 0f;
-        agent.angularSpeed = 0f;
-        agent.acceleration = 0f;
-        agent.stoppingDistance = 0f;
-
         // 记录基准
         CaptureBaseFromAgent();
+    }
+
+    void OnEnable()
+    {
+        EnsureAgentOnNavMesh(transform.position);
     }
 
     void Update()
