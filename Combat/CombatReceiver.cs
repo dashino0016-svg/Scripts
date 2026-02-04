@@ -41,7 +41,7 @@ public class CombatReceiver : MonoBehaviour, IHittable
 
     [Header("Directional Block (Front Only)")]
     [SerializeField] bool enableDirectionalBlock = true;
-    [SerializeField, Range(0f, 180f)] float blockEffectiveAngle = 120f;
+    [SerializeField, Range(0f, 180f)] float blockEffectiveAngle = 90f;
     // ===== Public read-only access (for AI gating) =====
     public bool DirectionalBlockEnabled => enableDirectionalBlock;
     public float BlockEffectiveAngle => blockEffectiveAngle;

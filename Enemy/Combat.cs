@@ -63,9 +63,10 @@ public class Combat : MonoBehaviour, IEnemyCombat
     public bool enableSprintAttackB = false;
 
     [Header("Sprint -> SprintAttack Timeout")]
-    public float sprintAttackArmingTimeout = 4f; // 冲刺多久还没贴到就取消（秒）
-
+    public float sprintAttackMaxSprintDuration = 2.5f; // 冲刺持续时长上限（秒，超过则取消冲刺攻击）
+    public float sprintAttackLockoutDuration = 2f; // 超时后禁止再次冲刺的锁定时间（秒）
     float runAttackArmingStartTime;
+    float sprintAttackLockoutUntil;
 
     [Tooltip("两者都允许时，用 B 的概率（0=总是A，1=总是B）。")]
     [Range(0f, 1f)] public float sprintAttackUseBChance = 0f;
@@ -643,24 +644,17 @@ public class Combat : MonoBehaviour, IEnemyCombat
     {
         if (runAttackArming)
         {
-            // 超时仍未进入触发距离：取消本次冲刺攻击计划
-            if (Time.time - runAttackArmingStartTime >= sprintAttackArmingTimeout)
-            {
-                runAttackArming = false;
+                // 冲刺持续时间上限：超过则取消冲刺攻击计划
+                if (sprintAttackMaxSprintDuration > 0f &&
+                    Time.time - runAttackArmingStartTime >= sprintAttackMaxSprintDuration)
+                {
+                    runAttackArming = false;
+                    nextRunAttackAllowedTime = Time.time + 0.6f;
+                    return;
+                }
+    }
 
-                // 取消后的节流：别立刻再次 arming（否则会抖动）
-                nextRunAttackAllowedTime = Time.time + 0.6f;
-
-                // ✅ 选项A（推荐）：保持 runAttackRolledInBand=true
-                // 这样在同一距离带内不会反复roll，直到离开距离带才再roll
-                // runAttackRolledInBand 不用改
-
-                // ✅ 可选：如果你希望超时后“仍在带内也能再次roll”，那就：
-                // runAttackRolledInBand = false;
-            }
-        }
-
-        bool inBand = distance >= sprintAttackMinDist && distance <= sprintAttackMaxDist;
+    bool inBand = distance >= sprintAttackMinDist && distance <= sprintAttackMaxDist;
 
         if (!inBand)
         {
@@ -674,6 +668,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
             !runAttackArming &&
             !runAttackRolledInBand &&
             Time.time >= nextRunAttackAllowedTime &&
+            Time.time >= sprintAttackLockoutUntil &&
             Time.time >= approachEnterTime + sprintAttackArmDelayAfterEnterChase &&
             !playerAttacking)
         {
