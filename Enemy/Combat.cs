@@ -64,9 +64,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
     [Header("Sprint -> SprintAttack Timeout")]
     public float sprintAttackMaxSprintDuration = 2.5f; // 冲刺持续时长上限（秒，超过则取消冲刺攻击）
-    public float sprintAttackLockoutDuration = 2f; // 超时后禁止再次冲刺的锁定时间（秒）
     float runAttackArmingStartTime;
-    float sprintAttackLockoutUntil;
 
     [Tooltip("两者都允许时，用 B 的概率（0=总是A，1=总是B）。")]
     [Range(0f, 1f)] public float sprintAttackUseBChance = 0f;
@@ -109,10 +107,10 @@ public class Combat : MonoBehaviour, IEnemyCombat
     public float defenseDistance = 2f;
 
     [Range(0f, 1f)] public float blockChanceWhenPlayerAttacking = 0.7f;
-    public float blockHoldMin = 1f;
+    public float blockHoldMin = 0.5f;
     public float blockHoldMax = 2f;
     public float blockCooldown = 0f;
-    public float stopBlockingWhenPlayerNotAttackingDelay = 0.5f;
+    public float stopBlockingWhenPlayerNotAttackingDelay = 0.2f;
 
     // Engage Run Burst runtime
     bool engageRunBurstActive;
@@ -141,7 +139,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
     public float cooldownWalkBackWeight = 1f;
     public float cooldownWalkLeftWeight = 2f;
     public float cooldownWalkRightWeight = 2f;
-    public float cooldownWalkForwardWeight = 0f;
+    public float cooldownWalkForwardWeight = 1f;
 
     [Header("Cooldown Strafe Setup")]
     [Tooltip("Cooldown 横移/后退时，是否用“面向目标的基准轴”来生成左右/后退方向（更稳定）。")]
@@ -571,7 +569,19 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
         if (runAttackArming)
         {
-            SprintApproach(toTarget);
+            // ✅ Engage 里 runAttackArming 会早退，原本不会再走 UpdateSprintAttackPlan
+            // 这里必须补上“超时取消”，否则会一直冲到天荒地老
+        if (sprintAttackMaxSprintDuration > 0f &&
+        Time.time - runAttackArmingStartTime >= sprintAttackMaxSprintDuration)
+        {
+            runAttackArming = false;
+            // 给一点短暂缓冲，避免下一帧立刻又 roll 进 arming
+            nextRunAttackAllowedTime = Time.time + 0.6f;
+            StopMove();
+            return;
+         }
+            
+                        SprintApproach(toTarget);
             TryTriggerSprintAttack(distance, setRangeModeEngage: false);
             return;
         }
@@ -668,7 +678,6 @@ public class Combat : MonoBehaviour, IEnemyCombat
             !runAttackArming &&
             !runAttackRolledInBand &&
             Time.time >= nextRunAttackAllowedTime &&
-            Time.time >= sprintAttackLockoutUntil &&
             Time.time >= approachEnterTime + sprintAttackArmDelayAfterEnterChase &&
             !playerAttacking)
         {

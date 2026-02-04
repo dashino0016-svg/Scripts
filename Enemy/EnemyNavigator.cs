@@ -17,7 +17,16 @@ public class EnemyNavigator : MonoBehaviour
     float baseAcceleration;
     float baseStoppingDistance;
 
+    // ⚠️ 注意：外部逻辑（Combat/NotCombat/LostTarget）会频繁 SetDestination
+    // NavMeshAgent 在刚 SetDestination 时常出现 pathPending=true
+    // 如果这里把 pathPending 当成“没路”，会导致永远拿不到方向 -> 外部 fallback 直线走
     public bool HasPath =>
+        agent != null &&
+        agent.isOnNavMesh &&
+        (agent.hasPath || agent.pathPending);
+
+    // 仅用于 Gizmos 绘制：必须有已计算完成的路径
+    bool HasValidDrawPath =>
         agent != null &&
         agent.isOnNavMesh &&
         agent.hasPath &&
@@ -96,16 +105,36 @@ public class EnemyNavigator : MonoBehaviour
 
     public Vector3 GetMoveDirection()
     {
-        if (!HasPath)
+        if (agent == null || !agent.isOnNavMesh)
             return Vector3.zero;
 
+        // 1) 首选 desiredVelocity（正常情况下最稳定）
         Vector3 desired = agent.desiredVelocity;
         desired.y = 0f;
 
-        if (desired.sqrMagnitude < 0.0001f)
-            return Vector3.zero;
+        if (desired.sqrMagnitude >= 0.0001f)
+            return desired.normalized;
 
-        return desired.normalized;
+        // 2) desiredVelocity 可能在刚 SetDestination / pathPending 时为 0，尝试 steeringTarget
+        Vector3 steer = agent.steeringTarget - transform.position;
+        steer.y = 0f;
+        if (steer.sqrMagnitude >= 0.0001f)
+            return steer.normalized;
+
+        // 3) 兜底：如果已经有 path，尝试走向下一段 corner
+        if (agent.hasPath)
+        {
+            var corners = agent.path.corners;
+            if (corners != null && corners.Length > 1)
+            {
+                Vector3 toCorner = corners[1] - transform.position;
+                toCorner.y = 0f;
+                if (toCorner.sqrMagnitude >= 0.0001f)
+                    return toCorner.normalized;
+            }
+        }
+
+        return Vector3.zero;
     }
 
     public void SyncPosition(Vector3 worldPos)
@@ -158,7 +187,10 @@ public class EnemyNavigator : MonoBehaviour
 #if UNITY_EDITOR
     void OnDrawGizmosSelected()
     {
-        if (!HasPath)
+        if (agent == null)
+            agent = GetComponent<NavMeshAgent>();
+
+        if (!HasValidDrawPath)
             return;
 
         Gizmos.color = Color.green;
