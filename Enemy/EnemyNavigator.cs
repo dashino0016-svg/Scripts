@@ -35,6 +35,7 @@ public class EnemyNavigator : MonoBehaviour
         agent.updateRotation = false;
 
         ApplyFallbackAgentDefaults();
+
         // 记录基准
         CaptureBaseFromAgent();
     }
@@ -88,6 +89,7 @@ public class EnemyNavigator : MonoBehaviour
         if (agent.acceleration <= 0f)
             agent.acceleration = Mathf.Max(0.01f, fallbackAcceleration);
     }
+
     /* ================= Public API ================= */
 
     public void SetTarget(Vector3 worldPos)
