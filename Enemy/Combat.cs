@@ -58,23 +58,23 @@ public class Combat : MonoBehaviour, IEnemyCombat
     [Tooltip("Run 贴近的冷却时间（秒）。")]
     public float engageRunBurstCooldown = 0f;
 
-    [Header("Sprint -> SprintAttack (Chase Only)")]
+    [Header("Sprint -> SprintAttack")]
     public bool enableSprintAttackA = true;
     public bool enableSprintAttackB = false;
 
     [Header("Sprint -> SprintAttack Timeout")]
-    public float sprintAttackMaxSprintDuration = 2.5f; // 冲刺持续时长上限（秒，超过则取消冲刺攻击）
+    public float sprintAttackMaxSprintDuration = 3f; // 冲刺持续时长上限（秒，超过则取消冲刺攻击）
     float runAttackArmingStartTime;
 
     [Tooltip("两者都允许时，用 B 的概率（0=总是A，1=总是B）。")]
     [Range(0f, 1f)] public float sprintAttackUseBChance = 0f;
 
-    public float sprintAttackMinDist = 10f;
+    public float sprintAttackMinDist = 2f;
     public float sprintAttackMaxDist = 20f;
     public float sprintAttackTriggerDist = 1.5f;
 
     public float sprintAttackCooldown = 20f;
-    [Range(0f, 1f)] public float sprintAttackChance = 0.5f;
+    [Range(0f, 1f)] public float sprintAttackChance = 0.1f;
 
     public float sprintAttackArmDelayAfterEnterChase = 0.35f;
 
@@ -124,10 +124,10 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
     [Header("Post-Attack -> Cooldown Chance")]
     [Range(0f, 1f)]
-    public float cooldownAfterAttackChance = 0.2f;
+    public float cooldownAfterAttackChance = 0.7f;
 
     [Range(0f, 1f)]
-    public float cooldownAfterAttackChanceWhenPlayerGuardBroken = 0f;
+    public float cooldownAfterAttackChanceWhenPlayerGuardBroken = 0.2f;
 
     // ✅ 你要的：Cooldown 四种姿态（只用于 cooldown，不影响其它状态）
     [Header("Cooldown Postures (Idle / WalkBack / WalkLeft / WalkRight / WalkForward)")]
