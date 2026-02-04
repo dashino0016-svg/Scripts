@@ -13,6 +13,9 @@ public class EnemyNavigator : MonoBehaviour
     [SerializeField] float fallbackSpeed = 2f;
     [SerializeField] float fallbackAngularSpeed = 120f;
     [SerializeField] float fallbackAcceleration = 8f;
+    [Header("Debug")]
+    [SerializeField] bool enableDebugLogs = false;
+    [SerializeField] float debugLogInterval = 1f;
 
     // ✅ 基准参数（未缩放）
     float baseSpeed;
@@ -66,6 +69,8 @@ public class EnemyNavigator : MonoBehaviour
 
         // stoppingDistance 通常不应缩放（距离是空间量），保持基准
         agent.stoppingDistance = baseStoppingDistance;
+
+        DebugNavigatorState();
     }
 
     void CaptureBaseFromAgent()
@@ -105,6 +110,14 @@ public class EnemyNavigator : MonoBehaviour
 
         agent.isStopped = false;
         agent.SetDestination(targetPos);
+
+        if (enableDebugLogs)
+        {
+            Debug.Log(
+                $"[EnemyNavigator] SetTarget {name} -> {targetPos} " +
+                $"(onMesh={agent.isOnNavMesh}, pending={agent.pathPending}, status={agent.pathStatus})",
+                this);
+        }
     }
 
     public void Stop()
@@ -175,6 +188,23 @@ public class EnemyNavigator : MonoBehaviour
         sampled = worldPos;
         return false;
     }
+
+    void DebugNavigatorState()
+    {
+        if (!enableDebugLogs) return;
+
+        float interval = Mathf.Max(0.1f, debugLogInterval);
+        if (Time.time < nextDebugLogTime) return;
+        nextDebugLogTime = Time.time + interval;
+
+        Debug.Log(
+            $"[EnemyNavigator] {name} onMesh={agent.isOnNavMesh} hasPath={agent.hasPath} " +
+            $"pending={agent.pathPending} status={agent.pathStatus} " +
+            $"desired={agent.desiredVelocity} nextPos={agent.nextPosition} pos={transform.position}",
+            this);
+    }
+
+    float nextDebugLogTime;
 
 #if UNITY_EDITOR
     void OnDrawGizmosSelected()
