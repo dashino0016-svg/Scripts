@@ -10,12 +10,6 @@ public class EnemyNavigator : MonoBehaviour
     [Header("NavMesh")]
     [SerializeField] float navMeshSampleRadius = 2f;
     [SerializeField] int navMeshAreaMask = NavMesh.AllAreas;
-    [SerializeField] float fallbackSpeed = 2f;
-    [SerializeField] float fallbackAngularSpeed = 120f;
-    [SerializeField] float fallbackAcceleration = 8f;
-    [Header("Debug")]
-    [SerializeField] bool enableDebugLogs = false;
-    [SerializeField] float debugLogInterval = 1f;
 
     // ✅ 基准参数（未缩放）
     float baseSpeed;
@@ -37,8 +31,6 @@ public class EnemyNavigator : MonoBehaviour
         agent.updatePosition = false;
         agent.updateRotation = false;
 
-        ApplyFallbackAgentDefaults();
-
         // 记录基准
         CaptureBaseFromAgent();
     }
@@ -46,7 +38,6 @@ public class EnemyNavigator : MonoBehaviour
     void OnEnable()
     {
         EnsureAgentOnNavMesh(transform.position);
-        if (agent != null) agent.isStopped = false;
     }
 
     void Update()
@@ -69,8 +60,6 @@ public class EnemyNavigator : MonoBehaviour
 
         // stoppingDistance 通常不应缩放（距离是空间量），保持基准
         agent.stoppingDistance = baseStoppingDistance;
-
-        DebugNavigatorState();
     }
 
     void CaptureBaseFromAgent()
@@ -79,20 +68,6 @@ public class EnemyNavigator : MonoBehaviour
         baseAngularSpeed = agent.angularSpeed;
         baseAcceleration = agent.acceleration;
         baseStoppingDistance = agent.stoppingDistance;
-    }
-
-    void ApplyFallbackAgentDefaults()
-    {
-        if (agent == null) return;
-
-        if (agent.speed <= 0f)
-            agent.speed = Mathf.Max(0.01f, fallbackSpeed);
-
-        if (agent.angularSpeed <= 0f)
-            agent.angularSpeed = Mathf.Max(0.01f, fallbackAngularSpeed);
-
-        if (agent.acceleration <= 0f)
-            agent.acceleration = Mathf.Max(0.01f, fallbackAcceleration);
     }
 
     /* ================= Public API ================= */
@@ -108,16 +83,7 @@ public class EnemyNavigator : MonoBehaviour
         if (TryGetNavMeshPosition(worldPos, out var sampled))
             targetPos = sampled;
 
-        agent.isStopped = false;
         agent.SetDestination(targetPos);
-
-        if (enableDebugLogs)
-        {
-            Debug.Log(
-                $"[EnemyNavigator] SetTarget {name} -> {targetPos} " +
-                $"(onMesh={agent.isOnNavMesh}, pending={agent.pathPending}, status={agent.pathStatus})",
-                this);
-        }
     }
 
     public void Stop()
@@ -188,23 +154,6 @@ public class EnemyNavigator : MonoBehaviour
         sampled = worldPos;
         return false;
     }
-
-    void DebugNavigatorState()
-    {
-        if (!enableDebugLogs) return;
-
-        float interval = Mathf.Max(0.1f, debugLogInterval);
-        if (Time.time < nextDebugLogTime) return;
-        nextDebugLogTime = Time.time + interval;
-
-        Debug.Log(
-            $"[EnemyNavigator] {name} onMesh={agent.isOnNavMesh} hasPath={agent.hasPath} " +
-            $"pending={agent.pathPending} status={agent.pathStatus} " +
-            $"desired={agent.desiredVelocity} nextPos={agent.nextPosition} pos={transform.position}",
-            this);
-    }
-
-    float nextDebugLogTime;
 
 #if UNITY_EDITOR
     void OnDrawGizmosSelected()
