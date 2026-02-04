@@ -75,7 +75,7 @@ public class MeleeFighter : MonoBehaviour
 
     [Header("Animator CrossFade")]
     [SerializeField, Range(0f, 0.15f)]
-    float attackCrossFadeTime = 0.02f;
+    float attackCrossFadeTime = 0f;
 
     void Awake()
     {
