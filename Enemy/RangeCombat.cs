@@ -305,6 +305,12 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         StopMove();
     }
 
+    public void SetTarget(Transform newTarget)
+    {
+        target = newTarget;
+        CacheTargetRefs();
+    }
+
     public void Tick()
     {
         if (!active || target == null) return;

@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(EnemyState))]
@@ -37,10 +38,29 @@ public class EnemyController : MonoBehaviour
     [Range(1f, 2f)]
     public float combatMaintainRadiusMultiplier = 2f;
 
+    [Header("Aggro")]
+    public float threatAddPerSecond = 6f;
+    public float attackedThreatAdd = 30f;
+    public float threatDecayPerSecond = 3f;
+    public float forgetAfter = 6f;
+    public float switchDelta = 6f;
+    public float retargetInterval = 0.25f;
+
     Transform target;
     CombatStats targetStats;
     float loseTimer;
     bool targetVisibleThisFrame;
+    float lastHostileStimulusTime = float.NegativeInfinity;
+    float nextRetargetTime;
+
+    class AggroEntry
+    {
+        public CombatStats stats;
+        public float threat;
+        public float lastStimulusTime;
+    }
+
+    readonly Dictionary<CombatStats, AggroEntry> aggroTable = new Dictionary<CombatStats, AggroEntry>();
 
     [Header("Local Time Scale (Enemy Only)")]
     [Range(0.05f, 1f)]
@@ -216,6 +236,8 @@ public class EnemyController : MonoBehaviour
         CheckTargetDead();
 
         UpdateSensor();
+        DecayAggro(Time.deltaTime);
+        RetargetIfNeeded(false);
 
         if (enemyState.Current == EnemyStateType.Combat)
         {
@@ -324,6 +346,65 @@ public class EnemyController : MonoBehaviour
         enabled = false;
     }
 
+    // ================= Aggro =================
+
+    bool IsHostile(CombatStats cs)
+    {
+        return cs != null && cs.gameObject.layer != gameObject.layer;
+    }
+
+    void AddAggro(CombatStats cs, float add)
+    {
+        if (cs == null || cs.IsDead) return;
+        if (!IsHostile(cs)) return;
+        if (cs == combatStats) return;
+
+        if (!aggroTable.TryGetValue(cs, out AggroEntry entry))
+        {
+            entry = new AggroEntry
+            {
+                stats = cs,
+                threat = 0f,
+                lastStimulusTime = Time.time
+            };
+            aggroTable.Add(cs, entry);
+        }
+
+        entry.threat += add;
+        entry.lastStimulusTime = Time.time;
+        lastHostileStimulusTime = Time.time;
+    }
+
+    void DecayAggro(float dt)
+    {
+        if (aggroTable.Count == 0) return;
+
+        List<CombatStats> toRemove = null;
+
+        foreach (var pair in aggroTable)
+        {
+            var entry = pair.Value;
+            if (entry == null || entry.stats == null || entry.stats.IsDead)
+            {
+                if (toRemove == null) toRemove = new List<CombatStats>();
+                toRemove.Add(pair.Key);
+                continue;
+            }
+
+            entry.threat = Mathf.Max(0f, entry.threat - threatDecayPerSecond * dt);
+
+            if (Time.time - entry.lastStimulusTime > forgetAfter && entry.threat <= 0.01f)
+            {
+                if (toRemove == null) toRemove = new List<CombatStats>();
+                toRemove.Add(pair.Key);
+            }
+        }
+
+        if (toRemove == null) return;
+        for (int i = 0; i < toRemove.Count; i++)
+            aggroTable.Remove(toRemove[i]);
+    }
+
     // ================= Target Dead Gate =================
 
     void CheckTargetDead()
@@ -334,13 +415,23 @@ public class EnemyController : MonoBehaviour
         if (!targetStats.IsDead)
             return;
 
+        aggroTable.Remove(targetStats);
         target = null;
         targetStats = null;
         targetVisibleThisFrame = false;
         loseTimer = 0f;
 
         if (enemyState.Current == EnemyStateType.Combat)
-            enemyState.EnterLostTarget();
+        {
+            if (aggroTable.Count > 0)
+            {
+                RetargetIfNeeded(true);
+            }
+            else
+            {
+                enemyState.EnterLostTarget();
+            }
+        }
     }
 
     // ================= Sensor =================
@@ -356,7 +447,8 @@ public class EnemyController : MonoBehaviour
             if (CanMaintainTargetInCombat(target))
             {
                 targetVisibleThisFrame = true;
-                return;
+                CombatStats currentStats = targetStats != null ? targetStats : target.GetComponentInParent<CombatStats>();
+                AddAggro(currentStats, threatAddPerSecond * Time.deltaTime);
             }
         }
 
@@ -370,9 +462,7 @@ public class EnemyController : MonoBehaviour
 
         if (hits.Length == 0)
         {
-            if (TryHearTarget())
-                return;
-
+            TryHearTarget();
             return;
         }
 
@@ -384,18 +474,14 @@ public class EnemyController : MonoBehaviour
             CombatStats cs = candidate.GetComponentInParent<CombatStats>();
             if (cs == null) continue;
             if (cs.IsDead) continue;
+            if (!IsHostile(cs)) continue;
+            if (cs == combatStats) continue;
 
             if (!CanSeePlayer(cs.transform))
                 continue;
 
-            target = cs.transform;
-            targetStats = cs;
             targetVisibleThisFrame = true;
-
-            if (enemyState.Current != EnemyStateType.Combat)
-                enemyState.EnterCombat();
-
-            return;
+            AddAggro(cs, threatAddPerSecond * Time.deltaTime);
         }
 
         TryHearTarget();
@@ -416,6 +502,8 @@ public class EnemyController : MonoBehaviour
         if (hits.Length == 0)
             return false;
 
+        bool heardAny = false;
+
         for (int i = 0; i < hits.Length; i++)
         {
             Transform candidate = hits[i].transform;
@@ -423,6 +511,8 @@ public class EnemyController : MonoBehaviour
             CombatStats cs = candidate.GetComponentInParent<CombatStats>();
             if (cs == null) continue;
             if (cs.IsDead) continue;
+            if (!IsHostile(cs)) continue;
+            if (cs == combatStats) continue;
 
             NoiseEmitter noise = cs.GetComponentInParent<NoiseEmitter>();
             if (noise == null)
@@ -440,24 +530,83 @@ public class EnemyController : MonoBehaviour
             if (distance > radius)
                 continue;
 
-            target = cs.transform;
-            targetStats = cs;
             targetVisibleThisFrame = true;
-
-            if (enemyState.Current != EnemyStateType.Combat)
-                enemyState.EnterCombat();
-
-            return true;
+            heardAny = true;
+            AddAggro(cs, threatAddPerSecond * Time.deltaTime);
         }
 
-        return false;
+        return heardAny;
+    }
+
+    void RetargetIfNeeded(bool force)
+    {
+        if (!force && Time.time < nextRetargetTime)
+            return;
+
+        nextRetargetTime = Time.time + retargetInterval;
+
+        if (aggroTable.Count == 0)
+            return;
+
+        AggroEntry best = null;
+        foreach (var entry in aggroTable.Values)
+        {
+            if (entry == null || entry.stats == null || entry.stats.IsDead)
+                continue;
+            if (!IsHostile(entry.stats))
+                continue;
+
+            if (best == null || entry.threat > best.threat)
+                best = entry;
+        }
+
+        if (best == null)
+            return;
+
+        bool currentValid = targetStats != null && !targetStats.IsDead && IsHostile(targetStats);
+        if (!currentValid)
+        {
+            ApplyTarget(best);
+            return;
+        }
+
+        if (best.stats == targetStats)
+            return;
+
+        float currentThreat = 0f;
+        if (aggroTable.TryGetValue(targetStats, out AggroEntry currentEntry))
+            currentThreat = currentEntry.threat;
+
+        if (best.threat - currentThreat < switchDelta)
+            return;
+
+        ApplyTarget(best);
+    }
+
+    void ApplyTarget(AggroEntry entry)
+    {
+        if (entry == null || entry.stats == null) return;
+
+        target = entry.stats.transform;
+        targetStats = entry.stats;
+        targetVisibleThisFrame = true;
+
+        if (enemyState.Current == EnemyStateType.Combat)
+        {
+            combatBrain?.SetTarget(target);
+        }
+        else
+        {
+            enemyState.EnterCombat();
+        }
     }
 
     bool CanMaintainTargetInCombat(Transform t)
     {
-        CombatStats cs = t != null ? t.GetComponentInParent<CombatStats>() : null;
         if (t == null) return false;
+        CombatStats cs = t.GetComponentInParent<CombatStats>();
         if (cs != null && cs.IsDead) return false;
+        if (cs != null && !IsHostile(cs)) return false;
 
         Vector3 eyePos = transform.position + Vector3.up * eyeHeight;
         Vector3 targetPos = LockTargetPointUtility.GetCapsuleCenter(t);
@@ -501,17 +650,6 @@ public class EnemyController : MonoBehaviour
         return true;
     }
 
-    void SetTarget(CombatStats cs)
-    {
-        if (cs == null || cs.IsDead) return;
-
-        target = cs.transform;
-        targetStats = cs;
-
-        loseTimer = 0f;
-        targetVisibleThisFrame = true;
-    }
-
     public void OnAttacked(Transform attacker)
     {
         if (attacker == null) return;
@@ -519,17 +657,16 @@ public class EnemyController : MonoBehaviour
         CombatStats cs = attacker.GetComponentInParent<CombatStats>();
         if (cs == null) return;
         if (cs.IsDead) return;
+        if (!IsHostile(cs)) return;
 
         // ✅ 被打后锁定点 = 攻击者胶囊中心
-        SetTarget(cs);
-
-        if (enemyState != null)
-            enemyState.ForceEnterCombat();
+        AddAggro(cs, attackedThreatAdd);
+        RetargetIfNeeded(true);
     }
 
     void UpdateCombatLoseTimer()
     {
-        if (targetVisibleThisFrame)
+        if (Time.time - lastHostileStimulusTime <= combatLoseDelay)
         {
             loseTimer = 0f;
             return;
@@ -540,6 +677,7 @@ public class EnemyController : MonoBehaviour
         if (loseTimer >= combatLoseDelay)
         {
             loseTimer = 0f;
+            aggroTable.Clear();
             target = null;
             targetStats = null;
             enemyState.EnterLostTarget();
