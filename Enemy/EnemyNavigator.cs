@@ -10,6 +10,9 @@ public class EnemyNavigator : MonoBehaviour
     [Header("NavMesh")]
     [SerializeField] float navMeshSampleRadius = 2f;
     [SerializeField] int navMeshAreaMask = NavMesh.AllAreas;
+    [SerializeField] float fallbackSpeed = 2f;
+    [SerializeField] float fallbackAngularSpeed = 120f;
+    [SerializeField] float fallbackAcceleration = 8f;
 
     // ✅ 基准参数（未缩放）
     float baseSpeed;
@@ -31,14 +34,16 @@ public class EnemyNavigator : MonoBehaviour
         agent.updatePosition = false;
         agent.updateRotation = false;
 
-        // 你的原始初始化
-        agent.speed = 0f;
-        agent.angularSpeed = 0f;
-        agent.acceleration = 0f;
-        agent.stoppingDistance = 0f;
+        ApplyFallbackAgentDefaults();
 
         // 记录基准
         CaptureBaseFromAgent();
+    }
+
+    void OnEnable()
+    {
+        EnsureAgentOnNavMesh(transform.position);
+        if (agent != null) agent.isStopped = false;
     }
 
     void Update()
@@ -71,6 +76,20 @@ public class EnemyNavigator : MonoBehaviour
         baseStoppingDistance = agent.stoppingDistance;
     }
 
+    void ApplyFallbackAgentDefaults()
+    {
+        if (agent == null) return;
+
+        if (agent.speed <= 0f)
+            agent.speed = Mathf.Max(0.01f, fallbackSpeed);
+
+        if (agent.angularSpeed <= 0f)
+            agent.angularSpeed = Mathf.Max(0.01f, fallbackAngularSpeed);
+
+        if (agent.acceleration <= 0f)
+            agent.acceleration = Mathf.Max(0.01f, fallbackAcceleration);
+    }
+
     /* ================= Public API ================= */
 
     public void SetTarget(Vector3 worldPos)
@@ -84,6 +103,7 @@ public class EnemyNavigator : MonoBehaviour
         if (TryGetNavMeshPosition(worldPos, out var sampled))
             targetPos = sampled;
 
+        agent.isStopped = false;
         agent.SetDestination(targetPos);
     }
 
