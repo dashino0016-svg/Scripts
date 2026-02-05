@@ -19,6 +19,9 @@ public class AttackData
     [Header("Super Armor")]
     public bool hasSuperArmor = false;
 
+    [Header("Hit Stop")]
+    public float hitStopWeight = 1f;
+
     [Header("Special Gain")]
     public int specialGainOnHit = 0;
     public int specialGainOnPerfectBlock = 0;

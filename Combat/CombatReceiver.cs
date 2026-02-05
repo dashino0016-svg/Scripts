@@ -23,8 +23,16 @@ public class CombatReceiver : MonoBehaviour, IHittable
     [SerializeField] float reactRestartFade = 0.02f;
 
     [Header("Hit Stop")]
-    [SerializeField] float hitStopTime = 0.06f;
-    [SerializeField] float guardBreakHitStopTime = 0.1f;
+    [SerializeField, Range(0f, 1f)] float hitStopHitScale = 0.06f;
+    [SerializeField] float hitStopHitDuration = 0.06f;
+
+    [SerializeField, Range(0f, 1f)] float guardBreakHitStopScale = 0.1f;
+    [SerializeField] float guardBreakHitStopDuration = 0.1f;
+
+    [SerializeField, Range(0f, 1f)] float perfectBlockHitStopScale = 0.07f;
+    [SerializeField] float perfectBlockHitStopDuration = 0.07f;
+
+    [SerializeField] bool useLocalHitStop = false;
 
     // ✅ 原来是 const PERFECT_BLOCK_SPECIAL_BONUS = 50;
     // ✅ 现在改为 Inspector 可调（默认值仍为 50，确保不改变现有行为）
@@ -196,13 +204,14 @@ public class CombatReceiver : MonoBehaviour, IHittable
         bool isNoHit = (result.resultType == HitResultType.Hit &&
                 result.reactionType == HitReactionType.NoHit);
 
-        // ✅ NoHit：不播受击、不打断、不HitStop（也就不会触发 HitBegin -> HitLock）
+        // ✅ NoHit：不播受击/不打断（保持霸体/免反应表现），但仍允许卡肉提升打击感。
         if (!isNoHit)
         {
             PlayHitReaction(result);
             TryInterruptAttack(result);
-            TryHitStop(result);
         }
+
+        TryHitStop(result, attackData);
 
         if (result.resultType == HitResultType.Hit ||
             result.resultType == HitResultType.GuardBreak)
@@ -449,14 +458,45 @@ public class CombatReceiver : MonoBehaviour, IHittable
         fighter.InterruptAttack();
     }
 
-    void TryHitStop(HitResult result)
+    void TryHitStop(HitResult result, AttackData attackData)
     {
         if (TimeController.Instance == null) return;
 
+        float scale;
+        float duration;
+
         if (result.resultType == HitResultType.GuardBreak)
-            TimeController.Instance.HitStop(guardBreakHitStopTime, guardBreakHitStopTime);
+        {
+            scale = guardBreakHitStopScale;
+            duration = guardBreakHitStopDuration;
+        }
+        else if (result.resultType == HitResultType.PerfectBlock)
+        {
+            scale = perfectBlockHitStopScale;
+            duration = perfectBlockHitStopDuration;
+        }
         else if (result.resultType == HitResultType.Hit)
-            TimeController.Instance.HitStop(hitStopTime, hitStopTime);
+        {
+            // ✅ 按你的新策略：Heavy / NoHit 不再单独分支，统一用 Hit 基线 + AttackConfig.hitStopWeight 调整。
+            scale = hitStopHitScale;
+            duration = hitStopHitDuration;
+        }
+        else
+        {
+            return;
+        }
+
+        float weight = attackData != null ? Mathf.Max(0f, attackData.hitStopWeight) : 1f;
+        if (weight <= 0f) return;
+
+        // 配置化命中权重：weight>1 更重（scale更小、duration更长）；<1 更轻。
+        scale = Mathf.Clamp01(scale / weight);
+        duration = duration * weight;
+
+        if (useLocalHitStop)
+            TimeController.Instance.HitStopLocal(attackData != null ? attackData.attacker : null, transform, duration);
+        else
+            TimeController.Instance.HitStop(scale, duration);
     }
 
     void OnDead()

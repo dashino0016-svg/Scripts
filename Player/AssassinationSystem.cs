@@ -41,6 +41,10 @@ public class AssassinationSystem : MonoBehaviour
     public int assassinationSpecialGain = 40;
     public int executeSpecialGain = 60;
 
+    [Header("Takedown Hit Stop")]
+    [SerializeField] float takedownStartHitStopTime = 0.05f;
+    [SerializeField] float takedownKillHitStopTime = 0.1f;
+
     [Header("Transition Fallback")]
     [Tooltip("收到输入后，等待这么久仍未进入目标状态，则强制 CrossFade。建议 0.02~0.08")]
     [SerializeField] float forceStateDelay = 0.04f;
@@ -229,6 +233,9 @@ public class AssassinationSystem : MonoBehaviour
 
         isAssassinating = true;
 
+        if (TimeController.Instance != null)
+            TimeController.Instance.HitStop(takedownStartHitStopTime, takedownStartHitStopTime);
+
         if (playerReceiver != null) playerReceiver.ForceSetInvincible(true);
         if (block != null) block.RequestBlock(false);
         if (abilitySystem != null) abilitySystem.CancelPending();
@@ -376,6 +383,9 @@ public class AssassinationSystem : MonoBehaviour
 
         if (playerStats != null && specialGain > 0)
             playerStats.AddSpecial(specialGain);
+
+        if (TimeController.Instance != null)
+            TimeController.Instance.HitStop(takedownKillHitStopTime, takedownKillHitStopTime);
     }
 
     public void AssassinateEnd()

@@ -342,6 +342,7 @@ public class EnemyAbilitySystem : MonoBehaviour
             canBeParried = cfg != null && cfg.canBeParried,
             canBreakGuard = cfg != null && cfg.canBreakGuard,
             hasSuperArmor = cfg != null && cfg.hasSuperArmor,
+            hitStopWeight = cfg != null ? cfg.hitStopWeight : 1f,
         };
     }
 }
