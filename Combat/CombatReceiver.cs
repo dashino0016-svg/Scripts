@@ -35,9 +35,6 @@ public class CombatReceiver : MonoBehaviour, IHittable
     [SerializeField, Range(0f, 1f)] float perfectBlockHitStopScale = 0.07f;
     [SerializeField] float perfectBlockHitStopDuration = 0.07f;
 
-    [SerializeField, Range(0.05f, 1f)] float heavyHitStopScaleMultiplier = 0.8f;
-    [SerializeField, Min(1f)] float heavyHitStopDurationMultiplier = 1.35f;
-
     [SerializeField] bool useLocalHitStop = false;
 
     // ✅ 原来是 const PERFECT_BLOCK_SPECIAL_BONUS = 50;
@@ -464,7 +461,7 @@ public class CombatReceiver : MonoBehaviour, IHittable
         fighter.InterruptAttack();
     }
 
-    void TryHitStop(HitResult result, AttackData attackData, bool isNoHit)
+    void TryHitStop(HitResult result, AttackData attackData)
     {
         if (TimeController.Instance == null) return;
 
@@ -483,26 +480,9 @@ public class CombatReceiver : MonoBehaviour, IHittable
         }
         else if (result.resultType == HitResultType.Hit)
         {
-            if (isNoHit)
-            {
-                scale = hitStopNoHitScale;
-                duration = hitStopNoHitDuration;
-            }
-            else
-            {
-                scale = hitStopHitScale;
-                duration = hitStopHitDuration;
-
-                bool isHeavySource = attackData != null &&
-                                     (attackData.sourceType == AttackSourceType.HeavyAttackA ||
-                                      attackData.sourceType == AttackSourceType.HeavyAttackB);
-
-                if (isHeavySource)
-                {
-                    scale *= Mathf.Clamp01(heavyHitStopScaleMultiplier);
-                    duration *= Mathf.Max(1f, heavyHitStopDurationMultiplier);
-                }
-            }
+            // ✅ 按你的新策略：Heavy / NoHit 不再单独分支，统一用 Hit 基线 + AttackConfig.hitStopWeight 调整。
+            scale = hitStopHitScale;
+            duration = hitStopHitDuration;
         }
         else
         {
