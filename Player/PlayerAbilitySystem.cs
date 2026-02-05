@@ -44,6 +44,9 @@ public class PlayerAbilitySystem : MonoBehaviour
 
     [SerializeField] LayerMask ability2EnemyMask;
 
+    [Header("Ability Shockwave Hit Stop")]
+    [SerializeField] float abilityShockwaveHitStopTime = 0.05f;
+
     // =========================
     // Ability3 - Time Slow (Enemy Only)
     // =========================
@@ -242,6 +245,9 @@ public class PlayerAbilitySystem : MonoBehaviour
 
     void PerformAbility1()
     {
+        if (TimeController.Instance != null)
+            TimeController.Instance.HitStop(abilityShockwaveHitStopTime, abilityShockwaveHitStopTime);
+
         if (ability1AttackConfig == null)
         {
             Debug.LogError("[PlayerAbilitySystem] Ability1 Attack Config 未绑定。Ability1 不执行。");
@@ -294,6 +300,9 @@ public class PlayerAbilitySystem : MonoBehaviour
 
     void PerformAbility2()
     {
+        if (TimeController.Instance != null)
+            TimeController.Instance.HitStop(abilityShockwaveHitStopTime, abilityShockwaveHitStopTime);
+
         if (ability2AttackConfig == null)
         {
             Debug.LogError("[PlayerAbilitySystem] Ability2 Attack Config 未绑定。Ability2 不执行。");
@@ -353,6 +362,7 @@ public class PlayerAbilitySystem : MonoBehaviour
             canBeParried = cfg != null && cfg.canBeParried,
             canBreakGuard = cfg != null && cfg.canBreakGuard,
             hasSuperArmor = cfg != null && cfg.hasSuperArmor,
+            hitStopWeight = cfg != null ? cfg.hitStopWeight : 1f,
         };
     }
 }
