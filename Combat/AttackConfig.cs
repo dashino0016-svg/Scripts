@@ -21,7 +21,11 @@ public class AttackConfig : ScriptableObject
     public bool canBeParried = true;
     public bool canBreakGuard = false;
 
+    [Header("Hit Stop")]
+    [Tooltip("Hit stop weight (1 = default, <1 lighter, >1 heavier).")]
+    [Min(0f)] public float hitStopWeight = 1f;
+
     [Header("Super Armor")]
-    [Tooltip("¹´Ñ¡ºó£ºÖ´ĞĞ¸Ã¹¥»÷Ê±£¬±»ÃüÖĞ²»»á´ò¶Ïµ±Ç°¹¥»÷£¨²»µ÷ÓÃ InterruptAttack£©")]
+    [Tooltip("å‹¾é€‰åï¼šæ‰§è¡Œè¯¥æ”»å‡»æ—¶ï¼Œè¢«å‘½ä¸­ä¸ä¼šæ‰“æ–­å½“å‰æ”»å‡»ï¼ˆä¸è°ƒç”¨ InterruptAttackï¼‰")]
     public bool hasSuperArmor = false;
 }

@@ -439,7 +439,8 @@ public class AssistDroneController : MonoBehaviour
             canBeBlocked = cfg.canBeBlocked,
             canBeParried = cfg.canBeParried,
             canBreakGuard = cfg.canBreakGuard,
-            hasSuperArmor = cfg.hasSuperArmor
+            hasSuperArmor = cfg.hasSuperArmor,
+            hitStopWeight = cfg.hitStopWeight
         };
         return data;
     }

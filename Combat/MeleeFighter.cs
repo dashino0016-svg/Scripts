@@ -508,6 +508,7 @@ public class MeleeFighter : MonoBehaviour
             canBeParried = cfg.canBeParried,
             canBreakGuard = cfg.canBreakGuard,
             hasSuperArmor = cfg.hasSuperArmor,
+            hitStopWeight = cfg.hitStopWeight,
         };
     }
 
