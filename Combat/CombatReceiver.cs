@@ -217,7 +217,6 @@ public class CombatReceiver : MonoBehaviour, IHittable
             TryInterruptAttack(result);
         }
 
-        TryHitStop(result, attackData);
         TryHitStop(result, attackData, isNoHit);
 
         if (result.resultType == HitResultType.Hit ||
@@ -465,7 +464,6 @@ public class CombatReceiver : MonoBehaviour, IHittable
         fighter.InterruptAttack();
     }
 
-    void TryHitStop(HitResult result, AttackData attackData)
     void TryHitStop(HitResult result, AttackData attackData, bool isNoHit)
     {
         if (TimeController.Instance == null) return;
@@ -485,9 +483,6 @@ public class CombatReceiver : MonoBehaviour, IHittable
         }
         else if (result.resultType == HitResultType.Hit)
         {
-            // ✅ 按你的新策略：Heavy / NoHit 不再单独分支，统一用 Hit 基线 + AttackConfig.hitStopWeight 调整。
-            scale = hitStopHitScale;
-            duration = hitStopHitDuration;
             if (isNoHit)
             {
                 scale = hitStopNoHitScale;
