@@ -23,20 +23,15 @@ public class CombatReceiver : MonoBehaviour, IHittable
     [SerializeField] float reactRestartFade = 0.02f;
 
     [Header("Hit Stop")]
+  
     [SerializeField, Range(0f, 1f)] float hitStopHitScale = 0.06f;
     [SerializeField] float hitStopHitDuration = 0.06f;
-
-    [SerializeField, Range(0f, 1f)] float hitStopNoHitScale = 0.06f;
-    [SerializeField] float hitStopNoHitDuration = 0.06f;
 
     [SerializeField, Range(0f, 1f)] float guardBreakHitStopScale = 0.1f;
     [SerializeField] float guardBreakHitStopDuration = 0.1f;
 
     [SerializeField, Range(0f, 1f)] float perfectBlockHitStopScale = 0.07f;
     [SerializeField] float perfectBlockHitStopDuration = 0.07f;
-
-    [SerializeField, Range(0.05f, 1f)] float heavyHitStopScaleMultiplier = 0.8f;
-    [SerializeField, Min(1f)] float heavyHitStopDurationMultiplier = 1.35f;
 
     [SerializeField] bool useLocalHitStop = false;
 
@@ -218,7 +213,6 @@ public class CombatReceiver : MonoBehaviour, IHittable
         }
 
         TryHitStop(result, attackData);
-        TryHitStop(result, attackData, isNoHit);
 
         if (result.resultType == HitResultType.Hit ||
             result.resultType == HitResultType.GuardBreak)
@@ -466,7 +460,6 @@ public class CombatReceiver : MonoBehaviour, IHittable
     }
 
     void TryHitStop(HitResult result, AttackData attackData)
-    void TryHitStop(HitResult result, AttackData attackData, bool isNoHit)
     {
         if (TimeController.Instance == null) return;
 
