@@ -478,29 +478,10 @@ public class CombatReceiver : MonoBehaviour, IHittable
         }
         else if (result.resultType == HitResultType.Hit)
         {
-            // ✅ 按你的新策略：Heavy / NoHit 不再单独分支，统一用 Hit 基线 + AttackConfig.hitStopWeight 调整。
+        // ✅ 统一策略：命中卡肉只用基线（hitStopHitScale/duration），轻重完全交给 AttackConfig.hitStopWeight。
+        // 例如：0=无卡肉，0.3=很轻，1=默认，2=更重（更强减速+更长停顿）
             scale = hitStopHitScale;
             duration = hitStopHitDuration;
-            if (isNoHit)
-            {
-                scale = hitStopNoHitScale;
-                duration = hitStopNoHitDuration;
-            }
-            else
-            {
-                scale = hitStopHitScale;
-                duration = hitStopHitDuration;
-
-                bool isHeavySource = attackData != null &&
-                                     (attackData.sourceType == AttackSourceType.HeavyAttackA ||
-                                      attackData.sourceType == AttackSourceType.HeavyAttackB);
-
-                if (isHeavySource)
-                {
-                    scale *= Mathf.Clamp01(heavyHitStopScaleMultiplier);
-                    duration *= Mathf.Max(1f, heavyHitStopDurationMultiplier);
-                }
-            }
         }
         else
         {
