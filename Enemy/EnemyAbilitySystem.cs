@@ -3,23 +3,11 @@ using UnityEngine.Serialization;
 
 public class EnemyAbilitySystem : MonoBehaviour
 {
-    /// <summary>
-    /// Animator triggers (固定)：
-    /// - Ability1: Shockwave Cone
-    /// - Ability2: Shockwave AoE
-    ///
-    /// Event authority:
-    /// - AbilityBegin / AbilityEnd 控制 isInAbilityLock
-    /// - AbilityImpact 结算效果
-    /// </summary>
+    
     public enum AbilityType
     {
-        // legacy names (保持旧代码可编译)
-        Shockwave = 0,
-
-        // new explicit actions / animations
-        Ability1 = 0,
-        Ability2 = 1,
+        Ability1,
+        Ability2,
     }
 
     const string TriggerAbility1 = "Ability1";
