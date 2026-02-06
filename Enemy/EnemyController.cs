@@ -39,9 +39,9 @@ public class EnemyController : MonoBehaviour
     public float combatMaintainRadiusMultiplier = 2f;
 
     [Header("Aggro")]
-    public float threatAddPerSecond = 6f;
+    public float threatAddPerSecond = 3f;
     public float attackedThreatAdd = 30f;
-    public float threatDecayPerSecond = 3f;
+    public float threatDecayPerSecond = 1f;
     public float forgetAfter = 6f;
     public float switchDelta = 6f;
     public float retargetInterval = 0.25f;

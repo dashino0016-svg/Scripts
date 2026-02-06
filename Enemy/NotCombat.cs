@@ -2,7 +2,7 @@
 
 [RequireComponent(typeof(EnemyState))]
 [RequireComponent(typeof(EnemyMove))]
-[RequireComponent(typeof(EnemyNavigator))] // ⭐ 新增
+[RequireComponent(typeof(EnemyNavigator))]
 public class NotCombat : MonoBehaviour
 {
     [Header("Idle")]
@@ -15,12 +15,14 @@ public class NotCombat : MonoBehaviour
 
     EnemyState enemyState;
     EnemyMove move;
-    EnemyNavigator navigator;   // ⭐ 新增
+    EnemyNavigator navigator;
     CombatReceiver receiver;
 
     int currentPatrolIndex;
     float idleTimer;
     float currentIdleDuration;
+
+    EnemyStateType lastState;
 
     enum Phase
     {
@@ -34,33 +36,51 @@ public class NotCombat : MonoBehaviour
     {
         enemyState = GetComponent<EnemyState>();
         move = GetComponent<EnemyMove>();
-        navigator = GetComponent<EnemyNavigator>(); // ⭐ 新增
+        navigator = GetComponent<EnemyNavigator>();
         receiver = GetComponent<CombatReceiver>();
+
+        lastState = enemyState != null ? enemyState.Current : EnemyStateType.NotCombat;
     }
 
     void OnEnable()
     {
         EnterIdle();
+        lastState = enemyState != null ? enemyState.Current : EnemyStateType.NotCombat;
     }
 
     void Update()
     {
-        if (enemyState == null || move == null)
+        if (enemyState == null || move == null || navigator == null)
             return;
 
-        // ⭐⭐⭐ 受击优先级最高：完全冻结 NotCombat
+        // ✅ 只在 NotCombat 状态下运行本脚本
+        if (enemyState.Current != EnemyStateType.NotCombat)
+        {
+            // ✅ 仅在“刚离开 NotCombat”的那一帧，停一次巡逻，避免带着巡逻惯性进入战斗/丢失目标
+            if (lastState == EnemyStateType.NotCombat)
+            {
+                navigator.Stop();
+                move.SetMoveDirection(Vector3.zero);
+                move.SetMoveSpeedLevel(0);
+            }
+
+            lastState = enemyState.Current;
+            return;
+        }
+
+        // ✅ 从其他状态回到 NotCombat：重新进入 Idle（可选，但更稳定）
+        if (lastState != EnemyStateType.NotCombat)
+        {
+            EnterIdle();
+        }
+        lastState = enemyState.Current;
+
+        // ⭐⭐⭐ 受击优先级最高：冻结 NotCombat
         if (receiver != null && receiver.IsInHitLock)
         {
             navigator.Stop();
             move.SetMoveDirection(Vector3.zero);
             move.SetMoveSpeedLevel(0);
-            return;
-        }
-
-        // ⭐ 一旦进入 Combat / LostTarget，立即停掉巡逻
-        if (enemyState.IsInCombat)
-        {
-            navigator.Stop();
             return;
         }
 
@@ -78,7 +98,6 @@ public class NotCombat : MonoBehaviour
                 break;
         }
     }
-
 
     /* ================= Idle ================= */
 
@@ -115,7 +134,6 @@ public class NotCombat : MonoBehaviour
 
         phase = Phase.Move;
 
-        // ⭐ 设置 NavMesh 目标点
         navigator.SetTarget(patrolPoints[currentPatrolIndex].position);
     }
 
@@ -123,7 +141,7 @@ public class NotCombat : MonoBehaviour
     {
         Transform target = patrolPoints[currentPatrolIndex];
 
-        // ⭐ 告诉 NavMesh 当前要去的点（防止中途被打断）
+        // 持续更新目标点（巡逻点不动也无妨）
         navigator.SetTarget(target.position);
 
         Vector3 dir = GetMoveDirection(target.position);
