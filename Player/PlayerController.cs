@@ -42,6 +42,7 @@ public class PlayerController : MonoBehaviour
     ThirdPersonShoulderCamera cam;
     PlayerStaminaActions staminaActions;
     PlayerAbilitySystem abilitySystem;
+    PlayerDroneSummoner droneSummoner;
     CombatReceiver receiver; // ✅ 受击锁来源
 
     bool isBusy;
@@ -125,6 +126,7 @@ public class PlayerController : MonoBehaviour
         cam = FindObjectOfType<ThirdPersonShoulderCamera>();
         staminaActions = GetComponent<PlayerStaminaActions>(); // 仅玩家会有
         abilitySystem = GetComponent<PlayerAbilitySystem>();
+        droneSummoner = GetComponent<PlayerDroneSummoner>();
         receiver = GetComponent<CombatReceiver>();
         assassination = GetComponent<AssassinationSystem>();
 
@@ -817,8 +819,8 @@ public class PlayerController : MonoBehaviour
 
         if (Input.GetKeyDown(helicopterKey))
         {
-            if (abilitySystem != null)
-                abilitySystem.TrySummonHelicopter();
+            if (droneSummoner != null)
+                droneSummoner.TrySummon();
         }
     }
 

@@ -69,16 +69,6 @@ public class PlayerAbilitySystem : MonoBehaviour
 
     [SerializeField] int costAbility4 = 100;
 
-    [Header("Ability5 - Helicopter Assist")]
-    [SerializeField] AssistDroneController helicopterPrefab;
-    [SerializeField] Vector3 helicopterHoverOffset = new Vector3(0f, 2.2f, 0f);
-    [SerializeField] float helicopterLifetime = 15f;
-    [SerializeField] float helicopterHighAltitude = 18f;
-    [SerializeField] float helicopterEnterDuration = 1.0f;
-    [SerializeField] float helicopterExitDuration = 1.0f;
-    [SerializeField] int helicopterEnergyCost = 200;
-
-    AssistDroneController currentHelicopter;
 
     AbilityType pending;
     bool hasPending;
@@ -132,46 +122,6 @@ public class PlayerAbilitySystem : MonoBehaviour
         return true;
     }
 
-    public bool TrySummonHelicopter()
-    {
-        if (currentHelicopter != null)
-            return false;
-
-        if (stats == null || helicopterPrefab == null)
-            return false;
-
-        if (stats.CurrentSpecial < helicopterEnergyCost)
-            return false;
-
-        Vector3 spawnPos = transform.position + Vector3.up * helicopterHighAltitude;
-        AssistDroneController instance = Instantiate(helicopterPrefab, spawnPos, Quaternion.identity);
-        if (instance == null)
-            return false;
-
-        if (!stats.ConsumeSpecial(helicopterEnergyCost))
-        {
-            Destroy(instance.gameObject);
-            return false;
-        }
-
-        currentHelicopter = instance;
-        Transform owner = stats != null ? stats.transform : transform;
-        instance.Init(
-            owner,
-            helicopterHoverOffset,
-            helicopterHighAltitude,
-            helicopterEnterDuration,
-            helicopterExitDuration,
-            helicopterLifetime,
-            () =>
-            {
-                if (currentHelicopter == instance)
-                    currentHelicopter = null;
-            }
-        );
-
-        return true;
-    }
 
     int GetCost(AbilityType type)
     {
