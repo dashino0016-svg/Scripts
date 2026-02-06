@@ -56,7 +56,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
     public float engageRunBurstMaxDuration = 4f;
 
     [Tooltip("Run 贴近的冷却时间（秒）。")]
-    public float engageRunBurstCooldown = 0f;
+    public float engageRunBurstCooldown = 5f;
 
     [Header("Sprint -> SprintAttack")]
     public bool enableSprintAttackA = true;
