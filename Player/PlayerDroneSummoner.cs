@@ -10,11 +10,11 @@ public class PlayerDroneSummoner : MonoBehaviour
     [SerializeField] Vector3 hoverOffset = new Vector3(0f, 2.2f, 0f);
     [SerializeField] float lifetime = 15f;
     [SerializeField] float highAltitude = 18f;
-    [SerializeField] float enterDuration = 1.0f;
-    [SerializeField] float exitDuration = 1.0f;
+    [SerializeField] float enterDuration = 3f;
+    [SerializeField] float exitDuration = 3f;
 
     [Header("Cooldown")]
-    [SerializeField] float summonCooldown = 20f;
+    [SerializeField] float summonCooldown = 60f;
 
     AssistDroneController currentDrone;
     float nextSummonAllowedTime;

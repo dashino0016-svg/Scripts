@@ -98,6 +98,15 @@ public class EnemyController : MonoBehaviour
     bool weaponLockRootMotionCached;
     bool weaponLockRootMotionValid;
 
+    public bool IsTargetingPlayer
+    {
+        get
+        {
+            if (targetStats == null || targetStats.IsDead) return false;
+            return targetStats.GetComponentInParent<PlayerController>() != null;
+        }
+    }
+
     // ================= Weapon Transition Lock =================
 
     void EnterWeaponTransitionLock(WeaponTransitionType type)

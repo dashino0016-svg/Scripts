@@ -293,6 +293,15 @@ public class MeleeFighter : MonoBehaviour
     public void Begin()
     {
         // 事件权威：Begin 本身不切状态（状态在 TryAttack/RequestHeavy/RequestAbility 已设置）
+
+        if (currentAttackData == null) return;
+        if (currentAttackData.canBeBlocked) return; // 只对不可防御提示
+
+        var enemy = GetComponentInParent<EnemyController>();
+        if (enemy == null) return;                  // 不是敌人（比如玩家自己的 MeleeFighter）
+        if (!enemy.IsTargetingPlayer) return;       // ✅ 只有目标是玩家才提示
+
+        CombatSignals.RaisePlayerUnblockableWarning(0f); // 方案B：时长由玩家端 defaultDuration 决定
     }
 
     public void AttackBegin()
