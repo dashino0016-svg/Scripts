@@ -53,7 +53,7 @@ public class MeleeFighter : MonoBehaviour
 
     // ===== Ability（攻击型：Ability1/Ability2）=====
     bool isAbility;
-    AbilityType currentAbility; // ✅ 来自 CombatEums.cs（Ability1/Ability2）
+    AbilityType currentAbility; // ✅ 来自 CombatEnums.cs（Ability1/Ability2）
 
     // ===== 当前攻击数据 =====
     AttackData currentAttackData;
