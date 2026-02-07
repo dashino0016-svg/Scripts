@@ -5,28 +5,21 @@ public class PlayerController : MonoBehaviour
     [Header("Input")]
     public KeyCode toggleSwordKey = KeyCode.F;
     public KeyCode rollKey = KeyCode.LeftAlt;
-    public KeyCode blockKey = KeyCode.E;
+    public KeyCode blockKey = KeyCode.Mouse1;
     public KeyCode lockOnKey = KeyCode.G;
     public KeyCode switchLockLeftKey = KeyCode.Z;
     public KeyCode switchLockRightKey = KeyCode.X;
     public KeyCode runKey = KeyCode.LeftShift;
     public KeyCode jumpKey = KeyCode.Space;
-    // ✅ 新增：暗杀/处决（Takedown）输入统一在 PlayerController 配置
     public KeyCode takedownKey = KeyCode.V;
-
-    // ✅ Crouch
-    [Header("Crouch")]
     public KeyCode crouchKey = KeyCode.C;
-
-    // ✅ 攻击输入：只用 KeyCode（Inspector 可选 Mouse0/Mouse1 或任意键）
-    [Header("Attack Keys")]
     public KeyCode attackAKey = KeyCode.Mouse0;
-    public KeyCode attackBKey = KeyCode.Mouse1;
+    public KeyCode attackBKey = KeyCode.E;
 
     [Header("Ability Keys")]
-    public KeyCode ability1Key = KeyCode.Q;
-    public KeyCode ability2Key = KeyCode.R;
-    public KeyCode ability3Key = KeyCode.T;
+    public KeyCode ability1Key = KeyCode.Alpha1;
+    public KeyCode ability2Key = KeyCode.Alpha2;
+    public KeyCode ability3Key = KeyCode.Alpha3;
     public KeyCode ability4Key = KeyCode.H;
     public KeyCode helicopterKey = KeyCode.Y;
 
