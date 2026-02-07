@@ -1,14 +1,14 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 public class MiniAssistantDroneController : MonoBehaviour
 {
     public enum DroneState { Docked, Entering, Active, Returning }
 
     [Header("Anchors")]
-    [SerializeField] Transform owner;          // Íæ¼Ò¸ù
-    [SerializeField] Transform dockAnchor;     // ±³²¿¹Òµã
-    [SerializeField] Vector3 dockLocalPos;     // ¹ÒµãÎ¢µ÷
-    [SerializeField] Vector3 dockLocalEuler;   // ¹ÒµãÎ¢µ÷£¨±£Ö¤ Docked ÃæÏòÍæ¼ÒÇ°·½£©
+    [SerializeField] Transform owner;          // ç©å®¶æ ¹ï¼ˆæˆ–ä»»æ„åœ¨ç©å®¶å±‚çº§ä¸‹çš„ç‰©ä½“ï¼‰
+    [SerializeField] Transform dockAnchor;     // èƒŒéƒ¨æŒ‚ç‚¹ï¼ˆBone/Socketï¼‰
+    [SerializeField] Vector3 dockLocalPos;     // Docked æ—¶ local å¾®è°ƒ
+    [SerializeField] Vector3 dockLocalEuler;   // Docked æ—¶ local å¾®è°ƒ
 
     [Header("Hover (like helicopter)")]
     [SerializeField] Vector3 hoverOffset = new Vector3(0f, 2.0f, 0f);
@@ -21,24 +21,32 @@ public class MiniAssistantDroneController : MonoBehaviour
     [SerializeField, Min(0f)] float teleportSnapDistance = 25f;
 
     [Header("Enter/Return Path")]
-    [Tooltip("³ö±³ÏÈºóÍËµÄ¾àÀë£¨ÑØÍæ¼Ò backward£©¡£")]
+    [Tooltip("å‡ºèƒŒå…ˆåé€€çš„è·ç¦»ï¼ˆæ²¿ç©å®¶ backwardï¼‰ã€‚")]
     [SerializeField, Min(0f)] float retreatDistance = 0.45f;
 
-    [SerializeField, Min(0f)] float retreatTime = 0.12f;
-    [SerializeField, Min(0f)] float ascendTime = 0.20f;
-    [SerializeField, Min(0f)] float toOrbitTime = 0.22f;
+    [SerializeField, Min(0f)] float retreatTime = 0.12f;  // åé€€
+    [SerializeField, Min(0f)] float ascendTime = 0.20f;   // ä¸Šå‡
+    [SerializeField, Min(0f)] float toOrbitTime = 0.22f;  // å…¥è½¨
 
     [SerializeField, Min(0f)] float fromOrbitTime = 0.18f;
     [SerializeField, Min(0f)] float descendTime = 0.20f;
     [SerializeField, Min(0f)] float forwardToDockTime = 0.12f;
 
-    [Header("Rotation")]
-    [Tooltip("·ÉĞĞÖĞÈÃÎŞÈË»ú³¯Ïò¸úËæÍæ¼Ò£¨½ö yaw£©¡£")]
-    [SerializeField] bool yawFollowOwnerWhileFlying = true;
-    [SerializeField, Min(0f)] float yawFollowSpeed = 14f;
+    [Header("Facing")]
+    [Tooltip("é£è¡Œä¸­æ˜¯å¦æ—‹è½¬æœå‘ã€‚Docked ä¸ä¼šæ”¹æœå‘ï¼ˆç”± dockAnchor å†³å®šï¼‰ã€‚")]
+    [SerializeField] bool faceWhileFlying = true;
+
+    [Tooltip("é”å®šæ—¶å§‹ç»ˆé¢å‘é”å®šç›®æ ‡ï¼ˆæ¨èå¼€ï¼‰ã€‚")]
+    [SerializeField] bool faceLockedTarget = true;
+
+    [SerializeField, Min(0f)] float faceYawSpeed = 14f;
+
+    [Header("Facing Reference (fallback)")]
+    [SerializeField] Transform yawReference;        // æœªé”å®šæ—¶çš„æœå‘å‚è€ƒï¼ˆå»ºè®®ç©å®¶æ ¹ï¼‰
+    [SerializeField] float yawOffsetDegrees = 0f;   // æ¨¡å‹å›ºå®šåè§’ä¿®æ­£ï¼ˆ0/90/-90/180ï¼‰
+    [SerializeField] bool snapYaw = false;          // true=ä¸å¹³æ»‘ç›´æ¥å¯¹é½
 
     public DroneState State => state;
-
     DroneState state = DroneState.Docked;
 
     // hover center
@@ -53,24 +61,56 @@ public class MiniAssistantDroneController : MonoBehaviour
     float enterStartTime;
     Vector3 enterStartPos;
     Vector3 enterRetreatPos;
-    Vector3 enterAscendPos;
-    Vector3 enterOrbitPos;
 
     // returning
     float returnStartTime;
     Vector3 returnStartPos;
     Vector3 returnBehindPos;
-    Vector3 returnDockApproachPos;
+
+    // refs
+    Transform playerRoot;     // PlayerController æ ¹ï¼ˆæ›´ç¨³å®šï¼‰
+    LockOnSystem lockOn;
 
     void Awake()
     {
         orbitPhase = Random.value * Mathf.PI * 2f;
+
+        // è‡ªåŠ¨æ‰¾ç©å®¶æ ¹ï¼ˆä¸å¼ºè€¦åˆï¼‰
+        if (owner != null)
+        {
+            var pc = owner.GetComponentInParent<PlayerController>();
+            playerRoot = pc != null ? pc.transform : owner;
+            lockOn = (pc != null) ? pc.GetComponent<LockOnSystem>() : owner.GetComponentInParent<LockOnSystem>();
+        }
+        else
+        {
+            playerRoot = null;
+            lockOn = null;
+        }
+
+        if (yawReference == null) yawReference = playerRoot != null ? playerRoot : owner;
     }
 
-    void Update()
+    void OnEnable()
+    {
+        // åˆå§‹ç¡®ä¿ Docked è´´åˆï¼ˆé¿å…ç¬¬ä¸€å¸§æŠ–ä¸€ä¸‹ï¼‰
+        if (state == DroneState.Docked)
+            AttachToDockImmediate();
+    }
+
+    void LateUpdate()
     {
         if (owner == null || dockAnchor == null) return;
 
+        if (playerRoot == null)
+        {
+            var pc = owner.GetComponentInParent<PlayerController>();
+            playerRoot = pc != null ? pc.transform : owner;
+            if (yawReference == null) yawReference = playerRoot;
+            if (lockOn == null && pc != null) lockOn = pc.GetComponent<LockOnSystem>();
+        }
+
+        // === çŠ¶æ€åˆ‡æ¢æ”¾ LateUpdateï¼šæ‹¿åˆ°åŠ¨ç”»ç»“ç®—åçš„ dockAnchor ä½ç½®ï¼ŒæŠ–åŠ¨æœ€å°‘ ===
         bool inCombat = EnemyState.AnyEnemyInCombat;
 
         if (inCombat)
@@ -84,45 +124,58 @@ public class MiniAssistantDroneController : MonoBehaviour
                 BeginReturn();
         }
 
+        // === æ‰§è¡ŒçŠ¶æ€ ===
         switch (state)
         {
             case DroneState.Docked:
-                SnapToDock();
+                // âœ… å…³é”®ï¼šDocked ç›´æ¥æŒ‚åˆ° dockAnchorï¼Œå†™ localï¼Œä¸è¿½ä¸–ç•Œåæ ‡ â†’ æ¶ˆç­æŠ–åŠ¨/é—ªçƒ
+                AttachToDockImmediate();
                 break;
 
             case DroneState.Entering:
+                DetachFromDock();
                 TickEnter();
+                if (faceWhileFlying) TickFacing();
                 break;
 
             case DroneState.Active:
+                DetachFromDock();
                 TickActiveOrbit();
+                if (faceWhileFlying) TickFacing();
                 break;
 
             case DroneState.Returning:
+                DetachFromDock();
                 TickReturn();
+                if (faceWhileFlying) TickFacing();
                 break;
         }
-
-        if (yawFollowOwnerWhileFlying && state != DroneState.Docked)
-            TickYawFollowOwner();
     }
 
-    // ================= Dock =================
+    // ================= Dock parenting (fix jitter) =================
 
-    void SnapToDock()
+    void AttachToDockImmediate()
     {
-        transform.position = GetDockWorldPos();
-        transform.rotation = GetDockWorldRot();
+        if (transform.parent != dockAnchor)
+            transform.SetParent(dockAnchor, false);
+
+        transform.localPosition = dockLocalPos;
+        transform.localRotation = Quaternion.Euler(dockLocalEuler);
     }
 
-    Vector3 GetDockWorldPos() => dockAnchor.TransformPoint(dockLocalPos);
-    Quaternion GetDockWorldRot() => dockAnchor.rotation * Quaternion.Euler(dockLocalEuler);
+    void DetachFromDock()
+    {
+        // é£è¡Œæ—¶å¿…é¡»è„±ç¦» dockAnchorï¼ˆå¦åˆ™ä¼šè¢«éª¨éª¼åŠ¨ç”»/è½¬èº«å¸¦ç€æŠ–ï¼‰
+        if (transform.parent == dockAnchor)
+            transform.SetParent(null, true); // ä¿æŒä¸–ç•Œåæ ‡
+    }
 
-    // ================= Hover Center =================
+    // ================= Hover center =================
 
     void UpdateHoverCenter(bool forceSnap)
     {
-        Vector3 desired = owner.position + hoverOffset;
+        Transform root = playerRoot != null ? playerRoot : owner;
+        Vector3 desired = root.position + hoverOffset;
 
         if (!hoverCenterInited || forceSnap)
         {
@@ -149,7 +202,11 @@ public class MiniAssistantDroneController : MonoBehaviour
         );
     }
 
-    Vector3 GetBehindOffset() => (-owner.forward) * retreatDistance;
+    Vector3 GetBehindOffset()
+    {
+        Transform root = playerRoot != null ? playerRoot : owner;
+        return (-root.forward) * retreatDistance;
+    }
 
     // ================= Entering: retreat -> ascend -> to orbit =================
 
@@ -164,25 +221,13 @@ public class MiniAssistantDroneController : MonoBehaviour
 
         Vector3 behind = GetBehindOffset();
 
-        // 1) ºóÍËÄ¿±ê£ºÒÔ¡°±³²¿µ±Ç°µã¡±ÎªÆğµã£¬ÍùÍæ¼Ò backward ÒÆ
-        enterRetreatPos = GetDockWorldPos() + behind;
-
-        // 2) ÉÏÉıÄ¿±ê£ºµ½ hover ¸ß¶È£¬µ«ÈÔÔÚÉíºó£¨ÓÃ hoverCenter µÄ Y£©
-        enterAscendPos = new Vector3(
-            hoverCenter.x + behind.x,
-            hoverCenter.y,
-            hoverCenter.z + behind.z
-        );
-
-        // 3) Èë¹ìÄ¿±ê£ºhoverCenter + orbitOffset£¨Ö±½ÓÂäµ½¹ìµÀµã£¬±ÜÃâÍ»È»²àÒÆ£©
-        Vector3 orbitOffset = new Vector3(Mathf.Cos(orbitPhase) * orbitRadius, 0f, Mathf.Sin(orbitPhase) * orbitRadius);
-        enterOrbitPos = hoverCenter + orbitOffset;
+        // åé€€ç›®æ ‡ï¼šä»¥èƒŒéƒ¨æŒ‚ç‚¹ä¸ºåŸºå‡†å¾€å
+        Vector3 dockWorld = dockAnchor.TransformPoint(dockLocalPos);
+        enterRetreatPos = dockWorld + behind;
     }
 
     void TickEnter()
     {
-        if (owner == null) { state = DroneState.Docked; return; }
-
         UpdateHoverCenter(false);
 
         float t0 = Mathf.Max(0.0001f, retreatTime);
@@ -191,6 +236,7 @@ public class MiniAssistantDroneController : MonoBehaviour
 
         float elapsed = Time.time - enterStartTime;
 
+        // 1) åé€€
         if (elapsed < t0)
         {
             float t = Smooth01(elapsed / t0);
@@ -198,32 +244,30 @@ public class MiniAssistantDroneController : MonoBehaviour
             return;
         }
 
+        // 2) ä¸Šå‡åˆ° hover é«˜åº¦ï¼ˆä»åœ¨èº«åï¼‰
         elapsed -= t0;
+        Vector3 behind = GetBehindOffset();
+        Vector3 ascendTarget = new Vector3(hoverCenter.x + behind.x, hoverCenter.y, hoverCenter.z + behind.z);
+
         if (elapsed < t1)
         {
             float t = Smooth01(elapsed / t1);
-
-            // ÉÏÉı¶Î£ºÖÕµãµÄ XZ ¸úËæ hoverCenter£¨ÓĞÖÍºó£©£¬±£³Ö¡°ÔÚÉíºó¡±¸Ğ¾õ
-            Vector3 behind = GetBehindOffset();
-            Vector3 ascendTarget = new Vector3(hoverCenter.x + behind.x, hoverCenter.y, hoverCenter.z + behind.z);
-
             transform.position = Vector3.Lerp(enterRetreatPos, ascendTarget, t);
             return;
         }
 
+        // 3) å…¥è½¨
         elapsed -= t1;
-        {
-            float t = Smooth01(Mathf.Clamp01(elapsed / t2));
+        float tIn = Smooth01(Mathf.Clamp01(elapsed / t2));
 
-            // Èë¹ì¶Î£ºÖÕµã orbitPos Ã¿Ö¡Ëæ hoverCenter ¸üĞÂ£¨ÒÀÈ»ÓĞÖÍºó£©
-            Vector3 orbitOffset = new Vector3(Mathf.Cos(orbitPhase) * orbitRadius, 0f, Mathf.Sin(orbitPhase) * orbitRadius);
-            Vector3 orbitTarget = hoverCenter + orbitOffset;
+        orbitPhase += orbitSpeed * Time.deltaTime;
+        Vector3 orbitOffset = new Vector3(Mathf.Cos(orbitPhase) * orbitRadius, 0f, Mathf.Sin(orbitPhase) * orbitRadius);
+        Vector3 orbitTarget = hoverCenter + orbitOffset;
 
-            transform.position = Vector3.Lerp(transform.position, orbitTarget, t);
+        transform.position = Vector3.Lerp(transform.position, orbitTarget, tIn);
 
-            if (t >= 0.9999f)
-                state = DroneState.Active;
-        }
+        if (tIn >= 0.9999f)
+            state = DroneState.Active;
     }
 
     // ================= Active Orbit =================
@@ -242,11 +286,10 @@ public class MiniAssistantDroneController : MonoBehaviour
 
         Vector3 targetPos = hoverCenter + orbitOffset;
 
-        // ÇáÁ¿Ö¸Êı Lerp£¨·ç¸ñ½Ó½üÄãÖ±Éı»ú£©
         transform.position = Vector3.Lerp(transform.position, targetPos, 1f - Mathf.Exp(-10f * Time.deltaTime));
     }
 
-    // ================= Returning: from orbit -> descend -> forward to dock =================
+    // ================= Returning =================
 
     void BeginReturn()
     {
@@ -258,16 +301,11 @@ public class MiniAssistantDroneController : MonoBehaviour
         returnStartPos = transform.position;
 
         Vector3 behind = GetBehindOffset();
-
-        // 1) ÏÈÍËµ½¡°ÉíºóÉÏ·½¡±µÄµã£¨¿É¿Ø£©
         returnBehindPos = new Vector3(
             hoverCenter.x + behind.x,
             hoverCenter.y,
             hoverCenter.z + behind.z
         );
-
-        // 2) ÏÂ½µµ½¡°±³²¿¸ß¶ÈµÄÉíºóµã¡±
-        returnDockApproachPos = GetDockWorldPos() + behind;
     }
 
     void TickReturn()
@@ -278,6 +316,7 @@ public class MiniAssistantDroneController : MonoBehaviour
 
         float elapsed = Time.time - returnStartTime;
 
+        // 1) å›åˆ°èº«åä¸Šæ–¹
         if (elapsed < a)
         {
             float t = Smooth01(elapsed / a);
@@ -285,47 +324,73 @@ public class MiniAssistantDroneController : MonoBehaviour
             return;
         }
 
+        // 2) ä¸‹é™åˆ°èƒŒéƒ¨é«˜åº¦ï¼ˆä»åœ¨èº«åï¼‰
         elapsed -= a;
+        Vector3 behind = GetBehindOffset();
+        Vector3 dockWorld = dockAnchor.TransformPoint(dockLocalPos);
+        Vector3 approach = dockWorld + behind;
+
         if (elapsed < b)
         {
             float t = Smooth01(elapsed / b);
-
-            // ÏÂ½µ¶Î£ºÄ¿±êµãËæ dockAnchor ±ä»¯£¨Íæ¼ÒÒÆ¶¯Ê±²»»á¡°¶ª¡±Ì«¶à£©
-            Vector3 behind = GetBehindOffset();
-            Vector3 approach = GetDockWorldPos() + behind;
-
             transform.position = Vector3.Lerp(returnBehindPos, approach, t);
             return;
         }
 
+        // 3) å‰ç§»å›èƒŒéƒ¨å¹¶è´´åˆæ—‹è½¬
         elapsed -= b;
+        float tF = Smooth01(Mathf.Clamp01(elapsed / c));
+
+        Quaternion dockRot = dockAnchor.rotation * Quaternion.Euler(dockLocalEuler);
+
+        transform.position = Vector3.Lerp(transform.position, dockWorld, tF);
+        transform.rotation = Quaternion.Slerp(transform.rotation, dockRot, tF);
+
+        if (tF >= 0.9999f)
         {
-            float t = Smooth01(Mathf.Clamp01(elapsed / c));
-
-            Vector3 dockPos = GetDockWorldPos();
-            Quaternion dockRot = GetDockWorldRot();
-
-            transform.position = Vector3.Lerp(transform.position, dockPos, t);
-            transform.rotation = Quaternion.Slerp(transform.rotation, dockRot, t);
-
-            if (t >= 0.9999f)
-            {
-                state = DroneState.Docked;
-                SnapToDock();
-            }
+            state = DroneState.Docked;
+            AttachToDockImmediate();
         }
     }
 
-    // ================= Rotation =================
+    // ================= Facing (lock-on fix) =================
 
-    void TickYawFollowOwner()
+    void TickFacing()
     {
-        Vector3 fwd = owner.forward;
-        fwd.y = 0f;
-        if (fwd.sqrMagnitude < 0.0001f) return;
+        // é”å®šç›®æ ‡ï¼šå§‹ç»ˆé¢å‘ç›®æ ‡ï¼ˆyaw-onlyï¼‰
+        if (faceLockedTarget && lockOn != null && lockOn.IsLocked && lockOn.CurrentTargetStats != null)
+        {
+            Vector3 aim = LockTargetPointUtility.GetCapsuleCenter(lockOn.CurrentTargetStats.transform);
+            Vector3 dir = aim - transform.position;
+            dir.y = 0f;
 
-        Quaternion target = Quaternion.LookRotation(fwd.normalized, Vector3.up);
-        float k = 1f - Mathf.Exp(-yawFollowSpeed * Time.deltaTime);
+            if (dir.sqrMagnitude > 0.0001f)
+            {
+                Quaternion target = Quaternion.LookRotation(dir.normalized, Vector3.up);
+                target *= Quaternion.Euler(0f, yawOffsetDegrees, 0f); // âœ… è®©é”å®šä¹ŸåƒåŒä¸€ä¸ªåç§»
+                ApplyYawRotation(target);
+                return;
+            }
+        }
+
+        // æœªé”å®šï¼šæŒ‰ yawReference å¯¹é½ï¼ˆyaw-onlyï¼‰
+        if (yawReference == null) yawReference = playerRoot != null ? playerRoot : owner;
+        if (yawReference == null) return;
+
+        float yaw = yawReference.eulerAngles.y + yawOffsetDegrees;
+        Quaternion fallback = Quaternion.Euler(0f, yaw, 0f);
+        ApplyYawRotation(fallback);
+    }
+
+    void ApplyYawRotation(Quaternion target)
+    {
+        if (snapYaw || faceYawSpeed <= 0f)
+        {
+            transform.rotation = target;
+            return;
+        }
+
+        float k = 1f - Mathf.Exp(-faceYawSpeed * Time.deltaTime);
         transform.rotation = Quaternion.Slerp(transform.rotation, target, k);
     }
 
