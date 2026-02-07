@@ -13,12 +13,15 @@ public class PlayerController : MonoBehaviour
     public KeyCode jumpKey = KeyCode.Space;
     // ✅ 新增：暗杀/处决（Takedown）输入统一在 PlayerController 配置
     public KeyCode takedownKey = KeyCode.V;
+
     // ✅ Crouch
     [Header("Crouch")]
     public KeyCode crouchKey = KeyCode.C;
 
-    public int attackAButton = 0;
-    public int attackBButton = 1;
+    // ✅ 攻击输入：只用 KeyCode（Inspector 可选 Mouse0/Mouse1 或任意键）
+    [Header("Attack Keys")]
+    public KeyCode attackAKey = KeyCode.Mouse0;
+    public KeyCode attackBKey = KeyCode.Mouse1;
 
     [Header("Ability Keys")]
     public KeyCode ability1Key = KeyCode.Q;
@@ -108,7 +111,6 @@ public class PlayerController : MonoBehaviour
     public bool IsInMoveControlLock =>
         IsInAssassinationLock ||
         isBusy || isRolling || isLanding || isAbility || IsInHitLock;
-
 
     AssassinationSystem assassination;
     public bool IsInAssassinationLock => assassination != null && assassination.IsAssassinating;
@@ -642,20 +644,23 @@ public class PlayerController : MonoBehaviour
         if (move.IsSprinting) moveType = AttackMoveType.Sprint;
         else if (move.IsRunning) moveType = AttackMoveType.Run;
 
-        HandleAttackButton(attackAButton, true, moveType);
-        HandleAttackButton(attackBButton, false, moveType);
+        HandleAttackKey(attackAKey, true, moveType);
+        HandleAttackKey(attackBKey, false, moveType);
     }
 
-    void HandleAttackButton(int button, bool attackA, AttackMoveType moveType)
+    void HandleAttackKey(KeyCode key, bool attackA, AttackMoveType moveType)
     {
-        if (Input.GetMouseButtonDown(button))
+        if (key == KeyCode.None)
+            return;
+
+        if (Input.GetKeyDown(key))
         {
             isHoldingAttack = true;
             heavyRequested = false;
             holdTimer = 0f;
         }
 
-        if (Input.GetMouseButton(button) && isHoldingAttack)
+        if (Input.GetKey(key) && isHoldingAttack)
         {
             holdTimer += Time.deltaTime;
             if (!heavyRequested && holdTimer >= HEAVY_THRESHOLD)
@@ -668,7 +673,7 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        if (Input.GetMouseButtonUp(button))
+        if (Input.GetKeyUp(key))
         {
             if (!heavyRequested)
             {
