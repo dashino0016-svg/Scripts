@@ -1,13 +1,10 @@
 ﻿using System;
 using UnityEngine;
-using UnityEngine.Audio;
 
 public class AssistDroneController : MonoBehaviour
 {
-    [SerializeField] AudioSource shotAudio;
-    [SerializeField] AudioMixerGroup shotMixerGroup;
-    [SerializeField] AudioClip shotClip;
-    [SerializeField, Range(0f, 1f)] float shotVolume = 1f;
+    [Header("SFX (Scheme1: Use AudioSource.clip)")]
+    [SerializeField] AudioSource shotAudio; // 可不填，自动从 muzzle 上拿
     [SerializeField] Vector2 shotPitchRange = new Vector2(0.98f, 1.02f);
 
     [Header("Refs")]
@@ -138,9 +135,17 @@ public class AssistDroneController : MonoBehaviour
 
         // 防止未初始化就 BeginExit 时 exitTargetPos 未赋值
         exitTargetPos = transform.position + Vector3.up * highAltitudeHeight;
+
+        // muzzle/shotAudio 可能在 prefab 上配置，确保能拿到 AudioSource
+        RefreshShotAudio();
     }
 
     void Awake()
+    {
+        RefreshShotAudio();
+    }
+
+    void RefreshShotAudio()
     {
         if (shotAudio == null)
         {
@@ -148,9 +153,10 @@ public class AssistDroneController : MonoBehaviour
             shotAudio = host.GetComponent<AudioSource>();
             if (shotAudio == null) shotAudio = host.AddComponent<AudioSource>();
         }
+
+        // 不改 clip / mixer / volume —— 这些都交给 AudioSource 本身在 Inspector 配
         shotAudio.playOnAwake = false;
         shotAudio.spatialBlend = 1f;
-        if (shotMixerGroup != null) shotAudio.outputAudioMixerGroup = shotMixerGroup;
     }
 
     void Update()
@@ -442,10 +448,12 @@ public class AssistDroneController : MonoBehaviour
 
         AttackData data = BuildAttackDataFromConfig(shotConfig);
 
-        if (shotClip != null && shotAudio != null)
+        // ✅ 每发子弹都播一次（音频资源来自 AudioSource.clip）
+        if (shotAudio == null) RefreshShotAudio();
+        if (shotAudio != null && shotAudio.clip != null)
         {
             shotAudio.pitch = UnityEngine.Random.Range(shotPitchRange.x, shotPitchRange.y);
-            shotAudio.PlayOneShot(shotClip, shotVolume);
+            shotAudio.PlayOneShot(shotAudio.clip);
         }
 
         RangeProjectile p = Instantiate(projectilePrefab, muzzle.position, Quaternion.LookRotation(dir));

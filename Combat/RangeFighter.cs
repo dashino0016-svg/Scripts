@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.Audio;
 
 [RequireComponent(typeof(Animator))]
 public class RangeFighter : MonoBehaviour
@@ -17,11 +16,8 @@ public class RangeFighter : MonoBehaviour
     [SerializeField] float cooldownSeconds = 0f;     // 开火冷却
     [SerializeField, Range(0f, 10f)] float spreadDegrees = 1.5f; // 散布（星战味道）
 
-    [Header("SFX")]
-    [SerializeField] AudioSource shotAudio;                 // 可不填，自动挂到 muzzle 上
-    [SerializeField] AudioMixerGroup shotMixerGroup;
-    [SerializeField] AudioClip shotClip;
-    [SerializeField, Range(0f, 1f)] float shotVolume = 1f;
+    [Header("SFX (Scheme1: Use AudioSource.clip)")]
+    [SerializeField] AudioSource shotAudio;                 // 可不填，自动从 muzzle 上拿
     [SerializeField] Vector2 shotPitchRange = new Vector2(0.98f, 1.02f);
 
     [Header("Animator")]
@@ -47,16 +43,21 @@ public class RangeFighter : MonoBehaviour
     void Awake()
     {
         if (anim == null) anim = GetComponent<Animator>();
-        // 如果没手动指定 AudioSource，就优先挂在 muzzle 上（3D 方位更准）
+        RefreshShotAudio();
+    }
+
+    void RefreshShotAudio()
+    {
         if (shotAudio == null)
         {
             var host = (muzzle != null) ? muzzle.gameObject : gameObject;
             shotAudio = host.GetComponent<AudioSource>();
             if (shotAudio == null) shotAudio = host.AddComponent<AudioSource>();
         }
+
+        // 不改 clip / mixer / volume —— 这些都交给 AudioSource 本身在 Inspector 配
         shotAudio.playOnAwake = false;
         shotAudio.spatialBlend = 1f; // 3D
-        if (shotMixerGroup != null) shotAudio.outputAudioMixerGroup = shotMixerGroup;
     }
 
     /// <summary>
@@ -133,7 +134,7 @@ public class RangeFighter : MonoBehaviour
     // AttackImpact：保留给未来做“枪口火光/后坐/格挡火花”等
     public void AttackImpact() { }
 
-    // AttackEnd：后摇结束，进入连发/输入窗口（你后面要连发可在这里扩展）
+    // AttackEnd：后摇结束（单发版不在这里解锁）
     public void AttackEnd()
     {
         // 单发版不做 ComboWindow；保持 AttackLock 直到 End
@@ -167,6 +168,9 @@ public class RangeFighter : MonoBehaviour
     {
         if (muzzle == null || projectilePrefab == null) return;
 
+        // 确保有 AudioSource（有些 prefab 可能运行时才补 muzzle）
+        if (shotAudio == null) RefreshShotAudio();
+
         Vector3 dir = pendingAimDir;
 
         // 星战风格：加一点散布（敌我通用）
@@ -179,11 +183,12 @@ public class RangeFighter : MonoBehaviour
 
         // 由 AttackConfig 构建 AttackData（与你近战一致：数据注入）
         AttackData data = BuildAttackDataFromConfig(shotConfig);
-        // ✅ 每次真正发射（生成弹体）都播一次
-        if (shotClip != null && shotAudio != null)
+
+        // ✅ 每次真正发射（生成弹体）都播一次（音频资源来自 AudioSource.clip）
+        if (shotAudio != null && shotAudio.clip != null)
         {
             shotAudio.pitch = Random.Range(shotPitchRange.x, shotPitchRange.y);
-            shotAudio.PlayOneShot(shotClip, shotVolume);
+            shotAudio.PlayOneShot(shotAudio.clip);
         }
 
         // Instantiate
