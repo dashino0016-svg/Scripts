@@ -91,12 +91,11 @@ public class EnemyAbilitySystem : MonoBehaviour
 
     void Update()
     {
-        // 受击锁期间：取消 pending（避免 Impact 时结算）
-        if (hasPending && IsInHitLock())
-            CancelPending();
+        if (!IsInHitLock()) return;
 
-        if (isInAbilityLock && IsInHitLock())
-            isInAbilityLock = false;
+        // 受击打断：中止能力并从“被打断时刻”重新计冷却。
+        if (hasPending || isInAbilityLock)
+            InterruptAbilityByHit();
     }
 
     bool IsInHitLock()
@@ -234,6 +233,13 @@ public class EnemyAbilitySystem : MonoBehaviour
     {
         hasPending = false;
         pendingTarget = null;
+    }
+
+    void InterruptAbilityByHit()
+    {
+        CancelPending();
+        isInAbilityLock = false;
+        SetCooldown(pending);
     }
 
     // =========================
