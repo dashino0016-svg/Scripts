@@ -37,6 +37,8 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
     [Header("Rotate")]
     public float rotateSpeed = 4f;
+    // runtime: 最近一次用于移动的方向（来自 navigator / approach）
+    Vector3 lastNavDir;
 
     [Header("Engage Approach Burst (Occasionally Run In)")]
     [Tooltip("在 Engage 阶段（已进入 enterEngageDistance）但尚未达到 attackDecisionDistance 时，偶尔用 Run 快速贴近，避免永远 walk 慢慢挪过去被玩家先手。")]
@@ -451,8 +453,14 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
             state = State.Chase;
             UpdateChase(distance, toTarget);
-            RotateToTarget(toTarget);
+
+            if (lastNavDir.sqrMagnitude > 0.0001f)
+                RotateToTarget(lastNavDir);
+            else
+                RotateToTarget(toTarget);
+
             return;
+
         }
 
         if (playerGuardBroken && block != null)
@@ -483,8 +491,16 @@ public class Combat : MonoBehaviour, IEnemyCombat
         }
 
         bool attackLock2 = (fighter != null && fighter.enabled && fighter.IsInAttackLock);
+
         if (!attackLock2)
-            RotateToTarget(toTarget);
+        {
+            bool approachingForward =(runAttackArming || (state == State.Engage && distance > attackDecisionDistance) || engageRunBurstActive);
+
+            if (approachingForward && lastNavDir.sqrMagnitude > 0.0001f)
+                RotateToTarget(lastNavDir);
+            else
+                RotateToTarget(toTarget);
+        }
     }
 
     void UpdateRangeMode(float distance)
@@ -547,7 +563,8 @@ public class Combat : MonoBehaviour, IEnemyCombat
         navigator.SetTarget(GetTargetPoint());
 
         Vector3 dir = navigator.GetMoveDirection();
-        if (dir == Vector3.zero) dir = toTarget.normalized;
+        if (dir == Vector3.zero) dir = toTarget.normalized; 
+        lastNavDir = dir;
 
         int targetSpeed = runAttackArming ? sprintSpeedLevel : runSpeedLevel;
 
@@ -790,7 +807,8 @@ public class Combat : MonoBehaviour, IEnemyCombat
         navigator.SetTarget(GetTargetPoint());
 
         Vector3 dir = navigator.GetMoveDirection();
-        if (dir == Vector3.zero) dir = toTarget.normalized;
+        if (dir == Vector3.zero) dir = toTarget.normalized; 
+        lastNavDir = dir;
 
         currentSpeedLevel = Mathf.MoveTowards(
             currentSpeedLevel, walkSpeedLevel, speedLevelChangeRate * dt);
@@ -805,6 +823,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
         Vector3 dir = navigator.GetMoveDirection();
         if (dir == Vector3.zero) dir = toTarget.normalized;
+        lastNavDir = dir;
 
         currentSpeedLevel = Mathf.MoveTowards(
             currentSpeedLevel, sprintSpeedLevel, speedLevelChangeRate * dt);
@@ -819,6 +838,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
         Vector3 dir = navigator.GetMoveDirection();
         if (dir == Vector3.zero) dir = toTarget.normalized;
+        lastNavDir = dir;
 
         currentSpeedLevel = Mathf.MoveTowards(
             currentSpeedLevel, runSpeedLevel, speedLevelChangeRate * dt);
@@ -1361,6 +1381,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
     void StopMove()
     {
         currentSpeedLevel = 0f;
+        lastNavDir = Vector3.zero;
         move.SetMoveDirection(Vector3.zero);
         move.SetMoveSpeedLevel(0);
     }

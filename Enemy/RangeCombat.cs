@@ -32,6 +32,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
     [Header("Rotate")]
     public float rotateSpeed = 4f;
+    Vector3 lastNavDir;
 
     [Header("Ranged Decision")]
     [Tooltip("AI roll interval for ranged decisions (shoot OR reposition).")]
@@ -397,7 +398,12 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
                 }
 
                 UpdateApproach(toTarget);
-                RotateToTarget(toTarget);
+
+                if (lastNavDir.sqrMagnitude > 0.0001f)
+                    RotateToTarget(lastNavDir);
+                else
+                    RotateToTarget(toTarget);
+
                 return;
 
             case Zone.Shoot:
@@ -497,6 +503,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         Vector3 dir = navigator.GetMoveDirection();
         if (dir == Vector3.zero)
             dir = (toTarget.sqrMagnitude < 0.0001f) ? transform.forward : toTarget.normalized;
+        lastNavDir = dir;
 
         currentSpeedLevel = Mathf.MoveTowards(currentSpeedLevel, runSpeedLevel, speedLevelChangeRate * dt);
         move.SetMoveDirection(dir);
@@ -598,7 +605,14 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
         bool attackLock = (meleeFighter != null && meleeFighter.enabled && meleeFighter.IsInAttackLock);
         if (!attackLock)
-            RotateToTarget(toTarget);
+        {
+            bool approachingForward =(state == State.Engage && distance > attackDecisionDistance);
+
+            if (approachingForward && lastNavDir.sqrMagnitude > 0.0001f)
+                RotateToTarget(lastNavDir);
+            else
+                RotateToTarget(toTarget);
+        }
     }
 
     void UpdateMeleeEngage(float distance, Vector3 toTarget, bool playerGuardBroken)
@@ -637,12 +651,15 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
         StartNormalPlan(playerGuardBroken);
         EnterState(State.Attack);
-    }    void WalkApproach(Vector3 toTarget)
+    }   
+    
+    void WalkApproach(Vector3 toTarget)
     {
         navigator.SetTarget(GetTargetPoint());
 
         Vector3 dir = navigator.GetMoveDirection();
         if (dir == Vector3.zero) dir = (toTarget.sqrMagnitude < 0.0001f) ? transform.forward : toTarget.normalized;
+        lastNavDir = dir;
 
         currentSpeedLevel = Mathf.MoveTowards(currentSpeedLevel, walkSpeedLevel, speedLevelChangeRate * dt);
 
@@ -1275,6 +1292,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     void StopMove()
     {
         currentSpeedLevel = 0f;
+        lastNavDir = Vector3.zero;
         move.SetMoveDirection(Vector3.zero);
         move.SetMoveSpeedLevel(0);
     }
