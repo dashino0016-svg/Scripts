@@ -1,8 +1,15 @@
 ﻿using System;
 using UnityEngine;
+using UnityEngine.Audio;
 
 public class AssistDroneController : MonoBehaviour
 {
+    [SerializeField] AudioSource shotAudio;
+    [SerializeField] AudioMixerGroup shotMixerGroup;
+    [SerializeField] AudioClip shotClip;
+    [SerializeField, Range(0f, 1f)] float shotVolume = 1f;
+    [SerializeField] Vector2 shotPitchRange = new Vector2(0.98f, 1.02f);
+
     [Header("Refs")]
     [Tooltip("整机/机身旋转的节点。为空则使用本物体 transform。")]
     [SerializeField] Transform bodyPivot;
@@ -131,6 +138,19 @@ public class AssistDroneController : MonoBehaviour
 
         // 防止未初始化就 BeginExit 时 exitTargetPos 未赋值
         exitTargetPos = transform.position + Vector3.up * highAltitudeHeight;
+    }
+
+    void Awake()
+    {
+        if (shotAudio == null)
+        {
+            var host = (muzzle != null) ? muzzle.gameObject : gameObject;
+            shotAudio = host.GetComponent<AudioSource>();
+            if (shotAudio == null) shotAudio = host.AddComponent<AudioSource>();
+        }
+        shotAudio.playOnAwake = false;
+        shotAudio.spatialBlend = 1f;
+        if (shotMixerGroup != null) shotAudio.outputAudioMixerGroup = shotMixerGroup;
     }
 
     void Update()
@@ -421,6 +441,12 @@ public class AssistDroneController : MonoBehaviour
         }
 
         AttackData data = BuildAttackDataFromConfig(shotConfig);
+
+        if (shotClip != null && shotAudio != null)
+        {
+            shotAudio.pitch = UnityEngine.Random.Range(shotPitchRange.x, shotPitchRange.y);
+            shotAudio.PlayOneShot(shotClip, shotVolume);
+        }
 
         RangeProjectile p = Instantiate(projectilePrefab, muzzle.position, Quaternion.LookRotation(dir));
         p.Init(attackerRoot != null ? attackerRoot : transform, dir, data);

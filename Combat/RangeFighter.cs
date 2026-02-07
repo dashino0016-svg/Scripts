@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Audio;
 
 [RequireComponent(typeof(Animator))]
 public class RangeFighter : MonoBehaviour
@@ -15,6 +16,13 @@ public class RangeFighter : MonoBehaviour
     [Header("Shoot")]
     [SerializeField] float cooldownSeconds = 0f;     // 开火冷却
     [SerializeField, Range(0f, 10f)] float spreadDegrees = 1.5f; // 散布（星战味道）
+
+    [Header("SFX")]
+    [SerializeField] AudioSource shotAudio;                 // 可不填，自动挂到 muzzle 上
+    [SerializeField] AudioMixerGroup shotMixerGroup;
+    [SerializeField] AudioClip shotClip;
+    [SerializeField, Range(0f, 1f)] float shotVolume = 1f;
+    [SerializeField] Vector2 shotPitchRange = new Vector2(0.98f, 1.02f);
 
     [Header("Animator")]
     [Tooltip("AttackLayer 上的开火状态名（例如 Shoot / Fire / BlasterShot）。")]
@@ -39,6 +47,16 @@ public class RangeFighter : MonoBehaviour
     void Awake()
     {
         if (anim == null) anim = GetComponent<Animator>();
+        // 如果没手动指定 AudioSource，就优先挂在 muzzle 上（3D 方位更准）
+        if (shotAudio == null)
+        {
+            var host = (muzzle != null) ? muzzle.gameObject : gameObject;
+            shotAudio = host.GetComponent<AudioSource>();
+            if (shotAudio == null) shotAudio = host.AddComponent<AudioSource>();
+        }
+        shotAudio.playOnAwake = false;
+        shotAudio.spatialBlend = 1f; // 3D
+        if (shotMixerGroup != null) shotAudio.outputAudioMixerGroup = shotMixerGroup;
     }
 
     /// <summary>
@@ -161,6 +179,12 @@ public class RangeFighter : MonoBehaviour
 
         // 由 AttackConfig 构建 AttackData（与你近战一致：数据注入）
         AttackData data = BuildAttackDataFromConfig(shotConfig);
+        // ✅ 每次真正发射（生成弹体）都播一次
+        if (shotClip != null && shotAudio != null)
+        {
+            shotAudio.pitch = Random.Range(shotPitchRange.x, shotPitchRange.y);
+            shotAudio.PlayOneShot(shotClip, shotVolume);
+        }
 
         // Instantiate
         RangeProjectile p = Instantiate(projectilePrefab, muzzle.position, Quaternion.LookRotation(dir));
