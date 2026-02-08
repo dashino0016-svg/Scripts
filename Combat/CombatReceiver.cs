@@ -448,15 +448,23 @@ public class CombatReceiver : MonoBehaviour, IHittable
             result.resultType != HitResultType.GuardBreak)
             return;
 
-        MeleeFighter fighter = GetComponent<MeleeFighter>();
-        if (fighter == null) return;
+        // ===== Melee =====
+        var melee = GetComponent<MeleeFighter>();
+        if (melee != null)
+        {
+            // ✅ 霸体：普通命中不打断；GuardBreak 仍打断
+            if (!(result.resultType == HitResultType.Hit && melee.IsInSuperArmor))
+                melee.InterruptAttack();
+        }
 
-        // ✅ 霸体：普通命中不打断攻击（仍会掉血/播受击/进战斗等）
-        if (result.resultType == HitResultType.Hit && fighter.IsInSuperArmor)
-            return;
-
-        // GuardBreak 仍然打断（通常应当打断）
-        fighter.InterruptAttack();
+        // ===== Range =====
+        var range = GetComponent<RangeFighter>();
+        if (range != null)
+        {
+            // ✅ 同理：若未来远程也做霸体，这里也能复用；GuardBreak 仍打断
+            if (!(result.resultType == HitResultType.Hit && range.IsInSuperArmor))
+                range.InterruptShoot();
+        }
     }
 
     void TryHitStop(HitResult result, AttackData attackData)

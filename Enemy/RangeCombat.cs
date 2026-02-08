@@ -226,6 +226,8 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
     bool pendingPreHitTurn;
     Vector3 pendingPreHitDir;
+    bool pendingRangedTurn;
+    Vector3 pendingRangedTurnDir;
 
     bool cachedApplyRootMotion;
     bool cachedApplyRootMotionValid;
@@ -393,7 +395,14 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         {
             StopMove();
 
-            // ✅ 仅近战：前摇追踪（AttackBegin 前）；命中窗口锁死（LateUpdate 会再判一次）
+            // ✅ 远程射击：射击动画期间也要持续朝向目标
+            if (rangedMotionLock && rangeFighter != null && rangeFighter.enabled)
+            {
+                pendingRangedTurnDir = toTarget;   // toTarget 已经是平面向量（y=0）
+                pendingRangedTurn = true;
+            }
+
+            // ✅ 近战：前摇追踪（AttackBegin 前）；命中窗口锁死（LateUpdate 会再判一次）
             if (enablePreHitTurnTracking &&
                 meleeFighter != null && meleeFighter.enabled &&
                 meleeFighter.IsInAttackLock && !meleeFighter.IsInHitWindow)
@@ -1357,20 +1366,36 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         if (!active)
         {
             pendingPreHitTurn = false;
+            pendingRangedTurn = false;
             return;
         }
 
-        if (!pendingPreHitTurn) return;
-
-        if (meleeFighter != null && meleeFighter.enabled && meleeFighter.IsInHitWindow)
+        // ✅ 优先级：近战前摇修正（只在 !HitWindow 时允许）
+        if (pendingPreHitTurn)
         {
-            pendingPreHitTurn = false;
+            if (meleeFighter != null && meleeFighter.enabled && meleeFighter.IsInHitWindow)
+            {
+                pendingPreHitTurn = false;
+            }
+            else
+            {
+                RotateToTarget(pendingPreHitDir); // 复用 rotateSpeed
+                pendingPreHitTurn = false;
+            }
+
+            // 近战/远程不会同时锁，但这里顺便清掉
+            pendingRangedTurn = false;
             return;
         }
 
-        RotateToTarget(pendingPreHitDir); // 复用 rotateSpeed
-        pendingPreHitTurn = false;
+        // ✅ 远程射击：射击动画期间持续对脸
+        if (pendingRangedTurn)
+        {
+            RotateToTarget(pendingRangedTurnDir); // 复用 rotateSpeed
+            pendingRangedTurn = false;
+        }
     }
+
     void EnableRootMotionForRetreat()
     {
         if (anim == null) return;

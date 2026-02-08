@@ -38,6 +38,8 @@ public class RangeFighter : MonoBehaviour
 
     // 对外只读：给 AI/Controller 做门禁
     public bool IsInAttackLock => isInAttackLock;
+    // ✅ 和近战一致：若你未来给远程攻击也做霸体，这里就能支持“普通命中不打断”
+    public bool IsInSuperArmor => isInAttackLock && shotConfig != null && shotConfig.hasSuperArmor;
     public Transform Muzzle => muzzle;
 
     void Awake()
@@ -118,7 +120,10 @@ public class RangeFighter : MonoBehaviour
     // Begin：动画开始（你体系用它做攻击锁开始点）
     public void Begin()
     {
-        // 这里不强制置 pendingShoot（已在 TryShoot 置）
+        // ✅ 被打断/取消后，动画事件 Begin 可能仍会被调用；这里必须门禁
+        if (!pendingShoot)
+            return;
+
         isInAttackLock = true;
     }
 
@@ -160,6 +165,24 @@ public class RangeFighter : MonoBehaviour
             anim.CrossFadeInFixedTime(emptyStateName, crossFade, ATTACK_LAYER, 0f);
     }
 
+    public void InterruptShoot()
+    {
+        // 没在射击流程就不处理
+        if (!pendingShoot && !isInAttackLock)
+            return;
+
+        pendingShoot = false;
+        pendingAimTarget = null;
+        isInAttackLock = false;
+
+        // ✅ 强制退出 AttackLayer，避免后续 AttackBegin 事件继续跑
+        ForceEmptyState();
+
+        // ✅ 若你走 Trigger 兜底，这里清一下 trigger，避免下一帧又被触发
+        if (anim != null && !string.IsNullOrEmpty(shootStateName))
+            anim.ResetTrigger(shootStateName);
+    }
+
     // ======================
     // Fire
     // ======================
@@ -168,12 +191,29 @@ public class RangeFighter : MonoBehaviour
     {
         if (muzzle == null || projectilePrefab == null) return;
 
-        // 确保有 AudioSource（有些 prefab 可能运行时才补 muzzle）
         if (shotAudio == null) RefreshShotAudio();
 
+        // ✅ 每一发都根据“当前目标点”重新算方向（连发会跟踪目标移动）
         Vector3 dir = pendingAimDir;
 
-        // 星战风格：加一点散布（敌我通用）
+        if (pendingAimTarget != null)
+        {
+            Vector3 aimPoint = pendingAimTarget.position;
+
+            // 优先用 CombatStats 胶囊中心（和你锁定/瞄准体系一致）
+            CombatStats s = pendingAimTarget.GetComponentInParent<CombatStats>();
+            if (s != null)
+                aimPoint = LockTargetPointUtility.GetCapsuleCenter(s.transform);
+
+            Vector3 d3 = aimPoint - muzzle.position;
+            if (d3.sqrMagnitude > 0.0001f)
+                dir = d3.normalized;
+        }
+
+        // 更新 fallback（防止目标瞬间丢失）
+        pendingAimDir = dir;
+
+        // 星战风格：散布
         if (spreadDegrees > 0.001f)
         {
             float yaw = Random.Range(-spreadDegrees, spreadDegrees);
@@ -181,17 +221,14 @@ public class RangeFighter : MonoBehaviour
             dir.Normalize();
         }
 
-        // 由 AttackConfig 构建 AttackData（与你近战一致：数据注入）
         AttackData data = BuildAttackDataFromConfig(shotConfig);
 
-        // ✅ 每次真正发射（生成弹体）都播一次（音频资源来自 AudioSource.clip）
         if (shotAudio != null && shotAudio.clip != null)
         {
             shotAudio.pitch = Random.Range(shotPitchRange.x, shotPitchRange.y);
             shotAudio.PlayOneShot(shotAudio.clip);
         }
 
-        // Instantiate
         RangeProjectile p = Instantiate(projectilePrefab, muzzle.position, Quaternion.LookRotation(dir));
         p.Init(transform, dir, data);
     }

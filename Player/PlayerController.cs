@@ -94,6 +94,13 @@ public class PlayerController : MonoBehaviour
     [SerializeField] float landingLockTimeout = 1.2f;
     float landingLockStartTime = -999f;
 
+    [Header("Attack Magnet (Player)")]
+    [Range(0f, 180f)]
+    [SerializeField] float attackMagnetMaxYawFromStart = 90f; // 前摇最多纠正角度（建议 60~120）
+
+    bool prevFighterAttackLock;
+    float attackStartYaw;
+
     public bool IsLocked => lockOn != null && lockOn.IsLocked;
     // ✅ 受击锁（CombatReceiver 权威）
     public bool IsInHitLock => receiver != null && receiver.IsInHitLock;
@@ -456,9 +463,70 @@ public class PlayerController : MonoBehaviour
         if (lockOn == null || move == null)
             return;
 
-        // ✅ 只要锁定就允许对脸（空中也对脸）
         if (!lockOn.IsLocked)
+        {
+            // ✅ 解除锁定时重置边沿检测
+            prevFighterAttackLock = false;
             return;
+        }
+
+        // ✅ 这些状态下仍然不对脸
+        if (IsInHitLock || isRolling || isAbility)
+            return;
+
+        CombatStats targetStats = lockOn.CurrentTargetStats;
+        if (targetStats == null)
+            return;
+
+        // =========================================================
+        // ✅ 攻击吸附：前摇追踪、命中窗口锁死（复用 15f 旋转速度）
+        // 规则：
+        // - 仅在 fighter.IsInAttackLock 且 !fighter.IsInHitWindow 时允许纠正朝向
+        // - 一旦进入 IsInHitWindow（AttackBegin~AttackEnd），立刻锁死不再纠正
+        // =========================================================
+        bool fighterAttackLockNow = (fighter != null && fighter.IsInAttackLock);
+
+        if (fighterAttackLockNow && !prevFighterAttackLock)
+        {
+            // ✅ 记录“本次攻击开始时的朝向”，用于角度钳制（防追踪刀/瞬间大转身）
+            attackStartYaw = transform.eulerAngles.y;
+        }
+        prevFighterAttackLock = fighterAttackLockNow;
+
+        if (fighterAttackLockNow)
+        {
+            // ✅ 命中窗口锁死：AttackBegin~AttackEnd 不允许再纠正
+            if (fighter != null && fighter.IsInHitWindow)
+                return;
+
+            Vector3 targetPoint = LockTargetPointUtility.GetCapsuleCenter(targetStats.transform);
+            Vector3 dir = targetPoint - transform.position;
+            dir.y = 0f;
+
+            if (dir.sqrMagnitude < 0.0001f)
+                return;
+
+            float desiredYaw = Quaternion.LookRotation(dir.normalized).eulerAngles.y;
+
+            float max = Mathf.Clamp(attackMagnetMaxYawFromStart, 0f, 180f);
+            float delta = Mathf.DeltaAngle(attackStartYaw, desiredYaw);
+            delta = Mathf.Clamp(delta, -max, max);
+
+            float clampedYaw = attackStartYaw + delta;
+            Quaternion targetRot = Quaternion.Euler(0f, clampedYaw, 0f);
+
+            transform.rotation = Quaternion.Slerp(
+                transform.rotation,
+                targetRot,
+                15f * Time.deltaTime
+            );
+
+            return;
+        }
+
+        // =========================================================
+        // ✅ 非攻击：保持你原本的“锁定对脸”逻辑（不改行为）
+        // =========================================================
 
         // （如果你仍想“跑/冲刺时不强制对脸”，只对地面做限制）
         if (move.IsGrounded)
@@ -467,24 +535,21 @@ public class PlayerController : MonoBehaviour
                 return;
         }
 
-        if (IsInHitLock || isAttacking || isRolling || isAbility)
+        // ✅ 保持原行为：攻击/翻滚/能力期间不走“普通对脸”
+        if (isAttacking)
             return;
 
-        CombatStats targetStats = lockOn.CurrentTargetStats;
-        if (targetStats == null)
+        Vector3 p = LockTargetPointUtility.GetCapsuleCenter(targetStats.transform);
+        Vector3 d = p - transform.position;
+        d.y = 0f;
+
+        if (d.sqrMagnitude < 0.0001f)
             return;
 
-        Vector3 targetPoint = LockTargetPointUtility.GetCapsuleCenter(targetStats.transform);
-        Vector3 dir = targetPoint - transform.position;
-        dir.y = 0f;
-
-        if (dir.sqrMagnitude < 0.0001f)
-            return;
-
-        Quaternion targetRot = Quaternion.LookRotation(dir.normalized);
+        Quaternion rot = Quaternion.LookRotation(d.normalized);
         transform.rotation = Quaternion.Slerp(
             transform.rotation,
-            targetRot,
+            rot,
             15f * Time.deltaTime
         );
     }
