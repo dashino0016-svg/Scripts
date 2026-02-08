@@ -12,6 +12,7 @@ public class CombatReceiver : MonoBehaviour, IHittable
     BlockController block;
     CombatStats stats;
     HitReactionFilter reactionFilter;
+    bool selfIsPlayer;
 
     Transform lastAttacker;
     bool isInHitLock;
@@ -141,6 +142,7 @@ public class CombatReceiver : MonoBehaviour, IHittable
         if (reactLayer < 0) reactLayer = 0; // 找不到就回退到0层
 
         stats.OnDead += OnDead;
+        selfIsPlayer = (GetComponentInParent<PlayerController>() != null);
     }
 
     /// <summary>
@@ -271,7 +273,12 @@ public class CombatReceiver : MonoBehaviour, IHittable
                     int beforeHP = stats.CurrentHP;
                     stats.TakeHPDamage(hpRequest);
                     int actualHpDamage = Mathf.Max(0, beforeHP - stats.CurrentHP);
+                    // ✅ 语音事件：命中/击杀（只在实际扣血>0时触发命中）
+                    if (actualHpDamage > 0)
+                        RaiseVoiceSignals_OnHpHit(attackData);
 
+                    if (stats.IsDead)
+                        RaiseVoiceSignals_OnKilled(attackData);
                     // ✅ 只有非能力攻击才加特殊值
                     if (actualHpDamage > 0 && ShouldGrantSpecialFromThisAttack(attackData))
                     {
@@ -309,6 +316,8 @@ public class CombatReceiver : MonoBehaviour, IHittable
 
                     if (block != null)
                         block.ForceReleaseBlock();
+                    // ✅ 语音事件：破防
+                    RaiseVoiceSignals_OnGuardBreak(attackData);
                     break;
                 }
 
@@ -555,4 +564,49 @@ public class CombatReceiver : MonoBehaviour, IHittable
     }
 
     public bool IsInHitLock => isInHitLock;
+
+    static bool IsPlayerAttacker(Transform t)
+    {
+        return t != null && t.GetComponentInParent<PlayerController>() != null;
+    }
+
+    void RaiseVoiceSignals_OnHpHit(AttackData attackData)
+    {
+        bool attackerIsPlayer = IsPlayerAttacker(attackData.attacker);
+
+        // 玩家打中敌人
+        if (!selfIsPlayer && attackerIsPlayer)
+            CombatSignals.RaisePlayerHitEnemy();
+
+        // 敌人打中玩家
+        if (selfIsPlayer && !attackerIsPlayer)
+            CombatSignals.RaiseEnemyHitPlayer();
+    }
+
+    void RaiseVoiceSignals_OnKilled(AttackData attackData)
+    {
+        bool attackerIsPlayer = IsPlayerAttacker(attackData.attacker);
+
+        // 玩家击杀敌人
+        if (!selfIsPlayer && attackerIsPlayer)
+            CombatSignals.RaisePlayerKillEnemy();
+
+        // 敌人击杀玩家
+        if (selfIsPlayer && !attackerIsPlayer)
+            CombatSignals.RaisePlayerKilledByEnemy();
+    }
+
+    void RaiseVoiceSignals_OnGuardBreak(AttackData attackData)
+    {
+        bool attackerIsPlayer = IsPlayerAttacker(attackData.attacker);
+
+        // 玩家破防敌人
+        if (!selfIsPlayer && attackerIsPlayer)
+            CombatSignals.RaisePlayerGuardBreakEnemy();
+
+        // 敌人破防玩家
+        if (selfIsPlayer && !attackerIsPlayer)
+            CombatSignals.RaiseEnemyGuardBreakPlayer();
+    }
+
 }

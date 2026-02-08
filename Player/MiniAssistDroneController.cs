@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-public class MiniAssistantDroneController : MonoBehaviour
+public class MiniAssistDroneController : MonoBehaviour
 {
     public enum DroneState { Docked, Entering, Active, Returning }
 
@@ -99,6 +99,60 @@ public class MiniAssistantDroneController : MonoBehaviour
 
     [Tooltip("蓄力音播放用音源（建议挂在无人机本体）。")]
     [SerializeField] AudioSource chargeAudioSource;
+    // =========================
+    // ✅ Voice Announcer (Drone)
+    // =========================
+
+    public enum DroneVoiceEvent
+    {
+        EnterCombat,
+        KillEnemy,
+        PlayerKilled,
+        Unblockable,
+        PlayerHitByEnemy,
+        PlayerHitEnemy,
+        PlayerGuardBreakEnemy,
+        EnemyGuardBreakPlayer,
+    }
+
+    [System.Serializable]
+    public class VoiceEventConfig
+    {
+        public DroneVoiceEvent eventType;
+
+        [Range(0f, 1f)]
+        public float chance = 1f;
+
+        [Min(0f)]
+        public float cooldown = 3f;
+
+        [Tooltip("优先级越高越容易压过其它播报（用于避免击杀被普通命中刷掉）。")]
+        public int priority = 0;
+
+        [Tooltip("当前正在播报时，是否允许打断并立刻播本条。")]
+        public bool allowInterrupt = false;
+
+        public AudioClip[] clips;
+    }
+
+    [Header("Voice Announcer")]
+    [SerializeField] bool enableVoice = true;
+
+    [Tooltip("无人机播报用的 AudioSource（建议 3D，挂在无人机本体）。")]
+    [SerializeField] AudioSource voiceSource;
+
+    [Tooltip("任意两次播报之间的最短间隔（防连触发刷屏）。")]
+    [SerializeField, Min(0f)] float globalMinInterval = 0.25f;
+
+    [SerializeField] VoiceEventConfig[] voiceConfigs;
+
+    float lastAnyVoiceTime = -999f;
+    int currentPlayingPriority = int.MinValue;
+
+    // 只保留一个“待播报”（永远保留优先级更高的）
+    bool hasQueued;
+    DroneVoiceEvent queuedEvent;
+    int queuedPriority;
 
     [Header("Charge VFX (Optional)")]
     [SerializeField] ParticleSystem chargeVfx;
@@ -165,6 +219,9 @@ public class MiniAssistantDroneController : MonoBehaviour
 
         if (chargeAudioSource == null)
             chargeAudioSource = GetComponent<AudioSource>();
+
+        if (voiceSource == null)
+            voiceSource = GetComponent<AudioSource>();
     }
 
     void OnEnable()
@@ -174,12 +231,14 @@ public class MiniAssistantDroneController : MonoBehaviour
 
         ResetCharge(true);
         ClearPendingFire();
+        SubscribeVoiceSignals();
     }
 
     void OnDisable()
     {
         ResetCharge(true);
         ClearPendingFire();
+        UnsubscribeVoiceSignals();
     }
 
     void LateUpdate()
@@ -847,4 +906,137 @@ public class MiniAssistantDroneController : MonoBehaviour
         t = Mathf.Clamp01(t);
         return t * t * (3f - 2f * t);
     }
+
+    void SubscribeVoiceSignals()
+    {
+        CombatSignals.OnPlayerEnterCombat += OnVoice_EnterCombat;
+        CombatSignals.OnPlayerKillEnemy += OnVoice_KillEnemy;
+        CombatSignals.OnPlayerKilledByEnemy += OnVoice_PlayerKilled;
+        CombatSignals.OnPlayerHitEnemy += OnVoice_PlayerHitEnemy;
+        CombatSignals.OnEnemyHitPlayer += OnVoice_PlayerHitByEnemy;
+        CombatSignals.OnPlayerGuardBreakEnemy += OnVoice_PlayerGuardBreakEnemy;
+        CombatSignals.OnEnemyGuardBreakPlayer += OnVoice_EnemyGuardBreakPlayer;
+        CombatSignals.OnPlayerUnblockableWarning += OnVoice_Unblockable;
+    }
+
+    void UnsubscribeVoiceSignals()
+    {
+        CombatSignals.OnPlayerEnterCombat -= OnVoice_EnterCombat;
+        CombatSignals.OnPlayerKillEnemy -= OnVoice_KillEnemy;
+        CombatSignals.OnPlayerKilledByEnemy -= OnVoice_PlayerKilled;
+        CombatSignals.OnPlayerHitEnemy -= OnVoice_PlayerHitEnemy;
+        CombatSignals.OnEnemyHitPlayer -= OnVoice_PlayerHitByEnemy;
+        CombatSignals.OnPlayerGuardBreakEnemy -= OnVoice_PlayerGuardBreakEnemy;
+        CombatSignals.OnEnemyGuardBreakPlayer -= OnVoice_EnemyGuardBreakPlayer;
+        CombatSignals.OnPlayerUnblockableWarning -= OnVoice_Unblockable;
+    }
+    void OnVoice_EnterCombat() => TryPlayVoice(DroneVoiceEvent.EnterCombat);
+    void OnVoice_KillEnemy() => TryPlayVoice(DroneVoiceEvent.KillEnemy);
+    void OnVoice_PlayerKilled() => TryPlayVoice(DroneVoiceEvent.PlayerKilled);
+    void OnVoice_PlayerHitEnemy() => TryPlayVoice(DroneVoiceEvent.PlayerHitEnemy);
+    void OnVoice_PlayerHitByEnemy() => TryPlayVoice(DroneVoiceEvent.PlayerHitByEnemy);
+    void OnVoice_PlayerGuardBreakEnemy() => TryPlayVoice(DroneVoiceEvent.PlayerGuardBreakEnemy);
+    void OnVoice_EnemyGuardBreakPlayer() => TryPlayVoice(DroneVoiceEvent.EnemyGuardBreakPlayer);
+    void OnVoice_Unblockable(float _duration) => TryPlayVoice(DroneVoiceEvent.Unblockable);
+
+    void TryPlayVoice(DroneVoiceEvent e)
+    {
+        if (!enableVoice) return;
+        if (voiceSource == null) return;
+
+        VoiceEventConfig cfg = FindVoiceConfig(e);
+        if (cfg == null || cfg.clips == null || cfg.clips.Length == 0) return;
+
+        // 概率门禁
+        if (cfg.chance < 1f && Random.value > cfg.chance)
+            return;
+
+        // 触发点自身冷却
+        if (IsEventOnCooldown(e, cfg.cooldown))
+            return;
+
+        // 全局最短间隔（防短时间多触发刷屏）
+        if (Time.time < lastAnyVoiceTime + globalMinInterval)
+            return;
+
+        // 正在播报时：要么打断，要么排队（仅保留最高优先级）
+        if (voiceSource.isPlaying)
+        {
+            if (cfg.allowInterrupt && cfg.priority >= currentPlayingPriority)
+            {
+                voiceSource.Stop();
+            }
+            else
+            {
+                QueueVoice(e, cfg.priority);
+                return;
+            }
+        }
+
+        // 播放
+        AudioClip clip = cfg.clips[Random.Range(0, cfg.clips.Length)];
+        if (clip == null) return;
+
+        voiceSource.PlayOneShot(clip);
+
+        lastAnyVoiceTime = Time.time;
+        currentPlayingPriority = cfg.priority;
+
+        MarkEventPlayed(e);
+
+        hasQueued = false;
+    }
+
+    VoiceEventConfig FindVoiceConfig(DroneVoiceEvent e)
+    {
+        if (voiceConfigs == null) return null;
+        for (int i = 0; i < voiceConfigs.Length; i++)
+        {
+            if (voiceConfigs[i] != null && voiceConfigs[i].eventType == e)
+                return voiceConfigs[i];
+        }
+        return null;
+    }
+
+    // ===== 冷却：用一个小字典（不用你手动维护 lastPlayTime）=====
+    System.Collections.Generic.Dictionary<DroneVoiceEvent, float> lastEventPlayTime;
+
+    bool IsEventOnCooldown(DroneVoiceEvent e, float cooldown)
+    {
+        if (cooldown <= 0f) return false;
+        if (lastEventPlayTime == null) lastEventPlayTime = new System.Collections.Generic.Dictionary<DroneVoiceEvent, float>();
+        if (!lastEventPlayTime.TryGetValue(e, out float t)) return false;
+        return Time.time < t + cooldown;
+    }
+
+    void MarkEventPlayed(DroneVoiceEvent e)
+    {
+        if (lastEventPlayTime == null) lastEventPlayTime = new System.Collections.Generic.Dictionary<DroneVoiceEvent, float>();
+        lastEventPlayTime[e] = Time.time;
+    }
+
+    void QueueVoice(DroneVoiceEvent e, int priority)
+    {
+        if (!hasQueued || priority > queuedPriority)
+        {
+            hasQueued = true;
+            queuedEvent = e;
+            queuedPriority = priority;
+        }
+    }
+
+    // ✅ 每帧检查：播报结束后，自动播排队的最高优先级那条
+    void Update()
+    {
+        if (!enableVoice) return;
+        if (!hasQueued) return;
+        if (voiceSource == null) return;
+
+        if (!voiceSource.isPlaying)
+        {
+            // 播排队的
+            TryPlayVoice(queuedEvent);
+        }
+    }
+
 }

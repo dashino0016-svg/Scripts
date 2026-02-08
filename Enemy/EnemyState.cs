@@ -50,8 +50,15 @@ public class EnemyState : MonoBehaviour
     void ForceCountEnterCombatIfNeeded()
     {
         if (countedAsCombat) return;
+
+        bool wasAny = (globalCombatCount > 0);
+
         countedAsCombat = true;
         globalCombatCount++;
+
+        // ✅ 0 -> 1：玩家视角“进入战斗”
+        if (!wasAny && globalCombatCount == 1)
+            CombatSignals.RaisePlayerEnterCombat();
     }
 
     void ForceCountExitCombatIfNeeded()

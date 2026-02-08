@@ -31,7 +31,7 @@ public class PlayerController : MonoBehaviour
 
     [Header("Mini Drone Fire")]
     public KeyCode miniDroneFireKey = KeyCode.Q;
-    [SerializeField] MiniAssistantDroneController miniDrone;
+    [SerializeField] MiniAssistDroneController miniDrone;
 
     Animator anim;
     SwordController sword;
@@ -137,10 +137,10 @@ public class PlayerController : MonoBehaviour
         assassination = GetComponent<AssassinationSystem>();
 
         if (miniDrone == null)
-            miniDrone = GetComponentInChildren<MiniAssistantDroneController>(true);
+            miniDrone = GetComponentInChildren<MiniAssistDroneController>(true);
 
         if (miniDrone == null)
-            miniDrone = FindObjectOfType<MiniAssistantDroneController>(true);
+            miniDrone = FindObjectOfType<MiniAssistDroneController>(true);
 
         hashIsLocked = Animator.StringToHash("IsLocked");
         hashLockMoveX = Animator.StringToHash("LockMoveX");
