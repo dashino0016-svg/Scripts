@@ -437,6 +437,7 @@ public class PlayerController : MonoBehaviour
 
         bool useLockLocomotion =
             lockOn.IsLocked &&
+            move.IsGrounded &&
             !move.IsRunning &&
             !move.IsSprinting;
 

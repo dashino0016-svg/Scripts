@@ -38,6 +38,13 @@ public class PlayerMove : MonoBehaviour
     [Header("Animation")]
     public float speedDampTime = 0.02f;
 
+    [Header("Root Motion (Player)")]
+    [Tooltip("开启后：空中阶段不吃任何 Root Motion 位移，避免与跳跃物理叠加导致跳高飘移。")]
+    [SerializeField] bool disableRootMotionTranslationWhenAirborne = true;
+
+    [Tooltip("开启后：无论地面/空中都忽略 Root Motion 的 Y 分量，垂直位移完全由 jump/gravity 决定。")]
+    [SerializeField] bool ignoreRootMotionY = true;
+
     // =========================
     // ✅ Crouch Capsule (CharacterController)
     // =========================
@@ -454,6 +461,28 @@ public class PlayerMove : MonoBehaviour
         Vector3 motion = Vector3.zero;
         motion.y = velocityY;
         controller.Move(motion * Time.deltaTime);
+    }
+
+    void OnAnimatorMove()
+    {
+        if (anim == null || controller == null)
+            return;
+
+        if (!anim.applyRootMotion)
+            return;
+
+        Vector3 delta = anim.deltaPosition;
+
+        // 跳跃/下落阶段：位移由 CharacterController + velocityY 统一控制
+        if (disableRootMotionTranslationWhenAirborne && !isGrounded)
+            delta = Vector3.zero;
+
+        // 垂直位移统一走物理，防止动画 Y 叠加导致“突然上窜/跳高不一致”
+        if (ignoreRootMotionY)
+            delta.y = 0f;
+
+        if (delta.sqrMagnitude > 0f)
+            controller.Move(delta);
     }
 
     void ApplyGravity()
