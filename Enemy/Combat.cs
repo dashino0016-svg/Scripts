@@ -37,6 +37,10 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
     [Header("Rotate")]
     public float rotateSpeed = 4f;
+    [Header("Attack Pre-Hit Turn Tracking")]
+    public bool enablePreHitTurnTracking = true;
+    [Range(0f, 180f)]
+    public float preHitTrackMaxYawFromStart = 70f; // 从“攻击开始朝向”最多纠正多少度（防追踪刀）
     // runtime: 最近一次用于移动的方向（来自 navigator / approach）
     Vector3 lastNavDir;
 
@@ -223,6 +227,12 @@ public class Combat : MonoBehaviour, IEnemyCombat
     bool cachedApplyRootMotion;
     bool cachedApplyRootMotionValid;
 
+    bool prevAttackLock;
+    float attackStartYaw;
+
+    bool pendingPreHitTurn;
+    Vector3 pendingPreHitDir;
+
     // =========================
     // ✅ Cooldown posture runtime
     // =========================
@@ -395,6 +405,11 @@ public class Combat : MonoBehaviour, IEnemyCombat
         bool motionLock = (fighter != null && fighter.enabled &&
                            (fighter.IsInAttackLock || fighter.IsInComboWindow));
 
+        bool attackLockNow = (fighter != null && fighter.enabled && fighter.IsInAttackLock);
+        if (attackLockNow && !prevAttackLock)
+            attackStartYaw = transform.eulerAngles.y;
+        prevAttackLock = attackLockNow;
+
         if (state == State.Ability && (ability == null || !ability.IsInAbilityLock))
             EnterState(State.Cooldown);
 
@@ -427,6 +442,14 @@ public class Combat : MonoBehaviour, IEnemyCombat
         if (motionLock)
         {
             StopMove();
+
+            // ✅ 前摇追踪必须在 motionLock return 之前做，否则永远执行不到
+            if (enablePreHitTurnTracking &&
+                fighter != null && fighter.enabled &&
+                fighter.IsInAttackLock && !fighter.IsInHitWindow)
+            {
+                QueuePreHitTurn(toTarget);
+            }
 
             if (state == State.Attack && !planIsHeavy)
                 TryQueueNormalCombo();
@@ -490,17 +513,13 @@ public class Combat : MonoBehaviour, IEnemyCombat
                 break;
         }
 
-        bool attackLock2 = (fighter != null && fighter.enabled && fighter.IsInAttackLock);
+        // ✅ 非 motionLock：正常转向（追击/贴近绕障时朝向 lastNavDir）
+        bool approachingForward = (runAttackArming || (state == State.Engage && distance > attackDecisionDistance) || engageRunBurstActive);
 
-        if (!attackLock2)
-        {
-            bool approachingForward =(runAttackArming || (state == State.Engage && distance > attackDecisionDistance) || engageRunBurstActive);
-
-            if (approachingForward && lastNavDir.sqrMagnitude > 0.0001f)
-                RotateToTarget(lastNavDir);
-            else
-                RotateToTarget(toTarget);
-        }
+        if (approachingForward && lastNavDir.sqrMagnitude > 0.0001f)
+            RotateToTarget(lastNavDir);
+        else
+            RotateToTarget(toTarget);
     }
 
     void UpdateRangeMode(float distance)
@@ -1439,6 +1458,43 @@ public class Combat : MonoBehaviour, IEnemyCombat
         // ✅ 防止 dt*rotateSpeed > 1 直接 snap（抖动/跳转的常见诱因）
         float t = Mathf.Clamp01(dt * rotateSpeed);
         transform.rotation = Quaternion.Slerp(transform.rotation, rot, t);
+    }
+    void QueuePreHitTurn(Vector3 toTarget)
+    {
+        if (toTarget.sqrMagnitude < 0.0001f) return;
+
+        float desiredYaw = Quaternion.LookRotation(toTarget).eulerAngles.y;
+
+        float max = Mathf.Clamp(preHitTrackMaxYawFromStart, 0f, 180f);
+        float delta = Mathf.DeltaAngle(attackStartYaw, desiredYaw);
+        delta = Mathf.Clamp(delta, -max, max);
+
+        float clampedYaw = attackStartYaw + delta;
+
+        pendingPreHitDir = Quaternion.Euler(0f, clampedYaw, 0f) * Vector3.forward;
+        pendingPreHitTurn = true;
+    }
+
+    void LateUpdate()
+    {
+        if (!active)
+        {
+            pendingPreHitTurn = false;
+            return;
+        }
+
+        if (!pendingPreHitTurn) return;
+
+        // ✅ 动画事件在 Update 后触发：这里再次检查，保证命中窗口真正锁死
+        if (fighter != null && fighter.enabled && fighter.IsInHitWindow)
+        {
+            pendingPreHitTurn = false;
+            return;
+        }
+
+        // 复用原转向速度（RotateToTarget 内部就是 dt*rotateSpeed）
+        RotateToTarget(pendingPreHitDir);
+        pendingPreHitTurn = false;
     }
 
     void SetCooldownMove2D(CooldownPosture posture)

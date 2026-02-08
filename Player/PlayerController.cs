@@ -29,6 +29,10 @@ public class PlayerController : MonoBehaviour
     [SerializeField] string ability3Trigger = "Ability3";
     [SerializeField] string ability4Trigger = "Ability4";
 
+    [Header("Mini Drone Fire")]
+    public KeyCode miniDroneFireKey = KeyCode.Q;
+    [SerializeField] MiniAssistantDroneController miniDrone;
+
     Animator anim;
     SwordController sword;
     MeleeFighter fighter;
@@ -125,6 +129,12 @@ public class PlayerController : MonoBehaviour
         receiver = GetComponent<CombatReceiver>();
         assassination = GetComponent<AssassinationSystem>();
 
+        if (miniDrone == null)
+            miniDrone = GetComponentInChildren<MiniAssistantDroneController>(true);
+
+        if (miniDrone == null)
+            miniDrone = FindObjectOfType<MiniAssistantDroneController>(true);
+
         hashIsLocked = Animator.StringToHash("IsLocked");
         hashLockMoveX = Animator.StringToHash("LockMoveX");
         hashLockMoveY = Animator.StringToHash("LockMoveY");
@@ -160,8 +170,8 @@ public class PlayerController : MonoBehaviour
         HandleAttackInput();
         HandleBlockInput();
         HandleAbilityInput();
-        // ✅ 新增：暗杀/处决输入（统一由 PlayerController 管）
         HandleTakedownInput();
+        HandleMiniDroneInput();
     }
 
     void LateUpdate()
@@ -820,6 +830,17 @@ public class PlayerController : MonoBehaviour
             if (droneSummoner != null)
                 droneSummoner.TrySummon();
         }
+    }
+
+    void HandleMiniDroneInput()
+    {
+        if (miniDrone == null) return;
+
+        if (Input.GetKeyDown(miniDroneFireKey))
+            miniDrone.NotifyFirePressed();
+
+        if (Input.GetKeyUp(miniDroneFireKey))
+            miniDrone.NotifyFireReleased();
     }
 
     public void Begin()

@@ -5,15 +5,15 @@ public class MiniAssistantDroneController : MonoBehaviour
     public enum DroneState { Docked, Entering, Active, Returning }
 
     [Header("Anchors")]
-    [SerializeField] Transform owner;          // 玩家根（或任意在玩家层级下的物体）
-    [SerializeField] Transform dockAnchor;     // 背部挂点（Bone/Socket）
-    [SerializeField] Vector3 dockLocalPos;     // Docked 时 local 微调
-    [SerializeField] Vector3 dockLocalEuler;   // Docked 时 local 微调
+    [SerializeField] Transform owner;
+    [SerializeField] Transform dockAnchor;
+    [SerializeField] Vector3 dockLocalPos;
+    [SerializeField] Vector3 dockLocalEuler;
 
-    [Header("Hover (like helicopter)")]
+    [Header("Hover")]
     [SerializeField] Vector3 hoverOffset = new Vector3(0f, 2.0f, 0f);
     [SerializeField] float orbitRadius = 0.45f;
-    [SerializeField] float orbitSpeed = 2.5f; // rad/s
+    [SerializeField] float orbitSpeed = 2.5f;
 
     [Header("Follow Lag")]
     [SerializeField, Min(0f)] float hoverCenterSmoothTime = 0.28f;
@@ -21,30 +21,87 @@ public class MiniAssistantDroneController : MonoBehaviour
     [SerializeField, Min(0f)] float teleportSnapDistance = 25f;
 
     [Header("Enter/Return Path")]
-    [Tooltip("出背先后退的距离（沿玩家 backward）。")]
     [SerializeField, Min(0f)] float retreatDistance = 0.45f;
-
-    [SerializeField, Min(0f)] float retreatTime = 0.12f;  // 后退
-    [SerializeField, Min(0f)] float ascendTime = 0.20f;   // 上升
-    [SerializeField, Min(0f)] float toOrbitTime = 0.22f;  // 入轨
+    [SerializeField, Min(0f)] float retreatTime = 0.12f;
+    [SerializeField, Min(0f)] float ascendTime = 0.20f;
+    [SerializeField, Min(0f)] float toOrbitTime = 0.22f;
 
     [SerializeField, Min(0f)] float fromOrbitTime = 0.18f;
     [SerializeField, Min(0f)] float descendTime = 0.20f;
     [SerializeField, Min(0f)] float forwardToDockTime = 0.12f;
 
     [Header("Facing")]
-    [Tooltip("飞行中是否旋转朝向。Docked 不会改朝向（由 dockAnchor 决定）。")]
     [SerializeField] bool faceWhileFlying = true;
-
-    [Tooltip("锁定时始终面向锁定目标（推荐开）。")]
     [SerializeField] bool faceLockedTarget = true;
-
     [SerializeField, Min(0f)] float faceYawSpeed = 14f;
 
     [Header("Facing Reference (fallback)")]
-    [SerializeField] Transform yawReference;        // 未锁定时的朝向参考（建议玩家根）
-    [SerializeField] float yawOffsetDegrees = 0f;   // 模型固定偏角修正（0/90/-90/180）
-    [SerializeField] bool snapYaw = false;          // true=不平滑直接对齐
+    [SerializeField] Transform yawReference;
+    [SerializeField] float yawOffsetDegrees = 0f;
+    [SerializeField] bool snapYaw = false;
+
+    [Header("Auto Target (when player NOT locked)")]
+    [SerializeField] bool autoTargetWhenPlayerUnlocked = true;
+    [SerializeField, Min(0f)] float autoTargetRange = 12f;
+    [SerializeField] LayerMask autoTargetLayers = ~0;
+    [SerializeField, Min(0.02f)] float autoTargetRefreshInterval = 0.12f;
+
+    [Header("Muzzles (3)")]
+    [SerializeField] Transform tapMuzzleA;
+    [SerializeField] Transform tapMuzzleB;
+    [SerializeField] Transform chargedMuzzle;
+
+    [Tooltip("兼容：枪口都不填时用它。")]
+    [SerializeField] Transform muzzleLegacy;
+
+    [Header("Projectile Prefabs")]
+    [SerializeField] GameObject tapProjectilePrefab;
+    [SerializeField] GameObject chargedProjectilePrefab;
+    [SerializeField] GameObject projectilePrefabLegacy;
+    [SerializeField, Min(0f)] float spawnForwardOffset = 0.06f;
+
+    [Header("Attack Configs (authoritative)")]
+    [SerializeField] AttackConfig tapAttackConfig;         // 每颗普通子弹
+    [SerializeField] AttackConfig chargedAttackConfig;     // 蓄力子弹（固定伤害）
+
+    [Header("Charge Timing")]
+    [Tooltip("按住超过该时间才进入“开始蓄力”（开始播放蓄力音）。未超过则视为点按普通射击。")]
+    [SerializeField, Min(0f)] float longPressThreshold = 0.35f;
+
+    [Tooltip("从“开始蓄力”到“蓄力完成”的时间。未完成前松开会取消；完成后进入静默 Ready，松开才发射。")]
+    [SerializeField, Min(0.01f)] float maxChargeTime = 1.0f;
+
+    [Header("Fire Cooldown")]
+    [SerializeField, Min(0f)] float tapCooldown = 0.16f;
+    [SerializeField, Min(0f)] float chargedCooldown = 0.30f;
+
+    [Header("Energy (use player's CombatStats.Special)")]
+    [SerializeField, Min(0)] int tapSpecialCost = 10;
+    [SerializeField, Min(0)] int chargedSpecialCost = 40;
+
+    [Header("SFX (Per Muzzle)")]
+    [SerializeField] AudioClip tapShotClip;
+    [SerializeField] AudioClip chargedShotClip;
+
+    [Tooltip("蓄力音频（开始蓄力后播放，循环；蓄力完成后停止并进入静默）。")]
+    [SerializeField] AudioClip chargeLoopClip;
+
+    [SerializeField] AudioClip noEnergyClip;
+
+    [Tooltip("普通枪口A的发射音源（建议挂在 muzzleA 上，3D）。")]
+    [SerializeField] AudioSource tapShotSourceA;
+
+    [Tooltip("普通枪口B的发射音源（建议挂在 muzzleB 上，3D）。")]
+    [SerializeField] AudioSource tapShotSourceB;
+
+    [Tooltip("蓄力枪口的发射音源（建议挂在 chargedMuzzle 上，3D）。")]
+    [SerializeField] AudioSource chargedShotSource;
+
+    [Tooltip("蓄力音播放用音源（建议挂在无人机本体）。")]
+    [SerializeField] AudioSource chargeAudioSource;
+
+    [Header("Charge VFX (Optional)")]
+    [SerializeField] ParticleSystem chargeVfx;
 
     public DroneState State => state;
     DroneState state = DroneState.Docked;
@@ -68,49 +125,69 @@ public class MiniAssistantDroneController : MonoBehaviour
     Vector3 returnBehindPos;
 
     // refs
-    Transform playerRoot;     // PlayerController 根（更稳定）
+    Transform playerRoot;
     LockOnSystem lockOn;
+    CombatStats ownerStats;
+
+    // auto target
+    CombatStats autoTarget;
+    float nextAutoTargetTime;
+    readonly Collider[] overlapBuffer = new Collider[32];
+
+    // input (from PlayerController)
+    bool fireHolding;
+    float fireDownTime;
+
+    // charge state
+    bool charging;                 // 已进入“开始蓄力”
+    float chargeStartTime;         // 开始蓄力时刻
+    bool chargeReady;              // 蓄力完成（静默 ready）
+
+    // pending fire (execute after facing/position updated)
+    bool pendingTap;
+    bool pendingCharged;
+
+    float lastShotTime = -999f;
 
     void Awake()
     {
         orbitPhase = Random.value * Mathf.PI * 2f;
 
-        // 自动找玩家根（不强耦合）
         if (owner != null)
         {
             var pc = owner.GetComponentInParent<PlayerController>();
             playerRoot = pc != null ? pc.transform : owner;
             lockOn = (pc != null) ? pc.GetComponent<LockOnSystem>() : owner.GetComponentInParent<LockOnSystem>();
-        }
-        else
-        {
-            playerRoot = null;
-            lockOn = null;
+            ownerStats = (pc != null) ? pc.GetComponent<CombatStats>() : owner.GetComponentInParent<CombatStats>();
         }
 
         if (yawReference == null) yawReference = playerRoot != null ? playerRoot : owner;
+
+        if (chargeAudioSource == null)
+            chargeAudioSource = GetComponent<AudioSource>();
     }
 
     void OnEnable()
     {
-        // 初始确保 Docked 贴合（避免第一帧抖一下）
         if (state == DroneState.Docked)
             AttachToDockImmediate();
+
+        ResetCharge(true);
+        ClearPendingFire();
+    }
+
+    void OnDisable()
+    {
+        ResetCharge(true);
+        ClearPendingFire();
     }
 
     void LateUpdate()
     {
         if (owner == null || dockAnchor == null) return;
 
-        if (playerRoot == null)
-        {
-            var pc = owner.GetComponentInParent<PlayerController>();
-            playerRoot = pc != null ? pc.transform : owner;
-            if (yawReference == null) yawReference = playerRoot;
-            if (lockOn == null && pc != null) lockOn = pc.GetComponent<LockOnSystem>();
-        }
+        EnsureRefs();
 
-        // === 状态切换放 LateUpdate：拿到动画结算后的 dockAnchor 位置，抖动最少 ===
         bool inCombat = EnemyState.AnyEnemyInCombat;
 
         if (inCombat)
@@ -124,12 +201,14 @@ public class MiniAssistantDroneController : MonoBehaviour
                 BeginReturn();
         }
 
-        // === 执行状态 ===
+        UpdateAutoTargetIfNeeded();
+
         switch (state)
         {
             case DroneState.Docked:
-                // ✅ 关键：Docked 直接挂到 dockAnchor，写 local，不追世界坐标 → 消灭抖动/闪烁
                 AttachToDockImmediate();
+                ResetCharge(false);
+                ClearPendingFire();
                 break;
 
             case DroneState.Entering:
@@ -142,17 +221,260 @@ public class MiniAssistantDroneController : MonoBehaviour
                 DetachFromDock();
                 TickActiveOrbit();
                 if (faceWhileFlying) TickFacing();
+
+                TickChargeStateWhileHolding();
+                FlushPendingFire();
                 break;
 
             case DroneState.Returning:
                 DetachFromDock();
                 TickReturn();
                 if (faceWhileFlying) TickFacing();
+                ResetCharge(false);
+                ClearPendingFire();
                 break;
         }
     }
 
-    // ================= Dock parenting (fix jitter) =================
+    void EnsureRefs()
+    {
+        if (playerRoot != null) return;
+
+        var pc = owner.GetComponentInParent<PlayerController>();
+        playerRoot = pc != null ? pc.transform : owner;
+
+        if (yawReference == null) yawReference = playerRoot;
+
+        if (lockOn == null && pc != null) lockOn = pc.GetComponent<LockOnSystem>();
+
+        if (ownerStats == null && pc != null) ownerStats = pc.GetComponent<CombatStats>();
+        if (ownerStats == null) ownerStats = owner.GetComponentInParent<CombatStats>();
+    }
+
+    // ================= Input API (called by PlayerController) =================
+
+    public void NotifyFirePressed()
+    {
+        if (state != DroneState.Active) return;
+
+        fireHolding = true;
+        fireDownTime = Time.time;
+
+        // 不在按下就播音/特效：只有真正进入“开始蓄力”才播（避免点按吵）
+        charging = false;
+        chargeReady = false;
+        chargeStartTime = 0f;
+    }
+
+    public void NotifyFireReleased()
+    {
+        if (state != DroneState.Active) return;
+        if (!fireHolding) return;
+
+        fireHolding = false;
+
+        float held = Time.time - fireDownTime;
+
+        // 1) 点按：普通射击
+        if (held < longPressThreshold)
+        {
+            pendingTap = true;
+            ResetCharge(false);
+            return;
+        }
+
+        // 2) 长按但未蓄力完成：取消（不发射/不耗能）
+        if (!chargeReady)
+        {
+            ResetCharge(false);
+            return;
+        }
+
+        // 3) 蓄力完成：松开才发射蓄力弹（此时才耗能）
+        pendingCharged = true;
+        ResetCharge(false);
+    }
+
+    // ================= Simplified Charge Logic =================
+
+    void TickChargeStateWhileHolding()
+    {
+        if (!fireHolding) return;
+
+        // 没目标或没蓄力配置，直接不进入蓄力（长按松开将视为取消）
+        if (!CanStartCharged())
+            return;
+
+        float held = Time.time - fireDownTime;
+
+        // 到阈值才开始蓄力（开始播蓄力音/特效）
+        if (!charging && held >= longPressThreshold)
+        {
+            charging = true;
+            chargeReady = false;
+            chargeStartTime = Time.time;
+
+            StartChargeAudio();
+            StartChargeVfx();
+            return;
+        }
+
+        if (!charging || chargeReady) return;
+
+        // 蓄力完成：立刻静默（停止蓄力音），等待松开触发发射
+        if (Time.time - chargeStartTime >= maxChargeTime)
+        {
+            chargeReady = true;
+            StopChargeAudio(); // ✅ 完成后无声
+            // VFX 是否继续由你决定：这里默认继续保持“蓄力完成”的视觉状态直到松开
+        }
+    }
+
+    bool CanStartCharged()
+    {
+        if (chargedAttackConfig == null) return false;
+        if (GetChargedPrefab() == null) return false;
+
+        CombatStats t = GetCurrentAimTarget();
+        if (t == null || t.IsDead) return false;
+
+        return true;
+    }
+
+    void ResetCharge(bool forceStopVfx)
+    {
+        charging = false;
+        chargeReady = false;
+        chargeStartTime = 0f;
+
+        StopChargeAudio();
+
+        if (forceStopVfx && chargeVfx != null)
+            chargeVfx.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        else if (chargeVfx != null && chargeVfx.isPlaying)
+            chargeVfx.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+    }
+
+    void StartChargeAudio()
+    {
+        if (chargeAudioSource == null || chargeLoopClip == null) return;
+
+        chargeAudioSource.clip = chargeLoopClip;
+        chargeAudioSource.loop = true;
+        chargeAudioSource.pitch = 1f;
+        if (!chargeAudioSource.isPlaying)
+            chargeAudioSource.Play();
+    }
+
+    void StopChargeAudio()
+    {
+        if (chargeAudioSource == null) return;
+
+        if (chargeAudioSource.clip == chargeLoopClip)
+        {
+            chargeAudioSource.Stop();
+            chargeAudioSource.clip = null;
+            chargeAudioSource.loop = false;
+            chargeAudioSource.pitch = 1f;
+        }
+    }
+
+    void StartChargeVfx()
+    {
+        if (chargeVfx != null && !chargeVfx.isPlaying)
+            chargeVfx.Play(true);
+    }
+
+    // ================= Pending Fire =================
+
+    void FlushPendingFire()
+    {
+        if (!pendingTap && !pendingCharged) return;
+
+        CombatStats target = GetCurrentAimTarget();
+        if (target == null || target.IsDead)
+        {
+            ClearPendingFire();
+            return;
+        }
+
+        if (pendingTap) TryFireTap(target);
+        if (pendingCharged) TryFireCharged(target);
+
+        ClearPendingFire();
+    }
+
+    void ClearPendingFire()
+    {
+        pendingTap = false;
+        pendingCharged = false;
+    }
+
+    // ================= Auto Target =================
+
+    void UpdateAutoTargetIfNeeded()
+    {
+        if (lockOn != null && lockOn.IsLocked && lockOn.CurrentTargetStats != null)
+        {
+            autoTarget = null;
+            return;
+        }
+
+        if (!autoTargetWhenPlayerUnlocked)
+        {
+            autoTarget = null;
+            return;
+        }
+
+        if (Time.time < nextAutoTargetTime)
+            return;
+
+        nextAutoTargetTime = Time.time + autoTargetRefreshInterval;
+
+        Transform root = playerRoot != null ? playerRoot : owner;
+        Vector3 center = root.position;
+
+        int count = Physics.OverlapSphereNonAlloc(
+            center,
+            autoTargetRange,
+            overlapBuffer,
+            autoTargetLayers,
+            QueryTriggerInteraction.Collide
+        );
+
+        CombatStats best = null;
+        float bestSqr = float.MaxValue;
+
+        for (int i = 0; i < count; i++)
+        {
+            Collider c = overlapBuffer[i];
+            if (c == null) continue;
+
+            CombatStats s = c.GetComponentInParent<CombatStats>();
+            if (s == null) continue;
+            if (s == ownerStats) continue;
+            if (s.IsDead) continue;
+
+            float sqr = (LockTargetPointUtility.GetCapsuleCenter(s.transform) - center).sqrMagnitude;
+            if (sqr < bestSqr)
+            {
+                bestSqr = sqr;
+                best = s;
+            }
+        }
+
+        autoTarget = best;
+    }
+
+    CombatStats GetCurrentAimTarget()
+    {
+        if (lockOn != null && lockOn.IsLocked && lockOn.CurrentTargetStats != null)
+            return lockOn.CurrentTargetStats;
+
+        return autoTarget;
+    }
+
+    // ================= Dock parenting =================
 
     void AttachToDockImmediate()
     {
@@ -165,9 +487,8 @@ public class MiniAssistantDroneController : MonoBehaviour
 
     void DetachFromDock()
     {
-        // 飞行时必须脱离 dockAnchor（否则会被骨骼动画/转身带着抖）
         if (transform.parent == dockAnchor)
-            transform.SetParent(null, true); // 保持世界坐标
+            transform.SetParent(null, true);
     }
 
     // ================= Hover center =================
@@ -208,7 +529,7 @@ public class MiniAssistantDroneController : MonoBehaviour
         return (-root.forward) * retreatDistance;
     }
 
-    // ================= Entering: retreat -> ascend -> to orbit =================
+    // ================= Entering =================
 
     void BeginEnter()
     {
@@ -220,8 +541,6 @@ public class MiniAssistantDroneController : MonoBehaviour
         enterStartPos = transform.position;
 
         Vector3 behind = GetBehindOffset();
-
-        // 后退目标：以背部挂点为基准往后
         Vector3 dockWorld = dockAnchor.TransformPoint(dockLocalPos);
         enterRetreatPos = dockWorld + behind;
     }
@@ -236,7 +555,6 @@ public class MiniAssistantDroneController : MonoBehaviour
 
         float elapsed = Time.time - enterStartTime;
 
-        // 1) 后退
         if (elapsed < t0)
         {
             float t = Smooth01(elapsed / t0);
@@ -244,7 +562,6 @@ public class MiniAssistantDroneController : MonoBehaviour
             return;
         }
 
-        // 2) 上升到 hover 高度（仍在身后）
         elapsed -= t0;
         Vector3 behind = GetBehindOffset();
         Vector3 ascendTarget = new Vector3(hoverCenter.x + behind.x, hoverCenter.y, hoverCenter.z + behind.z);
@@ -256,7 +573,6 @@ public class MiniAssistantDroneController : MonoBehaviour
             return;
         }
 
-        // 3) 入轨
         elapsed -= t1;
         float tIn = Smooth01(Mathf.Clamp01(elapsed / t2));
 
@@ -316,7 +632,6 @@ public class MiniAssistantDroneController : MonoBehaviour
 
         float elapsed = Time.time - returnStartTime;
 
-        // 1) 回到身后上方
         if (elapsed < a)
         {
             float t = Smooth01(elapsed / a);
@@ -324,7 +639,6 @@ public class MiniAssistantDroneController : MonoBehaviour
             return;
         }
 
-        // 2) 下降到背部高度（仍在身后）
         elapsed -= a;
         Vector3 behind = GetBehindOffset();
         Vector3 dockWorld = dockAnchor.TransformPoint(dockLocalPos);
@@ -337,7 +651,6 @@ public class MiniAssistantDroneController : MonoBehaviour
             return;
         }
 
-        // 3) 前移回背部并贴合旋转
         elapsed -= b;
         float tF = Smooth01(Mathf.Clamp01(elapsed / c));
 
@@ -353,27 +666,29 @@ public class MiniAssistantDroneController : MonoBehaviour
         }
     }
 
-    // ================= Facing (lock-on fix) =================
+    // ================= Facing =================
 
     void TickFacing()
     {
-        // 锁定目标：始终面向目标（yaw-only）
-        if (faceLockedTarget && lockOn != null && lockOn.IsLocked && lockOn.CurrentTargetStats != null)
+        CombatStats targetStats = null;
+        if (faceLockedTarget)
+            targetStats = GetCurrentAimTarget();
+
+        if (targetStats != null)
         {
-            Vector3 aim = LockTargetPointUtility.GetCapsuleCenter(lockOn.CurrentTargetStats.transform);
+            Vector3 aim = LockTargetPointUtility.GetCapsuleCenter(targetStats.transform);
             Vector3 dir = aim - transform.position;
             dir.y = 0f;
 
             if (dir.sqrMagnitude > 0.0001f)
             {
                 Quaternion target = Quaternion.LookRotation(dir.normalized, Vector3.up);
-                target *= Quaternion.Euler(0f, yawOffsetDegrees, 0f); // ✅ 让锁定也吃同一个偏移
+                target *= Quaternion.Euler(0f, yawOffsetDegrees, 0f);
                 ApplyYawRotation(target);
                 return;
             }
         }
 
-        // 未锁定：按 yawReference 对齐（yaw-only）
         if (yawReference == null) yawReference = playerRoot != null ? playerRoot : owner;
         if (yawReference == null) return;
 
@@ -392,6 +707,139 @@ public class MiniAssistantDroneController : MonoBehaviour
 
         float k = 1f - Mathf.Exp(-faceYawSpeed * Time.deltaTime);
         transform.rotation = Quaternion.Slerp(transform.rotation, target, k);
+    }
+
+    // ================= Shooting =================
+
+    GameObject GetTapPrefab()
+    {
+        if (tapProjectilePrefab != null) return tapProjectilePrefab;
+        return projectilePrefabLegacy;
+    }
+
+    GameObject GetChargedPrefab()
+    {
+        if (chargedProjectilePrefab != null) return chargedProjectilePrefab;
+        if (tapProjectilePrefab != null) return tapProjectilePrefab;
+        return projectilePrefabLegacy;
+    }
+
+    void TryFireTap(CombatStats target)
+    {
+        if (tapAttackConfig == null) return;
+        if (Time.time < lastShotTime + tapCooldown) return;
+
+        GameObject prefab = GetTapPrefab();
+        if (prefab == null) return;
+
+        if (!TryConsumeSpecial(Mathf.Max(0, tapSpecialCost)))
+        {
+            PlayOneShot(chargeAudioSource, noEnergyClip, transform.position);
+            return;
+        }
+
+        lastShotTime = Time.time;
+
+        Transform mA = tapMuzzleA != null ? tapMuzzleA : muzzleLegacy;
+        Transform mB = tapMuzzleB;
+
+        int fired = 0;
+        if (FireProjectileFromMuzzle(prefab, mA, target, tapAttackConfig)) fired++;
+        if (FireProjectileFromMuzzle(prefab, mB, target, tapAttackConfig)) fired++;
+
+        if (fired == 0)
+            FireProjectileFromMuzzle(prefab, null, target, tapAttackConfig);
+
+        if (tapShotClip != null)
+        {
+            if (mA != null) PlayOneShot(tapShotSourceA, tapShotClip, mA.position);
+            if (mB != null) PlayOneShot(tapShotSourceB, tapShotClip, mB.position);
+            if (mA == null && mB == null) PlayOneShot(tapShotSourceA, tapShotClip, transform.position);
+        }
+    }
+
+    void TryFireCharged(CombatStats target)
+    {
+        if (chargedAttackConfig == null) return;
+        if (Time.time < lastShotTime + chargedCooldown) return;
+
+        GameObject prefab = GetChargedPrefab();
+        if (prefab == null) return;
+
+        if (!TryConsumeSpecial(Mathf.Max(0, chargedSpecialCost)))
+        {
+            PlayOneShot(chargeAudioSource, noEnergyClip, transform.position);
+            return;
+        }
+
+        lastShotTime = Time.time;
+
+        Transform m = chargedMuzzle != null ? chargedMuzzle : muzzleLegacy;
+        bool ok = FireProjectileFromMuzzle(prefab, m, target, chargedAttackConfig);
+
+        if (ok)
+        {
+            AudioClip clip = chargedShotClip != null ? chargedShotClip : tapShotClip;
+            if (clip != null)
+                PlayOneShot(chargedShotSource, clip, m != null ? m.position : transform.position);
+        }
+    }
+
+    bool TryConsumeSpecial(int cost)
+    {
+        if (cost <= 0) return true;
+        if (ownerStats == null || ownerStats.maxSpecial <= 0) return true;
+        return ownerStats.ConsumeSpecial(cost);
+    }
+
+    bool FireProjectileFromMuzzle(GameObject prefab, Transform muzzle, CombatStats target, AttackConfig cfg)
+    {
+        if (prefab == null || cfg == null || target == null) return false;
+
+        Transform attacker = playerRoot != null ? playerRoot : owner;
+
+        Vector3 origin = (muzzle != null) ? muzzle.position : transform.position;
+
+        Vector3 aim = LockTargetPointUtility.GetCapsuleCenter(target.transform);
+        Vector3 dir = aim - origin;
+        if (dir.sqrMagnitude < 0.0001f) dir = transform.forward;
+
+        Vector3 d = dir.normalized;
+        Vector3 spawnPos = origin + d * spawnForwardOffset;
+
+        Quaternion rot = Quaternion.LookRotation(d, Vector3.up);
+        GameObject go = Instantiate(prefab, spawnPos, rot);
+
+        RangeProjectile proj = go.GetComponent<RangeProjectile>();
+        if (proj == null) return true;
+
+        AttackData data = BuildAttackDataFromConfig(cfg, attacker);
+        proj.Init(attacker, d, data);
+        return true;
+    }
+
+    static AttackData BuildAttackDataFromConfig(AttackConfig cfg, Transform attacker)
+    {
+        AttackData d = new AttackData(attacker, cfg.sourceType, cfg.hitReaction, cfg.hpDamage, cfg.staminaDamage);
+        d.canBeBlocked = cfg.canBeBlocked;
+        d.canBeParried = cfg.canBeParried;
+        d.canBreakGuard = cfg.canBreakGuard;
+        d.hasSuperArmor = cfg.hasSuperArmor;
+        d.hitStopWeight = cfg.hitStopWeight;
+        return d;
+    }
+
+    static void PlayOneShot(AudioSource src, AudioClip clip, Vector3 posFallback)
+    {
+        if (clip == null) return;
+
+        if (src != null)
+        {
+            src.PlayOneShot(clip);
+            return;
+        }
+
+        AudioSource.PlayClipAtPoint(clip, posFallback);
     }
 
     static float Smooth01(float t)

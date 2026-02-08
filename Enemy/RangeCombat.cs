@@ -32,6 +32,11 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
     [Header("Rotate")]
     public float rotateSpeed = 4f;
+    [Header("Attack Pre-Hit Turn Tracking (Melee)")]
+    public bool enablePreHitTurnTracking = true;
+    [Range(0f, 180f)]
+    public float preHitTrackMaxYawFromStart = 70f;
+
     Vector3 lastNavDir;
 
     [Header("Ranged Decision")]
@@ -215,6 +220,13 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     static readonly int AnimIsRetreating = Animator.StringToHash("IsRetreating");
     static readonly int AnimMoveX = Animator.StringToHash("MoveX");
     static readonly int AnimMoveY = Animator.StringToHash("MoveY");
+
+    bool prevMeleeAttackLock;
+    float meleeAttackStartYaw;
+
+    bool pendingPreHitTurn;
+    Vector3 pendingPreHitDir;
+
     bool cachedApplyRootMotion;
     bool cachedApplyRootMotionValid;
 
@@ -371,10 +383,23 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         bool meleeMotionLock = (meleeFighter != null && meleeFighter.enabled &&
                                (meleeFighter.IsInAttackLock || meleeFighter.IsInComboWindow));
         bool rangedMotionLock = (rangeFighter != null && rangeFighter.enabled && rangeFighter.IsInAttackLock);
+        // ✅ 记录“近战攻击起始朝向”（必须放在 motionLock return 之前）
+        bool meleeAttackLockNow = (meleeFighter != null && meleeFighter.enabled && meleeFighter.IsInAttackLock);
+        if (meleeAttackLockNow && !prevMeleeAttackLock)
+            meleeAttackStartYaw = transform.eulerAngles.y;
+        prevMeleeAttackLock = meleeAttackLockNow;
 
         if (meleeMotionLock || rangedMotionLock)
         {
             StopMove();
+
+            // ✅ 仅近战：前摇追踪（AttackBegin 前）；命中窗口锁死（LateUpdate 会再判一次）
+            if (enablePreHitTurnTracking &&
+                meleeFighter != null && meleeFighter.enabled &&
+                meleeFighter.IsInAttackLock && !meleeFighter.IsInHitWindow)
+            {
+                QueuePreHitTurn(toTarget);
+            }
 
             if (meleeMotionLock && state == State.Attack && !planIsHeavy)
                 TryQueueNormalCombo();
@@ -603,16 +628,13 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
                 break;
         }
 
-        bool attackLock = (meleeFighter != null && meleeFighter.enabled && meleeFighter.IsInAttackLock);
-        if (!attackLock)
-        {
-            bool approachingForward =(state == State.Engage && distance > attackDecisionDistance);
+        // ✅ 非 motion lock：正常转向（近战贴近绕障时朝向 lastNavDir）
+        bool approachingForward = (state == State.Engage && distance > attackDecisionDistance);
 
-            if (approachingForward && lastNavDir.sqrMagnitude > 0.0001f)
-                RotateToTarget(lastNavDir);
-            else
-                RotateToTarget(toTarget);
-        }
+        if (approachingForward && lastNavDir.sqrMagnitude > 0.0001f)
+            RotateToTarget(lastNavDir);
+        else
+            RotateToTarget(toTarget);
     }
 
     void UpdateMeleeEngage(float distance, Vector3 toTarget, bool playerGuardBroken)
@@ -1314,7 +1336,41 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         float t = Mathf.Clamp01(dt * rotateSpeed);
         transform.rotation = Quaternion.Slerp(transform.rotation, rot, t);
     }
+    void QueuePreHitTurn(Vector3 toTarget)
+    {
+        if (toTarget.sqrMagnitude < 0.0001f) return;
 
+        float desiredYaw = Quaternion.LookRotation(toTarget).eulerAngles.y;
+
+        float max = Mathf.Clamp(preHitTrackMaxYawFromStart, 0f, 180f);
+        float delta = Mathf.DeltaAngle(meleeAttackStartYaw, desiredYaw);
+        delta = Mathf.Clamp(delta, -max, max);
+
+        float clampedYaw = meleeAttackStartYaw + delta;
+
+        pendingPreHitDir = Quaternion.Euler(0f, clampedYaw, 0f) * Vector3.forward;
+        pendingPreHitTurn = true;
+    }
+
+    void LateUpdate()
+    {
+        if (!active)
+        {
+            pendingPreHitTurn = false;
+            return;
+        }
+
+        if (!pendingPreHitTurn) return;
+
+        if (meleeFighter != null && meleeFighter.enabled && meleeFighter.IsInHitWindow)
+        {
+            pendingPreHitTurn = false;
+            return;
+        }
+
+        RotateToTarget(pendingPreHitDir); // 复用 rotateSpeed
+        pendingPreHitTurn = false;
+    }
     void EnableRootMotionForRetreat()
     {
         if (anim == null) return;

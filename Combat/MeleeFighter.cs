@@ -54,6 +54,9 @@ public class MeleeFighter : MonoBehaviour
     // ===== Ability（攻击型：Ability1/Ability2）=====
     bool isAbility;
     AbilityType currentAbility; // ✅ 来自 CombatEnums.cs（Ability1/Ability2）
+    // ✅ 仅由动画事件 AttackBegin~AttackEnd 控制：命中窗口期间锁转向
+    bool isHitWindow;
+    public bool IsInHitWindow => isHitWindow;
 
     // ===== 当前攻击数据 =====
     AttackData currentAttackData;
@@ -142,6 +145,7 @@ public class MeleeFighter : MonoBehaviour
             state != AttackState.ComboWindow)
             return;
 
+        isHitWindow = false;
         ResetAttack();
 
         // 立刻退出 Attack Layer
@@ -309,13 +313,19 @@ public class MeleeFighter : MonoBehaviour
         // ✅ 保险：若这一帧进入受击锁且非霸体，绝不允许开 HitBox
         if (IsInHitLock && !IsInSuperArmor)
         {
+            isHitWindow = false; // ✅ 这次窗口无效
             foreach (var box in hitBoxes)
                 box?.DisableHitBox();
             return;
         }
 
         if (currentAttackData == null)
+        {
+            isHitWindow = false;
             return;
+        }
+
+        isHitWindow = true; // ✅ 命中窗口开始（权威）
 
         // New attack window => clear registry.
         registeredHitTargets.Clear();
@@ -326,7 +336,6 @@ public class MeleeFighter : MonoBehaviour
         {
             if (box == null) continue;
 
-            // typed hitbox filter (A/B)
             if (hasRequiredType && box is IAttackTypedHitBox typedBox)
             {
                 if (typedBox.HitBoxType != requiredType)
@@ -344,6 +353,8 @@ public class MeleeFighter : MonoBehaviour
 
     public void AttackEnd()
     {
+        isHitWindow = false; // ✅ 命中窗口结束
+
         foreach (var box in hitBoxes)
             box?.DisableHitBox();
 
@@ -410,6 +421,7 @@ public class MeleeFighter : MonoBehaviour
 
     void ResetAttack()
     {
+        isHitWindow = false;
         isChargingHeavy = false;
         ignoreChargeTailEventsUntil = 0f;
 
