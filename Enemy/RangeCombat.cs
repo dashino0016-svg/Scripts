@@ -8,6 +8,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     [Header("Speed Level (EnemyMove)")]
     public int walkSpeedLevel = 1;
     public int runSpeedLevel = 2;
+    public int sprintSpeedLevel = 3; 
 
     [Header("Zones (Far -> Near)")]
     [Tooltip("<= this distance: switch to melee logic (Combat-like)")]
@@ -539,7 +540,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
             dir = (toTarget.sqrMagnitude < 0.0001f) ? transform.forward : toTarget.normalized;
         lastNavDir = dir;
 
-        currentSpeedLevel = Mathf.MoveTowards(currentSpeedLevel, runSpeedLevel, speedLevelChangeRate * dt);
+        currentSpeedLevel = Mathf.MoveTowards(currentSpeedLevel, sprintSpeedLevel, speedLevelChangeRate * dt);
         move.SetMoveDirection(dir);
         move.SetMoveSpeedLevel(Mathf.RoundToInt(currentSpeedLevel));
     }

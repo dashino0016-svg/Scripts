@@ -585,7 +585,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
         if (dir == Vector3.zero) dir = toTarget.normalized; 
         lastNavDir = dir;
 
-        int targetSpeed = runAttackArming ? sprintSpeedLevel : runSpeedLevel;
+        int targetSpeed = sprintSpeedLevel; // ✅ Chase 永远用冲刺追
 
         currentSpeedLevel = Mathf.MoveTowards(
             currentSpeedLevel, targetSpeed, speedLevelChangeRate * dt);
