@@ -19,6 +19,8 @@ public class EnemyMove : MonoBehaviour
     [Header("Ground Check")]
     public float groundCheckRadius = 0.15f;
     public float groundCheckOffset = -0.1f;
+    public float groundCheckDistance = 0.25f;
+    [Min(0f)] public float groundedGraceTime = 0.08f;
     public LayerMask groundMask;
 
     [Header("Animation")]
@@ -45,6 +47,9 @@ public class EnemyMove : MonoBehaviour
     float turnVelocity;
 
     bool isGrounded;
+    bool wasGrounded;
+    float lastGroundedTime = -999f;
+    Vector3 groundNormal = Vector3.up;
     bool rotationEnabled = true;
 
     static readonly int AnimIsGrounded = Animator.StringToHash("IsGrounded");
@@ -95,7 +100,13 @@ public class EnemyMove : MonoBehaviour
         if (enemyController != null)
             dt *= enemyController.LocalTimeScale;
 
-        isGrounded = CheckGrounded();
+        wasGrounded = isGrounded;
+
+        bool groundedNow = CheckGroundedRaw();
+        if (groundedNow)
+            lastGroundedTime = Time.time;
+
+        isGrounded = groundedNow || (Time.time - lastGroundedTime <= groundedGraceTime);
         if (anim != null)
             anim.SetBool(AnimIsGrounded, isGrounded);
 
@@ -125,15 +136,43 @@ public class EnemyMove : MonoBehaviour
 
     /* ================= Ground ================= */
 
-    bool CheckGrounded()
+    Vector3 GetCapsuleBottomWorld()
     {
-        Vector3 origin = transform.position + Vector3.down * groundCheckOffset;
-        return Physics.CheckSphere(
-            origin,
-            groundCheckRadius,
-            groundMask,
-            QueryTriggerInteraction.Ignore
-        );
+        Vector3 centerWorld = transform.TransformPoint(controller.center);
+        float halfHeight = Mathf.Max(controller.height * 0.5f, controller.radius);
+        float bottomOffset = halfHeight - controller.radius;
+        return centerWorld - transform.up * bottomOffset;
+    }
+
+    bool CheckGroundedRaw()
+    {
+        if (controller != null && controller.isGrounded)
+        {
+            groundNormal = transform.up;
+            return true;
+        }
+
+        float radius = Mathf.Max(0.01f, groundCheckRadius);
+        float castDistance = Mathf.Max(0.01f, groundCheckDistance + Mathf.Max(0f, -groundCheckOffset));
+
+        Vector3 bottom = GetCapsuleBottomWorld();
+        Vector3 castOrigin = bottom + transform.up * radius;
+
+        if (Physics.SphereCast(
+                castOrigin,
+                radius,
+                -transform.up,
+                out RaycastHit hit,
+                castDistance,
+                groundMask,
+                QueryTriggerInteraction.Ignore))
+        {
+            groundNormal = hit.normal;
+            return true;
+        }
+
+        groundNormal = transform.up;
+        return false;
     }
 
     /* ================= Movement ================= */
@@ -160,8 +199,13 @@ public class EnemyMove : MonoBehaviour
     {
         Vector3 horizontal = dir * speed;
 
-        if (isGrounded && velocityY < groundedGravity)
-            velocityY = groundedGravity;
+        if (isGrounded)
+        {
+            if (velocityY < groundedGravity)
+                velocityY = groundedGravity;
+
+            horizontal = Vector3.ProjectOnPlane(horizontal, groundNormal);
+        }
 
         Vector3 motion = horizontal;
         motion.y = velocityY;
@@ -211,8 +255,23 @@ public class EnemyMove : MonoBehaviour
     void OnDrawGizmosSelected()
     {
         Gizmos.color = isGrounded ? Color.green : Color.red;
-        Vector3 origin = transform.position + Vector3.down * groundCheckOffset;
-        Gizmos.DrawWireSphere(origin, groundCheckRadius);
+        CharacterController cc = controller != null ? controller : GetComponent<CharacterController>();
+        if (cc == null) return;
+
+        float radius = Mathf.Max(0.01f, groundCheckRadius);
+        float castDistance = Mathf.Max(0.01f, groundCheckDistance + Mathf.Max(0f, -groundCheckOffset));
+
+        Vector3 centerWorld = transform.TransformPoint(cc.center);
+        float halfHeight = Mathf.Max(cc.height * 0.5f, cc.radius);
+        float bottomOffset = halfHeight - cc.radius;
+        Vector3 bottom = centerWorld - transform.up * bottomOffset;
+
+        Vector3 castOrigin = bottom + transform.up * radius;
+        Vector3 castEnd = castOrigin - transform.up * castDistance;
+
+        Gizmos.DrawWireSphere(castOrigin, radius);
+        Gizmos.DrawLine(castOrigin, castEnd);
+        Gizmos.DrawWireSphere(castEnd, radius);
     }
 #endif
 }
