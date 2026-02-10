@@ -297,22 +297,13 @@ public class PlayerMove : MonoBehaviour
         if (controller != null && controller.isGrounded)
             return true;
 
-        Vector3 center = transform.TransformPoint(controller.center);
+        // 与 EnemyMove 一致：使用 CheckSphere（由 groundCheckRadius / groundCheckOffset 直接驱动）
+        Vector3 origin = transform.position + Vector3.down * groundCheckOffset;
+        float radius = Mathf.Max(0.01f, groundCheckRadius);
 
-        float halfHeight = Mathf.Max(controller.height * 0.5f - controller.radius, 0f);
-        Vector3 bottomSphereCenter = center + Vector3.down * halfHeight;
-
-        float radius = Mathf.Max(0.01f, controller.radius - 0.02f);
-        const float castDistance = 0.18f;
-
-        Vector3 origin = bottomSphereCenter + Vector3.up * 0.05f;
-
-        return Physics.SphereCast(
+        return Physics.CheckSphere(
             origin,
             radius,
-            Vector3.down,
-            out _,
-            castDistance,
             groundMask,
             QueryTriggerInteraction.Ignore
         );
