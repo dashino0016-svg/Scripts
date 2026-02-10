@@ -44,6 +44,7 @@ public class PlayerMove : MonoBehaviour
 
     [Tooltip("开启后：无论地面/空中都忽略 Root Motion 的 Y 分量，垂直位移完全由 jump/gravity 决定。")]
     [SerializeField] bool ignoreRootMotionY = true;
+
     // =========================
     // ✅ Crouch Capsule (CharacterController)
     // =========================
@@ -498,6 +499,10 @@ public class PlayerMove : MonoBehaviour
     {
         if (!wasGrounded && isGrounded)
         {
+            // 空中攻击未播完时，落地按“强打断”处理（与受击打断同思路）
+            if (fighter != null && fighter.IsInAirAttack)
+                fighter.InterruptAttack();
+
             if (lastAirVelocityY <= hardLandVelocity)
                 anim.SetTrigger("HardLand");
             else

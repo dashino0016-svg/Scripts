@@ -16,6 +16,9 @@
     Ability2 = 9,
     // ✅ 远程（追加，不破坏旧资源）
     RangeShot = 10,
+
+    AirAttackA = 11,
+    AirAttackB = 12,
 }
 
 public enum AbilityType

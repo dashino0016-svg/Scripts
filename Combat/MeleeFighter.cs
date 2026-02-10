@@ -219,6 +219,29 @@ public class MeleeFighter : MonoBehaviour
         }
     }
 
+    public bool TryAirAttack(bool attackA)
+    {
+        if (IsInHitLock) return false;
+        if (state != AttackState.Idle) return false;
+
+        currentCategory = AttackCategory.Normal;
+        isAttackA = attackA;
+        comboIndex = 1;
+        requestQueued = false;
+
+        CreateAirAttackData(attackA);
+        if (currentAttackData == null) return false;
+
+        if (!PlayAirAttack(attackA))
+        {
+            currentAttackData = null;
+            return false;
+        }
+
+        state = AttackState.Attacking;
+        return true;
+    }
+
     // ✅ 仅用于 AI：从任意连段段数起手（A2/A3/A4... 或 B2/B3...）
     public bool TryStartNormalAt(bool attackA, int startComboIndex)
     {
@@ -491,6 +514,14 @@ public class MeleeFighter : MonoBehaviour
         CreateFromConfig(type, 1);
     }
 
+    void CreateAirAttackData(bool attackA)
+    {
+        CreateFromConfig(
+            attackA ? AttackSourceType.AirAttackA : AttackSourceType.AirAttackB,
+            1
+        );
+    }
+
     void CreateHeavyAttackData(bool attackA)
     {
         CreateFromConfig(
@@ -556,6 +587,18 @@ public class MeleeFighter : MonoBehaviour
         anim.CrossFadeInFixedTime(stateName, attackCrossFadeTime, ATTACK_LAYER);
     }
 
+    bool PlayAirAttack(bool attackA)
+    {
+        string stateName = attackA ? "AirAttackA" : "AirAttackB";
+        int hash = Animator.StringToHash(stateName);
+
+        if (anim == null || !anim.HasState(ATTACK_LAYER, hash))
+            return false;
+
+        anim.CrossFadeInFixedTime(stateName, attackCrossFadeTime, ATTACK_LAYER);
+        return true;
+    }
+
     void PlayChargeAttack(bool attackA)
     {
         anim.CrossFadeInFixedTime(
@@ -583,6 +626,12 @@ public class MeleeFighter : MonoBehaviour
     /* ================= Readonly State ================= */
 
     public bool IsInAttackLock => state == AttackState.Attacking;
+
+    public bool IsInAirAttack =>
+        IsInAttackLock &&
+        currentAttackData != null &&
+        (currentAttackData.sourceType == AttackSourceType.AirAttackA ||
+         currentAttackData.sourceType == AttackSourceType.AirAttackB);
 
     // ✅ 霸体真相：只有“正在攻击中”且当前 AttackData 标记了霸体才算
     public bool IsInSuperArmor => IsInAttackLock && currentAttackData != null && currentAttackData.hasSuperArmor;
