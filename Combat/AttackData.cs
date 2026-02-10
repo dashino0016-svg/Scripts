@@ -6,6 +6,7 @@ public class AttackData
     public Transform attacker;
     public AttackSourceType sourceType;
     public HitReactionType hitReaction;
+    public HitBoxLimb activeLimbMask;
 
     [Header("Damage")]
     public int hpDamage;
@@ -31,7 +32,8 @@ public class AttackData
         AttackSourceType sourceType,
         HitReactionType hitReaction,
         int hpDamage,
-        int staminaDamage
+        int staminaDamage,
+        HitBoxLimb activeLimbMask = HitBoxLimb.All
     )
     {
         this.attacker = attacker;
@@ -39,5 +41,6 @@ public class AttackData
         this.hitReaction = hitReaction;
         this.hpDamage = hpDamage;
         this.staminaDamage = staminaDamage;
+        this.activeLimbMask = activeLimbMask;
     }
 }

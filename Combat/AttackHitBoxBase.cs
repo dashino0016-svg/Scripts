@@ -2,10 +2,13 @@ using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(Collider))]
-public abstract class AttackHitBoxBase : MonoBehaviour, IAttackTypedHitBox
+public abstract class AttackHitBoxBase : MonoBehaviour, IAttackTypedHitBox, ILimbTypedHitBox
 {
     [Header("HitBox Type")]
     [SerializeField] HitBoxType hitBoxType;
+
+    [Header("Limb")]
+    [SerializeField] HitBoxLimb limb = HitBoxLimb.All;
 
     Collider col;
     AttackData currentAttack;
@@ -13,6 +16,7 @@ public abstract class AttackHitBoxBase : MonoBehaviour, IAttackTypedHitBox
     MeleeFighter fighter;
 
     public HitBoxType HitBoxType => hitBoxType;
+    public HitBoxLimb Limb => limb;
 
     protected MeleeFighter Fighter => fighter;
 

@@ -354,6 +354,7 @@ public class MeleeFighter : MonoBehaviour
         registeredHitTargets.Clear();
 
         bool hasRequiredType = TryGetABHitBoxType(currentAttackData.sourceType, out HitBoxType requiredType);
+        HitBoxLimb requiredLimbMask = currentAttackData.activeLimbMask;
 
         foreach (var box in hitBoxes)
         {
@@ -362,6 +363,15 @@ public class MeleeFighter : MonoBehaviour
             if (hasRequiredType && box is IAttackTypedHitBox typedBox)
             {
                 if (typedBox.HitBoxType != requiredType)
+                {
+                    box.DisableHitBox();
+                    continue;
+                }
+            }
+
+            if (requiredLimbMask != HitBoxLimb.All && box is ILimbTypedHitBox limbBox)
+            {
+                if ((requiredLimbMask & limbBox.Limb) == 0)
                 {
                     box.DisableHitBox();
                     continue;
@@ -553,7 +563,8 @@ public class MeleeFighter : MonoBehaviour
             cfg.sourceType,
             cfg.hitReaction,
             cfg.hpDamage,
-            cfg.staminaDamage
+            cfg.staminaDamage,
+            cfg.activeLimbMask
         )
         {
             canBeBlocked = cfg.canBeBlocked,

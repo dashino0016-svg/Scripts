@@ -12,6 +12,10 @@ public class AttackConfig : ScriptableObject
     [Header("Hit Reaction (Non-Block)")]
     public HitReactionType hitReaction;
 
+    [Header("Active Limbs")]
+    [Tooltip("本段攻击允许生效的肢体判定。可选左右手/左右腿；默认 All 保持旧行为。")]
+    public HitBoxLimb activeLimbMask = HitBoxLimb.All;
+
     [Header("Damage")]
     public int hpDamage;
     public int staminaDamage;

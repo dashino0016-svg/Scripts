@@ -10,3 +10,8 @@ public interface IAttackTypedHitBox : IHitBox
 {
     HitBoxType HitBoxType { get; }
 }
+
+public interface ILimbTypedHitBox : IHitBox
+{
+    HitBoxLimb Limb { get; }
+}
