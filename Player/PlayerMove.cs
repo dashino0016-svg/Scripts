@@ -173,7 +173,9 @@ public class PlayerMove : MonoBehaviour
         anim.SetFloat("VerticalVelocity", velocityY);
 
         // ✅ 移动锁：由“攻击锁 + 控制锁”组成
-        bool lockedByAttack = fighter != null && fighter.IsInAttackLock;
+        // 空中攻击例外：允许沿已有空中轨迹继续运动（仅禁止 root motion，不冻结物理位移）
+        bool airborneAirAttack = fighter != null && fighter.IsInAirAttack && !isGrounded;
+        bool lockedByAttack = fighter != null && fighter.IsInAttackLock && !airborneAirAttack;
         bool lockedByController = controllerLogic != null && controllerLogic.IsInMoveControlLock;
         bool locked = lockedByAttack || lockedByController;
 
