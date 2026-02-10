@@ -2,10 +2,11 @@ using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(Collider))]
+public abstract class AttackHitBoxBase : MonoBehaviour, ILimbTypedHitBox
 public abstract class AttackHitBoxBase : MonoBehaviour, IAttackTypedHitBox, ILimbTypedHitBox
 {
-    [Header("HitBox Type")]
-    [SerializeField] HitBoxType hitBoxType;
+    [Header("Limb")]
+    [SerializeField] HitBoxLimb limb = HitBoxLimb.All;
 
     [Header("Limb")]
     [SerializeField] HitBoxLimb limb = HitBoxLimb.All;
