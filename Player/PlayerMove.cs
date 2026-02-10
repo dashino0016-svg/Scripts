@@ -31,9 +31,10 @@ public class PlayerMove : MonoBehaviour
     public float terminalVelocity = -50f;
 
     [Header("Ground Check")]
-    public float groundCheckRadius = 0.25f;
+    public float groundCheckRadius = 0.12f;
     public float groundCheckOffset = 0.1f;
     public LayerMask groundMask;
+
 
     [Header("Animation")]
     public float speedDampTime = 0.02f;
@@ -297,22 +298,12 @@ public class PlayerMove : MonoBehaviour
         if (controller != null && controller.isGrounded)
             return true;
 
-        Vector3 center = transform.TransformPoint(controller.center);
+        float radius = Mathf.Max(0.01f, groundCheckRadius);
+        Vector3 centerOrigin = transform.position + Vector3.down * groundCheckOffset;
 
-        float halfHeight = Mathf.Max(controller.height * 0.5f - controller.radius, 0f);
-        Vector3 bottomSphereCenter = center + Vector3.down * halfHeight;
-
-        float radius = Mathf.Max(0.01f, controller.radius - 0.02f);
-        const float castDistance = 0.18f;
-
-        Vector3 origin = bottomSphereCenter + Vector3.up * 0.05f;
-
-        return Physics.SphereCast(
-            origin,
+        return Physics.CheckSphere(
+            centerOrigin,
             radius,
-            Vector3.down,
-            out _,
-            castDistance,
             groundMask,
             QueryTriggerInteraction.Ignore
         );
@@ -519,8 +510,10 @@ public class PlayerMove : MonoBehaviour
     void OnDrawGizmosSelected()
     {
         Gizmos.color = isGrounded ? Color.green : Color.red;
-        Vector3 origin = transform.position + Vector3.down * groundCheckOffset;
-        Gizmos.DrawWireSphere(origin, groundCheckRadius);
+
+        float radius = Mathf.Max(0.01f, groundCheckRadius);
+        Vector3 centerOrigin = transform.position + Vector3.down * groundCheckOffset;
+        Gizmos.DrawWireSphere(centerOrigin, radius);
     }
 #endif
 }

@@ -21,6 +21,7 @@ public class EnemyMove : MonoBehaviour
     public float groundCheckOffset = -0.05f;
     public LayerMask groundMask;
 
+
     [Header("Animation")]
     public float speedDampTime = 0.02f;
 
@@ -127,10 +128,12 @@ public class EnemyMove : MonoBehaviour
 
     bool CheckGrounded()
     {
-        Vector3 origin = transform.position + Vector3.down * groundCheckOffset;
+        float radius = Mathf.Max(0.01f, groundCheckRadius);
+        Vector3 centerOrigin = transform.position + Vector3.down * groundCheckOffset;
+
         return Physics.CheckSphere(
-            origin,
-            groundCheckRadius,
+            centerOrigin,
+            radius,
             groundMask,
             QueryTriggerInteraction.Ignore
         );
@@ -211,8 +214,10 @@ public class EnemyMove : MonoBehaviour
     void OnDrawGizmosSelected()
     {
         Gizmos.color = isGrounded ? Color.green : Color.red;
-        Vector3 origin = transform.position + Vector3.down * groundCheckOffset;
-        Gizmos.DrawWireSphere(origin, groundCheckRadius);
+
+        float radius = Mathf.Max(0.01f, groundCheckRadius);
+        Vector3 centerOrigin = transform.position + Vector3.down * groundCheckOffset;
+        Gizmos.DrawWireSphere(centerOrigin, radius);
     }
 #endif
 }
