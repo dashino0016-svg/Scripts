@@ -26,7 +26,7 @@ public class PlayerMove : MonoBehaviour
     public float rotationSmoothTime = 0.08f;
 
     [Header("Gravity")]
-    public float gravity = -10f;
+    public float gravity = -15f;
     public float groundedGravity = -0.5f;
     public float terminalVelocity = -50f;
 
