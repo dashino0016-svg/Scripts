@@ -3,11 +3,7 @@ using UnityEngine;
 
 [RequireComponent(typeof(Collider))]
 public abstract class AttackHitBoxBase : MonoBehaviour, ILimbTypedHitBox
-public abstract class AttackHitBoxBase : MonoBehaviour, IAttackTypedHitBox, ILimbTypedHitBox
 {
-    [Header("Limb")]
-    [SerializeField] HitBoxLimb limb = HitBoxLimb.All;
-
     [Header("Limb")]
     [SerializeField] HitBoxLimb limb = HitBoxLimb.All;
 
@@ -16,7 +12,6 @@ public abstract class AttackHitBoxBase : MonoBehaviour, IAttackTypedHitBox, ILim
     readonly HashSet<IHittable> hitTargets = new HashSet<IHittable>();
     MeleeFighter fighter;
 
-    public HitBoxType HitBoxType => hitBoxType;
     public HitBoxLimb Limb => limb;
 
     protected MeleeFighter Fighter => fighter;
