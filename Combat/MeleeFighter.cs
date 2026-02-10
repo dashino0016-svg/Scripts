@@ -353,11 +353,21 @@ public class MeleeFighter : MonoBehaviour
         // New attack window => clear registry.
         registeredHitTargets.Clear();
 
+        bool hasRequiredType = TryGetABHitBoxType(currentAttackData.sourceType, out HitBoxType requiredType);
         HitBoxLimb requiredLimbMask = currentAttackData.activeLimbMask;
 
         foreach (var box in hitBoxes)
         {
             if (box == null) continue;
+
+            if (requiredLimbMask != HitBoxLimb.All && box is ILimbTypedHitBox limbBox)
+            {
+                if ((requiredLimbMask & limbBox.Limb) == 0)
+                {
+                    box.DisableHitBox();
+                    continue;
+                }
+            }
 
             if (requiredLimbMask != HitBoxLimb.All && box is ILimbTypedHitBox limbBox)
             {
