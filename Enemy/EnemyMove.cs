@@ -21,6 +21,12 @@ public class EnemyMove : MonoBehaviour
     public float groundCheckOffset = -0.05f;
     public LayerMask groundMask;
 
+    [Tooltip("开启后使用左右脚双球检测：任意一脚在地面即判定为着地。")]
+    public bool useDualFootGroundCheck = true;
+
+    [Tooltip("左右脚离中心的横向偏移（<=0 时按 CharacterController.radius * 0.5 自动计算）。")]
+    public float groundFootLateralOffset = 0f;
+
     [Header("Animation")]
     public float speedDampTime = 0.02f;
 
@@ -127,13 +133,30 @@ public class EnemyMove : MonoBehaviour
 
     bool CheckGrounded()
     {
-        Vector3 origin = transform.position + Vector3.down * groundCheckOffset;
-        return Physics.CheckSphere(
-            origin,
-            groundCheckRadius,
-            groundMask,
-            QueryTriggerInteraction.Ignore
-        );
+        float radius = Mathf.Max(0.01f, groundCheckRadius);
+        Vector3 centerOrigin = transform.position + Vector3.down * groundCheckOffset;
+
+        if (!useDualFootGroundCheck)
+        {
+            return Physics.CheckSphere(
+                centerOrigin,
+                radius,
+                groundMask,
+                QueryTriggerInteraction.Ignore
+            );
+        }
+
+        float lateral = groundFootLateralOffset;
+        if (lateral <= 0f)
+            lateral = Mathf.Max(radius * 0.75f, controller != null ? controller.radius * 0.5f : radius);
+
+        Vector3 leftOrigin = centerOrigin - transform.right * lateral;
+        Vector3 rightOrigin = centerOrigin + transform.right * lateral;
+
+        bool leftGrounded = Physics.CheckSphere(leftOrigin, radius, groundMask, QueryTriggerInteraction.Ignore);
+        bool rightGrounded = Physics.CheckSphere(rightOrigin, radius, groundMask, QueryTriggerInteraction.Ignore);
+
+        return leftGrounded || rightGrounded;
     }
 
     /* ================= Movement ================= */
@@ -211,8 +234,25 @@ public class EnemyMove : MonoBehaviour
     void OnDrawGizmosSelected()
     {
         Gizmos.color = isGrounded ? Color.green : Color.red;
-        Vector3 origin = transform.position + Vector3.down * groundCheckOffset;
-        Gizmos.DrawWireSphere(origin, groundCheckRadius);
+
+        float radius = Mathf.Max(0.01f, groundCheckRadius);
+        Vector3 centerOrigin = transform.position + Vector3.down * groundCheckOffset;
+
+        if (!useDualFootGroundCheck)
+        {
+            Gizmos.DrawWireSphere(centerOrigin, radius);
+            return;
+        }
+
+        float lateral = groundFootLateralOffset;
+        if (lateral <= 0f)
+            lateral = Mathf.Max(radius * 0.75f, 0.06f);
+
+        Vector3 leftOrigin = centerOrigin - transform.right * lateral;
+        Vector3 rightOrigin = centerOrigin + transform.right * lateral;
+
+        Gizmos.DrawWireSphere(leftOrigin, radius);
+        Gizmos.DrawWireSphere(rightOrigin, radius);
     }
 #endif
 }
