@@ -2,17 +2,17 @@ using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(Collider))]
-public abstract class AttackHitBoxBase : MonoBehaviour, IAttackTypedHitBox
+public abstract class AttackHitBoxBase : MonoBehaviour, ILimbTypedHitBox
 {
-    [Header("HitBox Type")]
-    [SerializeField] HitBoxType hitBoxType;
+    [Header("Limb")]
+    [SerializeField] HitBoxLimb limb = HitBoxLimb.All;
 
     Collider col;
     AttackData currentAttack;
     readonly HashSet<IHittable> hitTargets = new HashSet<IHittable>();
     MeleeFighter fighter;
 
-    public HitBoxType HitBoxType => hitBoxType;
+    public HitBoxLimb Limb => limb;
 
     protected MeleeFighter Fighter => fighter;
 

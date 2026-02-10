@@ -353,15 +353,15 @@ public class MeleeFighter : MonoBehaviour
         // New attack window => clear registry.
         registeredHitTargets.Clear();
 
-        bool hasRequiredType = TryGetABHitBoxType(currentAttackData.sourceType, out HitBoxType requiredType);
+        HitBoxLimb requiredLimbMask = currentAttackData.activeLimbMask;
 
         foreach (var box in hitBoxes)
         {
             if (box == null) continue;
 
-            if (hasRequiredType && box is IAttackTypedHitBox typedBox)
+            if (requiredLimbMask != HitBoxLimb.All && box is ILimbTypedHitBox limbBox)
             {
-                if (typedBox.HitBoxType != requiredType)
+                if ((requiredLimbMask & limbBox.Limb) == 0)
                 {
                     box.DisableHitBox();
                     continue;
@@ -471,29 +471,6 @@ public class MeleeFighter : MonoBehaviour
         return registeredHitTargets.Add(target);
     }
 
-    bool TryGetABHitBoxType(AttackSourceType sourceType, out HitBoxType type)
-    {
-        switch (sourceType)
-        {
-            case AttackSourceType.AttackA:
-            case AttackSourceType.RunAttackA:
-            case AttackSourceType.SprintAttackA:
-            case AttackSourceType.HeavyAttackA:
-                type = HitBoxType.A;
-                return true;
-
-            case AttackSourceType.AttackB:
-            case AttackSourceType.RunAttackB:
-            case AttackSourceType.SprintAttackB:
-            case AttackSourceType.HeavyAttackB:
-                type = HitBoxType.B;
-                return true;
-        }
-
-        type = default;
-        return false;
-    }
-
     /* ================= AttackData 构建 ================= */
 
     void CreateComboAttackData(int combo)
@@ -553,7 +530,8 @@ public class MeleeFighter : MonoBehaviour
             cfg.sourceType,
             cfg.hitReaction,
             cfg.hpDamage,
-            cfg.staminaDamage
+            cfg.staminaDamage,
+            cfg.activeLimbMask
         )
         {
             canBeBlocked = cfg.canBeBlocked,
