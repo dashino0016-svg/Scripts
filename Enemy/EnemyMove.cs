@@ -17,8 +17,8 @@ public class EnemyMove : MonoBehaviour
     public float terminalVelocity = -50f;
 
     [Header("Ground Check")]
-    public float groundCheckRadius = 0.05f;
-    public float groundCheckOffset = -0.05f;
+    public float groundCheckRadius = 0.15f;
+    public float groundCheckOffset = -0.1f;
     public LayerMask groundMask;
 
     [Header("Animation")]

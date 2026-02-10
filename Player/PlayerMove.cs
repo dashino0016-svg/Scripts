@@ -9,30 +9,30 @@ public class PlayerMove : MonoBehaviour
     public float sprintSpeed = 5f;
 
     [Header("Jump")]
-    public float jumpForce = 6f;
-    public float hardLandVelocity = -8f;
+    public float jumpForce = 5f;
+    public float hardLandVelocity = -10f;
 
     [Header("Jump (Lock-On Tuning)")]
     [Range(0.1f, 1f)]
-    public float lockOnJumpForceScale = 0.4f;
+    public float lockOnJumpForceScale = 1f;
 
     [Tooltip("起跳时额外的水平向前冲量")]
-    public float jumpForwardBoost = 2.0f;
+    public float jumpForwardBoost = 0f;
 
     [Tooltip("空中方向修正强度（0=完全锁死，1=完全自由）")]
-    public float airControl = 0.35f;
+    public float airControl = 0.2f;
 
     [Header("Rotation")]
     public float rotationSmoothTime = 0.08f;
 
     [Header("Gravity")]
-    public float gravity = -20f;
-    public float groundedGravity = -1f;
+    public float gravity = -10f;
+    public float groundedGravity = -0.5f;
     public float terminalVelocity = -50f;
 
     [Header("Ground Check")]
-    public float groundCheckRadius = 0.25f;
-    public float groundCheckOffset = 0.1f;
+    public float groundCheckRadius = 0.15f;
+    public float groundCheckOffset = -0.1f;
     public LayerMask groundMask;
 
     [Header("Animation")]
@@ -52,12 +52,12 @@ public class PlayerMove : MonoBehaviour
     [Tooltip("站立胶囊参数：Start() 会自动从当前 CharacterController 读取并覆盖这里的值。")]
     [SerializeField] float standHeight = 1.8f;
     [SerializeField] float standRadius = 0.2f;
-    [SerializeField] float standCenterY = 1.0f;
+    [SerializeField] float standCenterY = 0.95f;
 
     [Tooltip("蹲伏胶囊参数（建议高度为站立的 0.6~0.75）")]
     [SerializeField] float crouchHeight = 1.2f;
     [SerializeField] float crouchRadius = 0.2f;
-    [SerializeField] float crouchCenterY = 0.6f;
+    [SerializeField] float crouchCenterY = 0.65f;
 
     [Tooltip("胶囊切换平滑速度（0=立刻切换）")]
     [SerializeField] float capsuleLerpSpeed = 20f;
