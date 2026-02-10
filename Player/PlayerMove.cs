@@ -31,15 +31,9 @@ public class PlayerMove : MonoBehaviour
     public float terminalVelocity = -50f;
 
     [Header("Ground Check")]
-    public float groundCheckRadius = 0.12f;
+    public float groundCheckRadius = 0.25f;
     public float groundCheckOffset = 0.1f;
     public LayerMask groundMask;
-
-    [Tooltip("开启后使用左右脚双球检测：任意一脚在地面即判定为着地。")]
-    public bool useDualFootGroundCheck = true;
-
-    [Tooltip("左右脚离中心的横向偏移（<=0 时按 CharacterController.radius * 0.5 自动计算）。")]
-    public float groundFootLateralOffset = 0f;
 
     [Header("Animation")]
     public float speedDampTime = 0.02f;
@@ -303,31 +297,25 @@ public class PlayerMove : MonoBehaviour
         if (controller != null && controller.isGrounded)
             return true;
 
-        float radius = Mathf.Max(0.01f, groundCheckRadius);
-        Vector3 centerOrigin = transform.position + Vector3.down * groundCheckOffset;
+        Vector3 center = transform.TransformPoint(controller.center);
 
-        if (!useDualFootGroundCheck)
-        {
-            return Physics.CheckSphere(
-                centerOrigin,
-                radius,
-                groundMask,
-                QueryTriggerInteraction.Ignore
-            );
-        }
+        float halfHeight = Mathf.Max(controller.height * 0.5f - controller.radius, 0f);
+        Vector3 bottomSphereCenter = center + Vector3.down * halfHeight;
 
-        float lateral = groundFootLateralOffset;
-        if (lateral <= 0f)
-            lateral = Mathf.Max(radius * 0.75f, controller != null ? controller.radius * 0.5f : radius);
+        float radius = Mathf.Max(0.01f, controller.radius - 0.02f);
+        const float castDistance = 0.18f;
 
-        Vector3 leftOrigin = centerOrigin - transform.right * lateral;
-        Vector3 rightOrigin = centerOrigin + transform.right * lateral;
+        Vector3 origin = bottomSphereCenter + Vector3.up * 0.05f;
 
-        bool leftGrounded = Physics.CheckSphere(leftOrigin, radius, groundMask, QueryTriggerInteraction.Ignore);
-        bool rightGrounded = Physics.CheckSphere(rightOrigin, radius, groundMask, QueryTriggerInteraction.Ignore);
-
-        // 两脚都不在地面才判定离地（任意一脚着地即视为着地）
-        return leftGrounded || rightGrounded;
+        return Physics.SphereCast(
+            origin,
+            radius,
+            Vector3.down,
+            out _,
+            castDistance,
+            groundMask,
+            QueryTriggerInteraction.Ignore
+        );
     }
 
     /* ================= Sprint / Jump (Injected Input) ================= */
@@ -531,25 +519,8 @@ public class PlayerMove : MonoBehaviour
     void OnDrawGizmosSelected()
     {
         Gizmos.color = isGrounded ? Color.green : Color.red;
-
-        float radius = Mathf.Max(0.01f, groundCheckRadius);
-        Vector3 centerOrigin = transform.position + Vector3.down * groundCheckOffset;
-
-        if (!useDualFootGroundCheck)
-        {
-            Gizmos.DrawWireSphere(centerOrigin, radius);
-            return;
-        }
-
-        float lateral = groundFootLateralOffset;
-        if (lateral <= 0f)
-            lateral = Mathf.Max(radius * 0.75f, 0.06f);
-
-        Vector3 leftOrigin = centerOrigin - transform.right * lateral;
-        Vector3 rightOrigin = centerOrigin + transform.right * lateral;
-
-        Gizmos.DrawWireSphere(leftOrigin, radius);
-        Gizmos.DrawWireSphere(rightOrigin, radius);
+        Vector3 origin = transform.position + Vector3.down * groundCheckOffset;
+        Gizmos.DrawWireSphere(origin, groundCheckRadius);
     }
 #endif
 }
