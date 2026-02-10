@@ -437,6 +437,7 @@ public class PlayerController : MonoBehaviour
 
         bool useLockLocomotion =
             lockOn.IsLocked &&
+            move.IsGrounded &&
             !move.IsRunning &&
             !move.IsSprinting;
 
@@ -696,9 +697,9 @@ public class PlayerController : MonoBehaviour
     void HandleAttackInput()
     {
         if (isCrouching) return;
-
-        if (!sword.IsArmed) return;
-        if (move == null || !move.IsGrounded) return;
+        if (fighter == null) return;
+        if (sword == null || !sword.IsArmed) return;
+        if (move == null) return;
 
         if (IsInHitLock) return;
         if (isAbility) return;
@@ -707,6 +708,12 @@ public class PlayerController : MonoBehaviour
         if (isBusy || isLanding || isRolling)
             return;
 
+        if (!move.IsGrounded)
+        {
+            HandleAirAttackInput();
+            return;
+        }
+
         AttackMoveType moveType = AttackMoveType.None;
 
         if (move.IsSprinting) moveType = AttackMoveType.Sprint;
@@ -714,6 +721,20 @@ public class PlayerController : MonoBehaviour
 
         HandleAttackKey(attackAKey, true, moveType);
         HandleAttackKey(attackBKey, false, moveType);
+    }
+
+    void HandleAirAttackInput()
+    {
+        // 空中攻击不参与蓄力重击逻辑，且落地后重置按住态
+        isHoldingAttack = false;
+        heavyRequested = false;
+        holdTimer = 0f;
+
+        if (attackAKey != KeyCode.None && Input.GetKeyDown(attackAKey))
+            fighter.TryAirAttack(true);
+
+        if (attackBKey != KeyCode.None && Input.GetKeyDown(attackBKey))
+            fighter.TryAirAttack(false);
     }
 
     void HandleAttackKey(KeyCode key, bool attackA, AttackMoveType moveType)

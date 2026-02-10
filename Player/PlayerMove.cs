@@ -38,6 +38,13 @@ public class PlayerMove : MonoBehaviour
     [Header("Animation")]
     public float speedDampTime = 0.02f;
 
+    [Header("Root Motion (Player)")]
+    [Tooltip("开启后：空中阶段不吃任何 Root Motion 位移，避免与跳跃物理叠加导致跳高飘移。")]
+    [SerializeField] bool disableRootMotionTranslationWhenAirborne = true;
+
+    [Tooltip("开启后：无论地面/空中都忽略 Root Motion 的 Y 分量，垂直位移完全由 jump/gravity 决定。")]
+    [SerializeField] bool ignoreRootMotionY = true;
+
     // =========================
     // ✅ Crouch Capsule (CharacterController)
     // =========================
@@ -166,7 +173,9 @@ public class PlayerMove : MonoBehaviour
         anim.SetFloat("VerticalVelocity", velocityY);
 
         // ✅ 移动锁：由“攻击锁 + 控制锁”组成
-        bool lockedByAttack = fighter != null && fighter.IsInAttackLock;
+        // 空中攻击例外：允许沿已有空中轨迹继续运动（仅禁止 root motion，不冻结物理位移）
+        bool airborneAirAttack = fighter != null && fighter.IsInAirAttack && !isGrounded;
+        bool lockedByAttack = fighter != null && fighter.IsInAttackLock && !airborneAirAttack;
         bool lockedByController = controllerLogic != null && controllerLogic.IsInMoveControlLock;
         bool locked = lockedByAttack || lockedByController;
 
@@ -456,6 +465,28 @@ public class PlayerMove : MonoBehaviour
         controller.Move(motion * Time.deltaTime);
     }
 
+    void OnAnimatorMove()
+    {
+        if (anim == null || controller == null)
+            return;
+
+        if (!anim.applyRootMotion)
+            return;
+
+        Vector3 delta = anim.deltaPosition;
+
+        // 跳跃/下落阶段：位移由 CharacterController + velocityY 统一控制
+        if (disableRootMotionTranslationWhenAirborne && !isGrounded)
+            delta = Vector3.zero;
+
+        // 垂直位移统一走物理，防止动画 Y 叠加导致“突然上窜/跳高不一致”
+        if (ignoreRootMotionY)
+            delta.y = 0f;
+
+        if (delta.sqrMagnitude > 0f)
+            controller.Move(delta);
+    }
+
     void ApplyGravity()
     {
         if (!isGrounded)
@@ -470,6 +501,10 @@ public class PlayerMove : MonoBehaviour
     {
         if (!wasGrounded && isGrounded)
         {
+            // 空中攻击未播完时，落地按“强打断”处理（与受击打断同思路）
+            if (fighter != null && fighter.IsInAirAttack)
+                fighter.InterruptAttack();
+
             if (lastAirVelocityY <= hardLandVelocity)
                 anim.SetTrigger("HardLand");
             else
