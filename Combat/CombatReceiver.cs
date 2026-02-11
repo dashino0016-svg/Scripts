@@ -266,13 +266,18 @@ public class CombatReceiver : MonoBehaviour, IHittable
         {
             case HitResultType.Hit:
                 {
-                    // ✅ 未防御命中：只掉血（不掉体力）
+                    // ✅ 未防御命中：主伤害扣血 + 生命命中时的体力穿透伤害
                     int hpRequest = Mathf.Max(0, attackData.hpDamage);
 
                     // ✅ 用“实际造成的生命伤害”计算特殊值（避免已死/溢出）
                     int beforeHP = stats.CurrentHP;
                     stats.TakeHPDamage(hpRequest);
                     int actualHpDamage = Mathf.Max(0, beforeHP - stats.CurrentHP);
+
+                    int staminaPenetration = Mathf.Max(0, attackData.staminaPenetrationDamage);
+                    if (staminaPenetration > 0)
+                        stats.TakeStaminaDamage(staminaPenetration);
+
                     // ✅ 语音事件：命中/击杀（只在实际扣血>0时触发命中）
                     if (actualHpDamage > 0)
                         RaiseVoiceSignals_OnHpHit(attackData);
@@ -300,19 +305,40 @@ public class CombatReceiver : MonoBehaviour, IHittable
 
             case HitResultType.Blocked:
                 {
-                    // ✅ 防御命中：只掉体力
+                    // ✅ 防御命中：主伤害扣体力 + 防御命中时的生命穿透伤害
                     int st = Mathf.Max(0, attackData.staminaDamage);
                     stats.TakeStaminaDamage(st);
+
+                    int hpPenetration = Mathf.Max(0, attackData.hpPenetrationDamage);
+                    if (hpPenetration > 0)
+                    {
+                        stats.TakeHPDamage(hpPenetration);
+                        if (!stats.IsDead)
+                            RaiseVoiceSignals_OnHpHit(attackData);
+                        else
+                            RaiseVoiceSignals_OnKilled(attackData);
+                    }
+
                     break;
                 }
 
             case HitResultType.GuardBreak:
                 {
-                    // ✅ 破防：体力必须归零（不然HUD不会掉到0）
+                    // ✅ 破防：主伤害扣体力（可强制归零）+ 防御命中时的生命穿透伤害
                     if (attackData.canBreakGuard)
                         stats.ForceGuardBreak();
                     else
                         stats.TakeStaminaDamage(Mathf.Max(0, attackData.staminaDamage)); // 扣到0自动破防
+
+                    int hpPenetration = Mathf.Max(0, attackData.hpPenetrationDamage);
+                    if (hpPenetration > 0)
+                    {
+                        stats.TakeHPDamage(hpPenetration);
+                        if (!stats.IsDead)
+                            RaiseVoiceSignals_OnHpHit(attackData);
+                        else
+                            RaiseVoiceSignals_OnKilled(attackData);
+                    }
 
                     if (block != null)
                         block.ForceReleaseBlock();

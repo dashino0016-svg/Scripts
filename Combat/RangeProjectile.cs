@@ -275,7 +275,9 @@ public class RangeProjectile : MonoBehaviour
                 canBeParried = attackData.canBeParried,
                 canBreakGuard = attackData.canBreakGuard,
                 hasSuperArmor = attackData.hasSuperArmor,
-                hitStopWeight = attackData.hitStopWeight
+                hitStopWeight = attackData.hitStopWeight,
+                staminaPenetrationDamage = attackData.staminaPenetrationDamage,
+                hpPenetrationDamage = attackData.hpPenetrationDamage
             };
         }
 

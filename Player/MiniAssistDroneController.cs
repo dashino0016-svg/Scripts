@@ -897,6 +897,8 @@ public class MiniAssistDroneController : MonoBehaviour
         d.canBreakGuard = cfg.canBreakGuard;
         d.hasSuperArmor = cfg.hasSuperArmor;
         d.hitStopWeight = cfg.hitStopWeight;
+        d.staminaPenetrationDamage = cfg.staminaPenetrationDamage;
+        d.hpPenetrationDamage = cfg.hpPenetrationDamage;
         return d;
     }
 
