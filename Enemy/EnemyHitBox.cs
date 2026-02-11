@@ -13,6 +13,13 @@ public class EnemyHitBox : AttackHitBoxBase
             return true;
 
         EnemyController targetEnemy = other.GetComponentInParent<EnemyController>();
+        if (targetEnemy == null)
+            return true;
+
+        // 同层视为同阵营：近战不友伤；不同层为敌对阵营，允许互相近战命中。
+        int selfLayer = selfEnemy.gameObject.layer;
+        int targetLayer = targetEnemy.gameObject.layer;
+        return selfLayer != targetLayer;
         if (targetEnemy != null)
             return false;
 
