@@ -1,0 +1,20 @@
+fileFormatVersion: 2
+guid: de8b0e54bbce7844baf8b4f92f7df02e
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - playerBlockedClip: {instanceID: 0}
+  - playerPerfectBlockClip: {instanceID: 0}
+  - playerGuardBreakClip: {instanceID: 0}
+  - playerGuardBreakEnemyClip: {instanceID: 0}
+  - ability1Clip: {instanceID: 0}
+  - ability2Clip: {instanceID: 0}
+  - ability3Clip: {instanceID: 0}
+  - ability4Clip: {instanceID: 0}
+  - ability3BgmLoop: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
