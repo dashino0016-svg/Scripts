@@ -40,6 +40,12 @@ public class BossAssistDroneController : MonoBehaviour
     [SerializeField, Min(0.02f)] float targetRefreshInterval = 0.15f;
     [SerializeField, Min(0f)] float faceYawSpeed = 12f;
 
+    [Header("Facing Debug / Reference")]
+    [SerializeField] bool faceLockedTarget = true;
+    [SerializeField] Transform yawReference;
+    [SerializeField] float yawOffsetDegrees = 0f;
+    [SerializeField] bool snapYaw = false;
+
     [Header("Muzzles")]
     [SerializeField] Transform tapMuzzleA;
     [SerializeField] Transform tapMuzzleB;
@@ -335,6 +341,41 @@ public class BossAssistDroneController : MonoBehaviour
 
     void FaceTargetOrBossForward()
     {
+        if (faceLockedTarget && currentTarget != null)
+        {
+            Vector3 to = LockTargetPointUtility.GetCapsuleCenter(currentTarget) - transform.position;
+            to.y = 0f;
+
+            if (to.sqrMagnitude > 0.0001f)
+            {
+                Quaternion targetRot = Quaternion.LookRotation(to.normalized, Vector3.up);
+                targetRot *= Quaternion.Euler(0f, yawOffsetDegrees, 0f);
+                ApplyYawRotation(targetRot);
+                return;
+            }
+        }
+
+        if (yawReference == null)
+            yawReference = bossRoot != null ? bossRoot : transform;
+
+        if (yawReference == null)
+            return;
+
+        float yaw = yawReference.eulerAngles.y + yawOffsetDegrees;
+        Quaternion fallback = Quaternion.Euler(0f, yaw, 0f);
+        ApplyYawRotation(fallback);
+    }
+
+    void ApplyYawRotation(Quaternion target)
+    {
+        if (snapYaw || faceYawSpeed <= 0f)
+        {
+            transform.rotation = target;
+            return;
+        }
+
+        float k = 1f - Mathf.Exp(-Mathf.Max(0.01f, faceYawSpeed) * Time.deltaTime);
+        transform.rotation = Quaternion.Slerp(transform.rotation, target, k);
         Vector3 forward = bossRoot != null ? bossRoot.forward : transform.forward;
 
         if (currentTarget != null)
