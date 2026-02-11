@@ -76,6 +76,12 @@ public class MeleeFighter : MonoBehaviour
 
     bool IsInHitLock => receiver != null && receiver.IsInHitLock;
 
+    bool IsSiblingRangeAttackLock()
+    {
+        RangeFighter range = GetComponent<RangeFighter>();
+        return range != null && range.enabled && range.IsInAttackLock;
+    }
+
     [Header("Animator CrossFade")]
     [SerializeField, Range(0f, 0.15f)]
     float attackCrossFadeTime = 0f;
@@ -165,6 +171,7 @@ public class MeleeFighter : MonoBehaviour
     {
         // ✅ 受击锁期间禁止启动攻击
         if (IsInHitLock) return;
+        if (IsSiblingRangeAttackLock()) return;
 
         // ===== 跑 / 冲刺攻击 =====
         if (moveType != AttackMoveType.None)
@@ -223,6 +230,7 @@ public class MeleeFighter : MonoBehaviour
     public bool TryAirAttack(bool attackA)
     {
         if (IsInHitLock) return false;
+        if (IsSiblingRangeAttackLock()) return false;
         if (state != AttackState.Idle) return false;
 
         currentCategory = AttackCategory.Normal;
@@ -247,6 +255,7 @@ public class MeleeFighter : MonoBehaviour
     public bool TryStartNormalAt(bool attackA, int startComboIndex)
     {
         if (IsInHitLock) return false;
+        if (IsSiblingRangeAttackLock()) return false;
         if (state != AttackState.Idle) return false;
 
         if (startComboIndex < 1) startComboIndex = 1;
@@ -271,6 +280,7 @@ public class MeleeFighter : MonoBehaviour
     public void RequestHeavy(bool attackA)
     {
         if (IsInHitLock) return;
+        if (IsSiblingRangeAttackLock()) return;
 
         if (state != AttackState.Idle && state != AttackState.ComboWindow)
             return;
@@ -305,6 +315,7 @@ public class MeleeFighter : MonoBehaviour
     public void RequestAbility(AbilityType type)
     {
         if (IsInHitLock) return;
+        if (IsSiblingRangeAttackLock()) return;
         if (state != AttackState.Idle) return;
 
         currentCategory = AttackCategory.Ability;
