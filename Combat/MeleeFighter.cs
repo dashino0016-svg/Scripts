@@ -80,6 +80,7 @@ public class MeleeFighter : MonoBehaviour
     [SerializeField, Range(0f, 0.15f)]
     float attackCrossFadeTime = 0f;
 
+
     void Awake()
     {
         anim = GetComponent<Animator>();
@@ -331,6 +332,18 @@ public class MeleeFighter : MonoBehaviour
         CombatSignals.RaisePlayerUnblockableWarning(0f); // 方案B：时长由玩家端 defaultDuration 决定
     }
 
+
+    // 动画事件：Whoosh（建议在动画里单独打点控制时机）
+    public void Whoosh()
+    {
+        bool selfIsPlayer = GetComponentInParent<PlayerController>() != null;
+        if (!selfIsPlayer || currentAttackData == null)
+            return;
+
+        if (PlayerAttackSfxKeyUtility.TryGetKey(currentAttackData, out var sfxKey))
+            CombatSfxSignals.RaisePlayerAttackWhoosh(sfxKey);
+    }
+
     public void AttackBegin()
     {
         // ✅ 保险：若这一帧进入受击锁且非霸体，绝不允许开 HitBox
@@ -348,9 +361,6 @@ public class MeleeFighter : MonoBehaviour
             return;
         }
 
-        bool selfIsPlayer = GetComponentInParent<PlayerController>() != null;
-        if (selfIsPlayer && PlayerAttackSfxKeyUtility.TryGetKey(currentAttackData, out var sfxKey))
-            CombatSfxSignals.RaisePlayerAttackWhoosh(sfxKey);
 
         isHitWindow = true; // ✅ 命中窗口开始（权威）
 
