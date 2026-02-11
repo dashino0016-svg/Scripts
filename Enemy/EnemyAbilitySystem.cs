@@ -337,6 +337,8 @@ public class EnemyAbilitySystem : MonoBehaviour
             canBreakGuard = cfg != null && cfg.canBreakGuard,
             hasSuperArmor = cfg != null && cfg.hasSuperArmor,
             hitStopWeight = cfg != null ? cfg.hitStopWeight : 1f,
+            staminaPenetrationDamage = cfg != null ? cfg.staminaPenetrationDamage : 0,
+            hpPenetrationDamage = cfg != null ? cfg.hpPenetrationDamage : 0,
         };
     }
 }
