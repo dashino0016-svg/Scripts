@@ -20,8 +20,6 @@ public class PlayerCombatSfxConfig : ScriptableObject
     public AudioClip playerPerfectBlockClip;
     public AudioClip playerGuardBreakClip;
 
-    [Header("Player breaks enemy guard")]
-    public AudioClip playerGuardBreakEnemyClip;
 
     [Header("Abilities")]
     public AudioClip ability1Clip;

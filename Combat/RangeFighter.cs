@@ -73,6 +73,13 @@ public class RangeFighter : MonoBehaviour
         if (isInAttackLock) return false;
         if (pendingShoot) return false;
 
+        MeleeFighter melee = GetComponent<MeleeFighter>();
+        if (melee != null && melee.enabled)
+        {
+            if (melee.IsInAttackLock || melee.IsInComboWindow || melee.IsInHitWindow)
+                return false;
+        }
+
         if (muzzle == null || projectilePrefab == null || shotConfig == null)
         {
             Debug.LogWarning($"[RangeFighter] Missing refs: muzzle/projectilePrefab/shotConfig.");

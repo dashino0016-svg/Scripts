@@ -873,8 +873,8 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        if (abilitySystem != null)
-            abilitySystem.ApplyPending();
+        if (abilitySystem != null && abilitySystem.ApplyPending(out var appliedAbility))
+            CombatSfxSignals.RaisePlayerAbilityTriggered(appliedAbility);
     }
 
     void HandleAbilityInput()
@@ -891,7 +891,6 @@ public class PlayerController : MonoBehaviour
         {
             if (abilitySystem != null && abilitySystem.TryRequest(PlayerAbilitySystem.AbilityType.Ability1))
             {
-                CombatSfxSignals.RaisePlayerAbilityTriggered(PlayerAbilitySystem.AbilityType.Ability1);
                 anim.SetTrigger(ability1Trigger);
             }
         }
@@ -900,7 +899,6 @@ public class PlayerController : MonoBehaviour
         {
             if (abilitySystem != null && abilitySystem.TryRequest(PlayerAbilitySystem.AbilityType.Ability2))
             {
-                CombatSfxSignals.RaisePlayerAbilityTriggered(PlayerAbilitySystem.AbilityType.Ability2);
                 anim.SetTrigger(ability2Trigger);
             }
         }
@@ -909,7 +907,6 @@ public class PlayerController : MonoBehaviour
         {
             if (abilitySystem != null && abilitySystem.TryRequest(PlayerAbilitySystem.AbilityType.Ability3))
             {
-                CombatSfxSignals.RaisePlayerAbilityTriggered(PlayerAbilitySystem.AbilityType.Ability3);
                 anim.SetTrigger(ability3Trigger);
             }
         }
@@ -918,7 +915,6 @@ public class PlayerController : MonoBehaviour
         {
             if (abilitySystem != null && abilitySystem.TryRequest(PlayerAbilitySystem.AbilityType.Ability4))
             {
-                CombatSfxSignals.RaisePlayerAbilityTriggered(PlayerAbilitySystem.AbilityType.Ability4);
                 anim.SetTrigger(ability4Trigger);
             }
         }
