@@ -348,6 +348,10 @@ public class MeleeFighter : MonoBehaviour
             return;
         }
 
+        bool selfIsPlayer = GetComponentInParent<PlayerController>() != null;
+        if (selfIsPlayer && PlayerAttackSfxKeyUtility.TryGetKey(currentAttackData, out var sfxKey))
+            CombatSfxSignals.RaisePlayerAttackWhoosh(sfxKey);
+
         isHitWindow = true; // ✅ 命中窗口开始（权威）
 
         // New attack window => clear registry.
@@ -515,6 +519,14 @@ public class MeleeFighter : MonoBehaviour
         CreateFromConfig(source, 1);
     }
 
+
+    int GetCurrentComboIndexForSfx(AttackSourceType sourceType, int combo)
+    {
+        if (sourceType == AttackSourceType.AttackA || sourceType == AttackSourceType.AttackB)
+            return Mathf.Max(1, combo);
+        return 1;
+    }
+
     void CreateFromConfig(AttackSourceType sourceType, int combo)
     {
         if (!configMap.TryGetValue((sourceType, combo), out var cfg))
@@ -540,6 +552,7 @@ public class MeleeFighter : MonoBehaviour
             hitStopWeight = cfg.hitStopWeight,
             staminaPenetrationDamage = cfg.staminaPenetrationDamage,
             hpPenetrationDamage = cfg.hpPenetrationDamage,
+            attackSfxVariant = GetCurrentComboIndexForSfx(sourceType, combo),
         };
     }
 

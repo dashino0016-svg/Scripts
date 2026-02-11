@@ -223,6 +223,9 @@ public class CombatReceiver : MonoBehaviour, IHittable
             NotifyEnterCombat(attackData.attacker);
         }
 
+        bool attackerIsPlayer = IsPlayerAttacker(attackData.attacker);
+        CombatSfxSignals.RaiseHitResolved(attackData, result.resultType, attackerIsPlayer, selfIsPlayer);
+
         return result;
     }
 
