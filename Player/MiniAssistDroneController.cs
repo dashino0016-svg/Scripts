@@ -247,9 +247,9 @@ public class MiniAssistDroneController : MonoBehaviour
 
         EnsureRefs();
 
-        bool inCombat = EnemyState.AnyEnemyInCombat;
+        bool shouldDeploy = ShouldDeployFromCombatOrLock();
 
-        if (inCombat)
+        if (shouldDeploy)
         {
             if (state == DroneState.Docked || state == DroneState.Returning)
                 BeginEnter();
@@ -293,6 +293,18 @@ public class MiniAssistDroneController : MonoBehaviour
                 ClearPendingFire();
                 break;
         }
+    }
+
+    bool ShouldDeployFromCombatOrLock()
+    {
+        if (EnemyState.AnyEnemyInCombat)
+            return true;
+
+        if (lockOn == null || !lockOn.IsLocked)
+            return false;
+
+        CombatStats lockedTarget = lockOn.CurrentTargetStats;
+        return lockedTarget != null && !lockedTarget.IsDead;
     }
 
     void EnsureRefs()
@@ -885,6 +897,8 @@ public class MiniAssistDroneController : MonoBehaviour
         d.canBreakGuard = cfg.canBreakGuard;
         d.hasSuperArmor = cfg.hasSuperArmor;
         d.hitStopWeight = cfg.hitStopWeight;
+        d.staminaPenetrationDamage = cfg.staminaPenetrationDamage;
+        d.hpPenetrationDamage = cfg.hpPenetrationDamage;
         return d;
     }
 

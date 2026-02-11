@@ -248,7 +248,9 @@ public class RangeFighter : MonoBehaviour
             canBeParried = cfg.canBeParried,
             canBreakGuard = cfg.canBreakGuard,
             hasSuperArmor = cfg.hasSuperArmor,
-            hitStopWeight = cfg.hitStopWeight
+            hitStopWeight = cfg.hitStopWeight,
+            staminaPenetrationDamage = cfg.staminaPenetrationDamage,
+            hpPenetrationDamage = cfg.hpPenetrationDamage
         };
 
         return data;

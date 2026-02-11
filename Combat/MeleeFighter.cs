@@ -538,6 +538,8 @@ public class MeleeFighter : MonoBehaviour
             canBreakGuard = cfg.canBreakGuard,
             hasSuperArmor = cfg.hasSuperArmor,
             hitStopWeight = cfg.hitStopWeight,
+            staminaPenetrationDamage = cfg.staminaPenetrationDamage,
+            hpPenetrationDamage = cfg.hpPenetrationDamage,
         };
     }
 

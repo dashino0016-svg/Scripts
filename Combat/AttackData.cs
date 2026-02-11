@@ -11,6 +11,8 @@ public class AttackData
     [Header("Damage")]
     public int hpDamage;
     public int staminaDamage;
+    public int staminaPenetrationDamage;
+    public int hpPenetrationDamage;
 
     [Header("Rules")]
     public bool canBeBlocked = true;
@@ -33,7 +35,9 @@ public class AttackData
         HitReactionType hitReaction,
         int hpDamage,
         int staminaDamage,
-        HitBoxLimb activeLimbMask = HitBoxLimb.All
+        HitBoxLimb activeLimbMask = HitBoxLimb.All,
+        int staminaPenetrationDamage = 0,
+        int hpPenetrationDamage = 0
     )
     {
         this.attacker = attacker;
@@ -42,5 +46,7 @@ public class AttackData
         this.hpDamage = hpDamage;
         this.staminaDamage = staminaDamage;
         this.activeLimbMask = activeLimbMask;
+        this.staminaPenetrationDamage = staminaPenetrationDamage;
+        this.hpPenetrationDamage = hpPenetrationDamage;
     }
 }
