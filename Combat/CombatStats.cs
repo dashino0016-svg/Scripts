@@ -100,6 +100,9 @@ public class CombatStats : MonoBehaviour
     {
         if (value <= 0) return;
 
+        // ✅ 破防恢复期间（isGuardBroken=true）不再承受体力伤害，避免反复被打回 0 体力。
+        if (isGuardBroken) return;
+
         staminaF -= value;
         if (staminaF <= 0f)
         {
