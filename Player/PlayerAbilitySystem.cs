@@ -147,15 +147,18 @@ public class PlayerAbilitySystem : MonoBehaviour
     }
 
     // 动画事件：AbilityImpact
-    public void ApplyPending()
+    public bool ApplyPending(out AbilityType appliedAbility)
     {
-        if (!hasPending) return;
+        appliedAbility = default;
+        if (!hasPending) return false;
 
         if (IsInHitLock())
         {
             CancelPending();
-            return;
+            return false;
         }
+
+        appliedAbility = pending;
 
         switch (pending)
         {
@@ -175,6 +178,7 @@ public class PlayerAbilitySystem : MonoBehaviour
         }
 
         hasPending = false;
+        return true;
     }
 
     void PerformAbility3()
