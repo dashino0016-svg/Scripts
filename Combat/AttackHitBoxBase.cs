@@ -51,6 +51,9 @@ public abstract class AttackHitBoxBase : MonoBehaviour, ILimbTypedHitBox
         var hittable = other.GetComponentInParent<IHittable>();
         if (hittable == null) return;
 
+        if (!CanHitTarget(other, hittable, currentAttack))
+            return;
+
         // Local guard (same hitbox) + shared guard (across all hitboxes of this attacker).
         if (hitTargets.Contains(hittable)) return;
         if (fighter != null && !fighter.TryRegisterHit(hittable)) return;
@@ -59,6 +62,11 @@ public abstract class AttackHitBoxBase : MonoBehaviour, ILimbTypedHitBox
         hittable.OnHit(currentAttack);
 
         OnHitConfirmed(currentAttack);
+    }
+
+    protected virtual bool CanHitTarget(Collider other, IHittable hittable, AttackData attackData)
+    {
+        return true;
     }
 
     protected virtual void OnHitConfirmed(AttackData attackData)
