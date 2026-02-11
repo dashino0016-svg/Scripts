@@ -376,19 +376,6 @@ public class BossAssistDroneController : MonoBehaviour
 
         float k = 1f - Mathf.Exp(-Mathf.Max(0.01f, faceYawSpeed) * Time.deltaTime);
         transform.rotation = Quaternion.Slerp(transform.rotation, target, k);
-        Vector3 forward = bossRoot != null ? bossRoot.forward : transform.forward;
-
-        if (currentTarget != null)
-        {
-            Vector3 to = LockTargetPointUtility.GetCapsuleCenter(currentTarget) - transform.position;
-            to.y = 0f;
-            if (to.sqrMagnitude > 0.0001f)
-                forward = to.normalized;
-        }
-
-        Quaternion targetRot = Quaternion.LookRotation(forward, Vector3.up);
-        float k = 1f - Mathf.Exp(-Mathf.Max(0.01f, faceYawSpeed) * Time.deltaTime);
-        transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, k);
     }
 
     void BeginEnter()
