@@ -293,6 +293,7 @@ public class CombatReceiver : MonoBehaviour, IHittable
                         if (!wasGuardBroken && stats.IsGuardBroken)
                             RaiseVoiceSignals_OnGuardBreak(attackData);
                     }
+                        stats.TakeStaminaDamage(staminaPenetration);
 
                     // ✅ 语音事件：命中/击杀（只在实际扣血>0时触发命中）
                     if (actualHpDamage > 0)
