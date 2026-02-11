@@ -80,10 +80,6 @@ public class PlayerCombatSfxController : MonoBehaviour
             PlayOneShot(defenderClip);
         }
 
-        if (ctx.AttackerIsPlayer && !ctx.ReceiverIsPlayer && ctx.ResultType == HitResultType.GuardBreak)
-        {
-            PlayOneShot(config.playerGuardBreakEnemyClip);
-        }
     }
 
     void HandleAbilityTriggered(PlayerAbilitySystem.AbilityType abilityType)
