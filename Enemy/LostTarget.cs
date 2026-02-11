@@ -19,6 +19,10 @@ public class LostTarget : MonoBehaviour
     EnemyNavigator navigator;
     CombatReceiver receiver;
     SwordController sword;
+    MeleeFighter meleeFighter;
+    RangeFighter rangeFighter;
+    EnemyAbilitySystem abilitySystem;
+    BlockController block;
 
     bool sheathRequested;
 
@@ -30,6 +34,10 @@ public class LostTarget : MonoBehaviour
         navigator = GetComponent<EnemyNavigator>();
         receiver = GetComponent<CombatReceiver>();
         sword = GetComponentInChildren<SwordController>();
+        meleeFighter = GetComponent<MeleeFighter>();
+        rangeFighter = GetComponent<RangeFighter>();
+        abilitySystem = GetComponent<EnemyAbilitySystem>();
+        block = GetComponent<BlockController>();
     }
 
     void OnEnable()
@@ -83,6 +91,10 @@ public class LostTarget : MonoBehaviour
         if (controller != null && controller.IsInWeaponTransition)
             return;
 
+        // ✅ 关键：玩家死亡后先让敌人把当前动作完整做完，再开始收刀
+        if (IsInCombatActionLock())
+            return;
+
         // 如果已经处于收刀状态（或本来就没武装），直接推进到 ReturnHome
         if (sword != null && !sword.IsArmed)
         {
@@ -130,6 +142,29 @@ public class LostTarget : MonoBehaviour
 
         move.SetMoveDirection(dir.normalized);
         move.SetMoveSpeedLevel(returnHomeSpeedLevel);
+    }
+
+    bool IsInCombatActionLock()
+    {
+        if (receiver != null && receiver.IsInHitLock)
+            return true;
+
+        if (meleeFighter != null && meleeFighter.enabled)
+        {
+            if (meleeFighter.IsInAttackLock || meleeFighter.IsInComboWindow || meleeFighter.IsInHitWindow)
+                return true;
+        }
+
+        if (rangeFighter != null && rangeFighter.enabled && rangeFighter.IsInAttackLock)
+            return true;
+
+        if (abilitySystem != null && abilitySystem.enabled && abilitySystem.IsInAbilityLock)
+            return true;
+
+        if (block != null && block.enabled && block.IsBlocking)
+            return true;
+
+        return false;
     }
 
     void StopAllMove()
