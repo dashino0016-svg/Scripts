@@ -187,6 +187,7 @@ public class CombatReceiver : MonoBehaviour, IHittable
         lastHitWasBlocked = (result.resultType == HitResultType.Blocked);
 
         ApplyResultToStats(result, attackData);
+        PromoteResultToGuardBreakIfNeeded(ref result);
 
         if (result.resultType == HitResultType.PerfectBlock)
         {
@@ -253,6 +254,16 @@ public class CombatReceiver : MonoBehaviour, IHittable
 
     }
 
+    void PromoteResultToGuardBreakIfNeeded(ref HitResult result)
+    {
+        if (stats == null) return;
+        if (!stats.IsGuardBroken) return;
+
+        // ✅ 只要本次结算后体力已归零并进入破防，就统一走 GuardBreak 表现链路（HeavyHit）。
+        if (result.resultType == HitResultType.Hit || result.resultType == HitResultType.Blocked)
+            result = new HitResult(HitResultType.GuardBreak);
+    }
+
     // ✅ 攻击型能力（Ability1/Ability2）造成的伤害不计入特殊值积累
     bool ShouldGrantSpecialFromThisAttack(AttackData attackData)
     {
@@ -276,6 +287,12 @@ public class CombatReceiver : MonoBehaviour, IHittable
 
                     int staminaPenetration = Mathf.Max(0, attackData.staminaPenetrationDamage);
                     if (staminaPenetration > 0)
+                    {
+                        bool wasGuardBroken = stats.IsGuardBroken;
+                        stats.TakeStaminaDamage(staminaPenetration);
+                        if (!wasGuardBroken && stats.IsGuardBroken)
+                            RaiseVoiceSignals_OnGuardBreak(attackData);
+                    }
                         stats.TakeStaminaDamage(staminaPenetration);
 
                     // ✅ 语音事件：命中/击杀（只在实际扣血>0时触发命中）

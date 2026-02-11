@@ -24,6 +24,12 @@ public class AttackConfig : ScriptableObject
     [Tooltip("命中未防御目标（造成生命伤害）时，额外造成的体力连带伤害。")]
     public int staminaPenetrationDamage;
 
+    [Tooltip("命中未防御目标（造成生命伤害）时，额外造成的体力连带伤害。")]
+    public int staminaPenetrationDamage;
+
+    [Tooltip("命中防御目标（造成体力伤害）时，额外造成的生命连带伤害。")]
+    public int hpPenetrationDamage;
+
     [Header("Rules")]
     public bool canBeBlocked = true;
     public bool canBeParried = true;
