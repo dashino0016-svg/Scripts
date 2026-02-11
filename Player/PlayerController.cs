@@ -890,25 +890,37 @@ public class PlayerController : MonoBehaviour
         if (Input.GetKeyDown(ability1Key))
         {
             if (abilitySystem != null && abilitySystem.TryRequest(PlayerAbilitySystem.AbilityType.Ability1))
+            {
+                CombatSfxSignals.RaisePlayerAbilityTriggered(PlayerAbilitySystem.AbilityType.Ability1);
                 anim.SetTrigger(ability1Trigger);
+            }
         }
 
         if (Input.GetKeyDown(ability2Key))
         {
             if (abilitySystem != null && abilitySystem.TryRequest(PlayerAbilitySystem.AbilityType.Ability2))
+            {
+                CombatSfxSignals.RaisePlayerAbilityTriggered(PlayerAbilitySystem.AbilityType.Ability2);
                 anim.SetTrigger(ability2Trigger);
+            }
         }
 
         if (Input.GetKeyDown(ability3Key))
         {
             if (abilitySystem != null && abilitySystem.TryRequest(PlayerAbilitySystem.AbilityType.Ability3))
+            {
+                CombatSfxSignals.RaisePlayerAbilityTriggered(PlayerAbilitySystem.AbilityType.Ability3);
                 anim.SetTrigger(ability3Trigger);
+            }
         }
 
         if (Input.GetKeyDown(ability4Key))
         {
             if (abilitySystem != null && abilitySystem.TryRequest(PlayerAbilitySystem.AbilityType.Ability4))
+            {
+                CombatSfxSignals.RaisePlayerAbilityTriggered(PlayerAbilitySystem.AbilityType.Ability4);
                 anim.SetTrigger(ability4Trigger);
+            }
         }
 
         if (Input.GetKeyDown(helicopterKey))

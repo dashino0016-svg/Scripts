@@ -72,6 +72,7 @@ public class PlayerAbilitySystem : MonoBehaviour
 
     AbilityType pending;
     bool hasPending;
+    Coroutine ability3Routine;
 
     void Awake()
     {
@@ -85,6 +86,16 @@ public class PlayerAbilitySystem : MonoBehaviour
     {
         if (hasPending && IsInHitLock())
             CancelPending();
+    }
+
+    void OnDisable()
+    {
+        if (ability3Routine == null)
+            return;
+
+        StopCoroutine(ability3Routine);
+        ability3Routine = null;
+        CombatSfxSignals.RaisePlayerAbility3TimeSlowEnd();
     }
 
     bool IsInHitLock()
@@ -191,6 +202,26 @@ public class PlayerAbilitySystem : MonoBehaviour
 
             ec.ApplyLocalTimeScale(ability3EnemyScale, ability3Duration);
         }
+
+        if (ability3Routine != null)
+            StopCoroutine(ability3Routine);
+
+        ability3Routine = StartCoroutine(Ability3BgmOverrideRoutine(ability3Duration));
+    }
+
+    System.Collections.IEnumerator Ability3BgmOverrideRoutine(float duration)
+    {
+        CombatSfxSignals.RaisePlayerAbility3TimeSlowBegin();
+
+        float timer = 0f;
+        while (timer < duration)
+        {
+            timer += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        CombatSfxSignals.RaisePlayerAbility3TimeSlowEnd();
+        ability3Routine = null;
     }
 
     void PerformAbility1()

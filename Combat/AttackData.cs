@@ -29,6 +29,9 @@ public class AttackData
     public int specialGainOnHit = 0;
     public int specialGainOnPerfectBlock = 0;
 
+    [Header("SFX")]
+    public int attackSfxVariant = 1;
+
     public AttackData(
         Transform attacker,
         AttackSourceType sourceType,
