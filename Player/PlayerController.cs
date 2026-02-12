@@ -52,6 +52,7 @@ public class PlayerController : MonoBehaviour
     bool isLanding;
     bool isBlocking;
     bool isAbility;
+    bool isCheckpointFlow;
 
     // ✅ crouch runtime
     bool isCrouching;
@@ -118,11 +119,11 @@ public class PlayerController : MonoBehaviour
     /// </summary>
     public bool IsInActionLock =>
     IsInAssassinationLock ||
-    isBusy || isAttacking || isRolling || isDodging || isLanding || isAbility || IsInHitLock;
+    isBusy || isAttacking || isRolling || isDodging || isLanding || isAbility || IsInHitLock || isCheckpointFlow;
 
     public bool IsInMoveControlLock =>
         IsInAssassinationLock ||
-        isBusy || isRolling || isDodging || isLanding || isAbility || IsInHitLock;
+        isBusy || isRolling || isDodging || isLanding || isAbility || IsInHitLock || isCheckpointFlow;
 
     AssassinationSystem assassination;
     public bool IsInAssassinationLock => assassination != null && assassination.IsAssassinating;
@@ -175,6 +176,9 @@ public class PlayerController : MonoBehaviour
     void Update()
     {
         if (IsInAssassinationLock)
+            return;
+
+        if (isCheckpointFlow)
             return;
 
         HandleMoveInput();
@@ -1071,6 +1075,27 @@ public class PlayerController : MonoBehaviour
         if (sword != null) sword.SetArmed(false);
         anim.SetBool("IsArmed", sword != null && sword.IsArmed);
         isBusy = false;
+
+        ForceExitCrouch();
+    }
+
+    public void SetCheckpointFlowLock(bool v)
+    {
+        isCheckpointFlow = v;
+
+        if (!v)
+            return;
+
+        if (block != null)
+            block.RequestBlock(false);
+
+        isBusy = false;
+        isAttacking = false;
+        isRolling = false;
+        isDodging = false;
+        isLanding = false;
+        isBlocking = false;
+        isAbility = false;
 
         ForceExitCrouch();
     }
