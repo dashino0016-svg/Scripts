@@ -22,7 +22,7 @@ public class EnemyAbilitySystem : MonoBehaviour
     [SerializeField] string interruptFallbackStateName = "Idle";
 
     [Tooltip("能力被受击打断时，强制切状态的过渡时长。")]
-    [SerializeField, Range(0f, 0.2f)] float interruptCrossFade = 0.05f;
+    [SerializeField, Range(0f, 0.2f)] float interruptCrossFade = 0f;
 
     CombatReceiver receiver;
 
