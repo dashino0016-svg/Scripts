@@ -874,7 +874,7 @@ public class PlayerController : MonoBehaviour
         }
 
         if (abilitySystem != null && abilitySystem.ApplyPending(out var appliedAbility))
-            CombatSfxSignals.RaisePlayerAbilityTriggered(appliedAbility);
+            CombatSfxSignals.RaiseAbilityTriggered(CombatSfxKeyUtility.ToAbilityId(appliedAbility));
     }
 
     void HandleAbilityInput()
