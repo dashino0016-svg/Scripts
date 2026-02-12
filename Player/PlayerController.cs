@@ -48,6 +48,7 @@ public class PlayerController : MonoBehaviour
     bool isBusy;
     bool isAttacking;
     bool isRolling;
+    bool isDodging;
     bool isLanding;
     bool isBlocking;
     bool isAbility;
@@ -94,6 +95,13 @@ public class PlayerController : MonoBehaviour
     [SerializeField] float landingLockTimeout = 1.2f;
     float landingLockStartTime = -999f;
 
+    [Header("Roll / Dodge Input")]
+    [Tooltip("按住翻滚键超过该时长触发翻滚；短于该时长在松开时触发躲避。")]
+    [SerializeField] float rollHoldThreshold = 0.18f;
+    bool rollKeyHolding;
+    float rollKeyHoldStartTime;
+    bool rollActionTriggered;
+
     [Header("Attack Magnet (Player)")]
     [Range(0f, 180f)]
     [SerializeField] float attackMagnetMaxYawFromStart = 90f; // 前摇最多纠正角度（建议 60~120）
@@ -110,11 +118,11 @@ public class PlayerController : MonoBehaviour
     /// </summary>
     public bool IsInActionLock =>
     IsInAssassinationLock ||
-    isBusy || isAttacking || isRolling || isLanding || isAbility || IsInHitLock;
+    isBusy || isAttacking || isRolling || isDodging || isLanding || isAbility || IsInHitLock;
 
     public bool IsInMoveControlLock =>
         IsInAssassinationLock ||
-        isBusy || isRolling || isLanding || isAbility || IsInHitLock;
+        isBusy || isRolling || isDodging || isLanding || isAbility || IsInHitLock;
 
     AssassinationSystem assassination;
     public bool IsInAssassinationLock => assassination != null && assassination.IsAssassinating;
@@ -192,6 +200,7 @@ public class PlayerController : MonoBehaviour
             if (!move.IsGrounded)
             {
                 isRolling = false;
+                isDodging = false;
                 // ✅ 防止 IFrameEnd 丢失导致永久无敌（Fall 打断 Roll/Dodge 时清无敌）
                 if (receiver != null) receiver.ForceClearIFrame();
             }
@@ -259,6 +268,7 @@ public class PlayerController : MonoBehaviour
                 && !isBlocking
                 && !isAbility
                 && !isRolling
+                && !isDodging
                 && !isLanding
                 && !isBusy
                 && !IsInHitLock
@@ -272,6 +282,7 @@ public class PlayerController : MonoBehaviour
                 && !isBlocking
                 && !isAbility
                 && !isRolling
+                && !isDodging
                 && !isLanding
                 && !isBusy
                 && !IsInHitLock
@@ -340,7 +351,7 @@ public class PlayerController : MonoBehaviour
             return;
 
         // 各种锁中不允许切换（避免状态抖动）
-        if (IsInHitLock || isAbility || isRolling || isLanding || isBusy)
+        if (IsInHitLock || isAbility || isRolling || isDodging || isLanding || isBusy)
             return;
 
         // 攻击中（含 ComboWindow）不允许切蹲
@@ -472,7 +483,7 @@ public class PlayerController : MonoBehaviour
         }
 
         // ✅ 这些状态下仍然不对脸
-        if (IsInHitLock || isRolling || isAbility)
+        if (IsInHitLock || isRolling || isDodging || isAbility)
             return;
 
         CombatStats targetStats = lockOn.CurrentTargetStats;
@@ -613,28 +624,112 @@ public class PlayerController : MonoBehaviour
         anim.SetTrigger("SheathSword");
     }
 
-    void HandleLockDodge()
+    DodgeDir GetLockDodgeDir(bool idleAsBack)
     {
         float h = Input.GetAxisRaw("Horizontal");
         float v = Input.GetAxisRaw("Vertical");
 
-        DodgeDir dir;
-
         if (Mathf.Abs(h) < 0.1f && Mathf.Abs(v) < 0.1f)
         {
-            dir = DodgeDir.Back;
-        }
-        else if (Mathf.Abs(v) >= Mathf.Abs(h))
-        {
-            dir = v > 0 ? DodgeDir.Forward : DodgeDir.Back;
-        }
-        else
-        {
-            dir = h > 0 ? DodgeDir.Right : DodgeDir.Left;
+            return idleAsBack ? DodgeDir.Back : DodgeDir.Forward;
         }
 
+        if (Mathf.Abs(v) >= Mathf.Abs(h))
+        {
+            return v > 0 ? DodgeDir.Forward : DodgeDir.Back;
+        }
+
+        return h > 0 ? DodgeDir.Right : DodgeDir.Left;
+    }
+
+    Vector3 GetLockLocomotionWorldDirectionOrDefault(Vector3 fallback)
+    {
+        float h = Input.GetAxisRaw("Horizontal");
+        float v = Input.GetAxisRaw("Vertical");
+
+        Vector3 dir = transform.right * h + transform.forward * v;
+        dir.y = 0f;
+
+        if (dir.sqrMagnitude < 0.0001f)
+            return fallback;
+
+        return dir.normalized;
+    }
+
+    bool IsInLockOnRunState()
+    {
+        return lockOn != null && lockOn.IsLocked && move != null && (move.IsRunning || move.IsSprinting);
+    }
+
+    bool CanStartRollOrDodge()
+    {
+        if (move == null || !move.IsGrounded)
+            return false;
+
+        if (sword == null || !sword.IsArmed)
+            return false;
+
+        if (IsInHitLock)
+            return false;
+
+        if (fighter != null && (fighter.IsInAttackLock || fighter.IsInComboWindow))
+            return false;
+
+        if (isBlocking || isAbility || isBusy || isLanding || isRolling || isDodging)
+            return false;
+
+        return true;
+    }
+
+    void TryTriggerRollFromHold()
+    {
+        if (!CanStartRollOrDodge())
+            return;
+
+        bool locked = lockOn != null && lockOn.IsLocked;
+        bool lockRun = IsInLockOnRunState();
+
+        Vector3 forward = transform.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 0.0001f) forward = Vector3.forward;
+        forward.Normalize();
+
+        if (locked && !lockRun)
+            rollDirection = GetLockLocomotionWorldDirectionOrDefault(forward);
+        else
+            rollDirection = forward;
+
+        if (!TrySpendForRoll())
+            return;
+
+        anim.SetTrigger("Roll");
+        rollActionTriggered = true;
+    }
+
+    void TryTriggerDodgeFromTap()
+    {
+        if (!CanStartRollOrDodge())
+            return;
+
+        bool locked = lockOn != null && lockOn.IsLocked;
+        bool lockRun = IsInLockOnRunState();
+
+        DodgeDir dir;
+
+        if (!locked)
+            dir = DodgeDir.Forward;
+        else if (lockRun)
+            dir = DodgeDir.Forward;
+        else
+            dir = GetLockDodgeDir(idleAsBack: true);
+
+        if (!TrySpendForDodge())
+            return;
+
+        rollDirection = Vector3.zero;
         anim.SetFloat("DodgeDir", (float)dir);
         anim.SetTrigger("Dodge");
+        rollActionTriggered = true;
     }
 
     bool TrySpendForRoll() => staminaActions == null || staminaActions.TryRoll();
@@ -645,53 +740,36 @@ public class PlayerController : MonoBehaviour
 
     void HandleRollInput()
     {
-        if (isCrouching)
-            return;
-
-        if (!Input.GetKeyDown(rollKey))
-            return;
-
-        if (move == null || !move.IsGrounded)
-            return;
-
-        if (IsInHitLock)
-            return;
-
-        if (fighter != null && (fighter.IsInAttackLock || fighter.IsInComboWindow))
-            return;
-
-        if (isBlocking || isAbility || isBusy || isLanding)
-            return;
-
-        if (lockOn != null && lockOn.IsLocked)
+        if (Input.GetKeyDown(rollKey))
         {
-            if (move.IsRunning || move.IsSprinting)
-            {
-                if (!TrySpendForRoll())
-                    return;
-
-                anim.SetTrigger("Roll");
-                return;
-            }
-
-            if (!isRolling && !isLanding)
-            {
-                if (!TrySpendForDodge())
-                    return;
-
-                HandleLockDodge();
-            }
-
-            return;
+            rollKeyHolding = true;
+            rollActionTriggered = false;
+            rollKeyHoldStartTime = Time.time;
         }
 
-        if (isRolling || isLanding || isBusy)
+        if (!rollKeyHolding)
             return;
 
-        if (!TrySpendForRoll())
-            return;
+        float hold = Time.time - rollKeyHoldStartTime;
+        float threshold = Mathf.Max(0.01f, rollHoldThreshold);
 
-        anim.SetTrigger("Roll");
+        if (!rollActionTriggered && hold >= threshold)
+            TryTriggerRollFromHold();
+
+        if (Input.GetKeyUp(rollKey))
+        {
+            if (!rollActionTriggered)
+                TryTriggerDodgeFromTap();
+
+            rollKeyHolding = false;
+            rollActionTriggered = false;
+        }
+    }
+
+    void OnDisable()
+    {
+        rollKeyHolding = false;
+        rollActionTriggered = false;
     }
 
     void HandleAttackInput()
@@ -705,7 +783,7 @@ public class PlayerController : MonoBehaviour
         if (isAbility) return;
         if (isBlocking) return;
 
-        if (isBusy || isLanding || isRolling)
+        if (isBusy || isLanding || isRolling || isDodging)
             return;
 
         if (!move.IsGrounded)
@@ -813,7 +891,7 @@ public class PlayerController : MonoBehaviour
             return;
         }
         // ✅ Roll / Dodge 期间禁止防御
-        if (isRolling)
+        if (isRolling || isDodging)
         {
             block.RequestBlock(false);
             isBlocking = false;
@@ -884,7 +962,7 @@ public class PlayerController : MonoBehaviour
         if (!sword.IsArmed || isAbility) return;
         if (IsInHitLock) return;
 
-        if (isBlocking || isRolling || isLanding || isBusy)
+        if (isBlocking || isRolling || isDodging || isLanding || isBusy)
             return;
 
         if (Input.GetKeyDown(ability1Key))
@@ -947,14 +1025,16 @@ public class PlayerController : MonoBehaviour
 
     public void RollBegin()
     {
-        ForceExitCrouch();
-
         isRolling = true;
         if (rollDirection.sqrMagnitude > 0.001f)
             transform.rotation = Quaternion.LookRotation(rollDirection);
     }
 
     public void RollEnd() => isRolling = false;
+
+    public void DodgeBegin() => isDodging = true;
+
+    public void DodgeEnd() => isDodging = false;
 
     public void LandBegin()
     {
@@ -1002,6 +1082,7 @@ public class PlayerController : MonoBehaviour
         isBusy = true;
         isAttacking = false;
         isRolling = false;
+        isDodging = false;
         isLanding = false;
         isBlocking = false;
         isAbility = false;
