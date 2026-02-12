@@ -95,7 +95,7 @@ public class PlayerAbilitySystem : MonoBehaviour
 
         StopCoroutine(ability3Routine);
         ability3Routine = null;
-        CombatSfxSignals.RaisePlayerAbility3TimeSlowEnd();
+        CombatSfxSignals.RaiseAbility3TimeSlowEnd();
     }
 
     bool IsInHitLock()
@@ -215,7 +215,7 @@ public class PlayerAbilitySystem : MonoBehaviour
 
     System.Collections.IEnumerator Ability3BgmOverrideRoutine(float duration)
     {
-        CombatSfxSignals.RaisePlayerAbility3TimeSlowBegin();
+        CombatSfxSignals.RaiseAbility3TimeSlowBegin();
 
         float timer = 0f;
         while (timer < duration)
@@ -224,7 +224,7 @@ public class PlayerAbilitySystem : MonoBehaviour
             yield return null;
         }
 
-        CombatSfxSignals.RaisePlayerAbility3TimeSlowEnd();
+        CombatSfxSignals.RaiseAbility3TimeSlowEnd();
         ability3Routine = null;
     }
 
