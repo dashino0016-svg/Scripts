@@ -3,18 +3,18 @@ using UnityEngine;
 [RequireComponent(typeof(Animator))]
 public class RangeFighter : MonoBehaviour
 {
-    // йAttack Layer = 1MeleeFighter Ҳ
+    // 攻击层（和 MeleeFighter 对齐）
     const int ATTACK_LAYER = 1;
 
     [Header("Refs")]
     [SerializeField] Animator anim;
     [SerializeField] Transform muzzle;                 // 枪口（子弹生成点）
-    [SerializeField] RangeProjectile projectilePrefab; // 你已改名的子弹脚本
-    [SerializeField] AttackConfig shotConfig;          // 远程单发的攻击配置（伤害/体力/可格挡/可完美等）
+    [SerializeField] RangeProjectile projectilePrefab; // 子弹脚本
+    [SerializeField] AttackConfig shotConfig;          // 远程单发攻击配置（伤害/体力/可格挡等）
 
     [Header("Shoot")]
     [SerializeField] float cooldownSeconds = 0f;     // 开火冷却
-    [SerializeField, Range(0f, 10f)] float spreadDegrees = 1.5f; // 散布（星战味道）
+    [SerializeField, Range(0f, 10f)] float spreadDegrees = 1.5f; // 散布
 
     [Header("SFX (Scheme1: Use AudioSource.clip)")]
     [SerializeField] AudioSource shotAudio;                 // 可不填，自动从 muzzle 上拿
@@ -32,13 +32,11 @@ public class RangeFighter : MonoBehaviour
     // ===== runtime =====
     float nextShootTime;
     bool isInAttackLock;
-    bool pendingShoot;         // 是否已请求射击，等待 AttackBegin 动画事件真正发射
-    Vector3 pendingAimDir;     // 外部喂入的瞄准方向（世界空间）
-    Transform pendingAimTarget;// 可选：目标（用于反弹回瞄/AI）
+    bool pendingShoot;          // 是否已请求射击，等待 AttackBegin 动画事件真正发射
+    Vector3 pendingAimDir;      // 外部喂入的瞄准方向（世界空间）
+    Transform pendingAimTarget; // 可选：目标（用于反弹回瞄/AI）
 
-    // 对外只读：给 AI/Controller 做门禁
     public bool IsInAttackLock => isInAttackLock;
-    // ✅ 和近战一致：若你未来给远程攻击也做霸体，这里就能支持“普通命中不打断”
     public bool IsInSuperArmor => isInAttackLock && shotConfig != null && shotConfig.hasSuperArmor;
     public Transform Muzzle => muzzle;
 
@@ -57,7 +55,6 @@ public class RangeFighter : MonoBehaviour
             if (shotAudio == null) shotAudio = host.AddComponent<AudioSource>();
         }
 
-        // 不改 clip / mixer / volume —— 这些都交给 AudioSource 本身在 Inspector 配
         shotAudio.playOnAwake = false;
         shotAudio.spatialBlend = 1f; // 3D
     }
@@ -73,6 +70,7 @@ public class RangeFighter : MonoBehaviour
         if (isInAttackLock) return false;
         if (pendingShoot) return false;
 
+        // 与近战互斥：存在 MeleeFighter 且处于攻击/判定/连招窗时，拒绝开火
         MeleeFighter melee = GetComponent<MeleeFighter>();
         if (melee != null && melee.enabled)
         {
@@ -97,44 +95,48 @@ public class RangeFighter : MonoBehaviour
         // 进入攻击锁：权威由动画事件 Begin~End 维持，但这里先锁住，避免多次触发
         isInAttackLock = true;
 
-        // 播放 AttackLayer 射击动画
-        PlayShootAnimation();
+        // 播放 AttackLayer 射击动画（CrossFade 流）
+        if (!PlayShootAnimation())
+        {
+            // 找不到状态就立刻回滚，避免 pendingShoot / isInAttackLock 卡死（因为不会有动画事件 End）
+            pendingShoot = false;
+            pendingAimTarget = null;
+            isInAttackLock = false;
+            return false;
+        }
 
         nextShootTime = Time.time + cooldownSeconds;
         return true;
     }
 
-    void PlayShootAnimation()
+    bool PlayShootAnimation()
     {
-        if (anim == null) return;
+        if (anim == null) return false;
 
         int hash = Animator.StringToHash(shootStateName);
-        if (anim.HasState(ATTACK_LAYER, hash))
+        if (!anim.HasState(ATTACK_LAYER, hash))
         {
-            anim.CrossFadeInFixedTime(shootStateName, crossFade, ATTACK_LAYER, 0f);
+            Debug.LogWarning($"[RangeFighter] AttackLayer({ATTACK_LAYER}) state '{shootStateName}' not found. CrossFade aborted.");
+            return false;
         }
-        else
-        {
-            // 兜底：如果你用 Trigger 流
-            anim.SetTrigger(shootStateName);
-        }
+
+        anim.CrossFadeInFixedTime(shootStateName, crossFade, ATTACK_LAYER, 0f);
+        return true;
     }
 
     // ======================
     // Animation Events（五段铁律）
     // ======================
 
-    // Begin：动画开始（你体系用它做攻击锁开始点）
     public void Begin()
     {
-        // ✅ 被打断/取消后，动画事件 Begin 可能仍会被调用；这里必须门禁
+        // 被打断/取消后，动画事件 Begin 可能仍会被调用；这里必须门禁
         if (!pendingShoot)
             return;
 
         isInAttackLock = true;
     }
 
-    // AttackBegin：开火时机点（权威：在这里生成子弹）
     public void AttackBegin()
     {
         if (!pendingShoot)
@@ -143,23 +145,19 @@ public class RangeFighter : MonoBehaviour
         FireProjectile();
     }
 
-    // AttackImpact：保留给未来做“枪口火光/后坐/格挡火花”等
     public void AttackImpact() { }
 
-    // AttackEnd：后摇结束（单发版不在这里解锁）
     public void AttackEnd()
     {
         // 单发版不做 ComboWindow；保持 AttackLock 直到 End
     }
 
-    // End：动画结束（解锁点）
     public void End()
     {
         pendingShoot = false;
         pendingAimTarget = null;
         isInAttackLock = false;
 
-        // 退出 AttackLayer（可选）
         ForceEmptyState();
     }
 
@@ -174,7 +172,6 @@ public class RangeFighter : MonoBehaviour
 
     public void InterruptShoot()
     {
-        // 没在射击流程就不处理
         if (!pendingShoot && !isInAttackLock)
             return;
 
@@ -182,12 +179,10 @@ public class RangeFighter : MonoBehaviour
         pendingAimTarget = null;
         isInAttackLock = false;
 
-        // ✅ 强制退出 AttackLayer，避免后续 AttackBegin 事件继续跑
+        // 强制退出 AttackLayer，避免后续 AttackBegin 事件继续跑
         ForceEmptyState();
 
-        // ✅ 若你走 Trigger 兜底，这里清一下 trigger，避免下一帧又被触发
-        if (anim != null && !string.IsNullOrEmpty(shootStateName))
-            anim.ResetTrigger(shootStateName);
+        // ✅ 已移除 Trigger 相关逻辑（ResetTrigger / SetTrigger）
     }
 
     // ======================
@@ -200,14 +195,12 @@ public class RangeFighter : MonoBehaviour
 
         if (shotAudio == null) RefreshShotAudio();
 
-        // ✅ 每一发都根据“当前目标点”重新算方向（连发会跟踪目标移动）
         Vector3 dir = pendingAimDir;
 
         if (pendingAimTarget != null)
         {
             Vector3 aimPoint = pendingAimTarget.position;
 
-            // 优先用 CombatStats 胶囊中心（和你锁定/瞄准体系一致）
             CombatStats s = pendingAimTarget.GetComponentInParent<CombatStats>();
             if (s != null)
                 aimPoint = LockTargetPointUtility.GetCapsuleCenter(s.transform);
@@ -217,10 +210,8 @@ public class RangeFighter : MonoBehaviour
                 dir = d3.normalized;
         }
 
-        // 更新 fallback（防止目标瞬间丢失）
         pendingAimDir = dir;
 
-        // 星战风格：散布
         if (spreadDegrees > 0.001f)
         {
             float yaw = Random.Range(-spreadDegrees, spreadDegrees);
@@ -242,7 +233,6 @@ public class RangeFighter : MonoBehaviour
 
     AttackData BuildAttackDataFromConfig(AttackConfig cfg)
     {
-        // 目前先复用 cfg.sourceType（你后面会新增真正的 Ranged 枚举值再迁移）
         var data = new AttackData(
             transform,
             cfg.sourceType,
