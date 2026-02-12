@@ -48,6 +48,7 @@ public class PlayerController : MonoBehaviour
     bool isBusy;
     bool isAttacking;
     bool isRolling;
+    bool isDodging;
     bool isLanding;
     bool isBlocking;
     bool isAbility;
@@ -117,11 +118,11 @@ public class PlayerController : MonoBehaviour
     /// </summary>
     public bool IsInActionLock =>
     IsInAssassinationLock ||
-    isBusy || isAttacking || isRolling || isLanding || isAbility || IsInHitLock;
+    isBusy || isAttacking || isRolling || isDodging || isLanding || isAbility || IsInHitLock;
 
     public bool IsInMoveControlLock =>
         IsInAssassinationLock ||
-        isBusy || isRolling || isLanding || isAbility || IsInHitLock;
+        isBusy || isRolling || isDodging || isLanding || isAbility || IsInHitLock;
 
     AssassinationSystem assassination;
     public bool IsInAssassinationLock => assassination != null && assassination.IsAssassinating;
@@ -199,6 +200,7 @@ public class PlayerController : MonoBehaviour
             if (!move.IsGrounded)
             {
                 isRolling = false;
+                isDodging = false;
                 // ✅ 防止 IFrameEnd 丢失导致永久无敌（Fall 打断 Roll/Dodge 时清无敌）
                 if (receiver != null) receiver.ForceClearIFrame();
             }
@@ -266,6 +268,7 @@ public class PlayerController : MonoBehaviour
                 && !isBlocking
                 && !isAbility
                 && !isRolling
+                && !isDodging
                 && !isLanding
                 && !isBusy
                 && !IsInHitLock
@@ -279,6 +282,7 @@ public class PlayerController : MonoBehaviour
                 && !isBlocking
                 && !isAbility
                 && !isRolling
+                && !isDodging
                 && !isLanding
                 && !isBusy
                 && !IsInHitLock
@@ -347,7 +351,7 @@ public class PlayerController : MonoBehaviour
             return;
 
         // 各种锁中不允许切换（避免状态抖动）
-        if (IsInHitLock || isAbility || isRolling || isLanding || isBusy)
+        if (IsInHitLock || isAbility || isRolling || isDodging || isLanding || isBusy)
             return;
 
         // 攻击中（含 ComboWindow）不允许切蹲
@@ -479,7 +483,7 @@ public class PlayerController : MonoBehaviour
         }
 
         // ✅ 这些状态下仍然不对脸
-        if (IsInHitLock || isRolling || isAbility)
+        if (IsInHitLock || isRolling || isDodging || isAbility)
             return;
 
         CombatStats targetStats = lockOn.CurrentTargetStats;
@@ -671,7 +675,7 @@ public class PlayerController : MonoBehaviour
         if (fighter != null && (fighter.IsInAttackLock || fighter.IsInComboWindow))
             return false;
 
-        if (isBlocking || isAbility || isBusy || isLanding || isRolling)
+        if (isBlocking || isAbility || isBusy || isLanding || isRolling || isDodging)
             return false;
 
         return true;
@@ -722,6 +726,7 @@ public class PlayerController : MonoBehaviour
         if (!TrySpendForDodge())
             return;
 
+        rollDirection = Vector3.zero;
         anim.SetFloat("DodgeDir", (float)dir);
         anim.SetTrigger("Dodge");
         rollActionTriggered = true;
@@ -778,7 +783,7 @@ public class PlayerController : MonoBehaviour
         if (isAbility) return;
         if (isBlocking) return;
 
-        if (isBusy || isLanding || isRolling)
+        if (isBusy || isLanding || isRolling || isDodging)
             return;
 
         if (!move.IsGrounded)
@@ -886,7 +891,7 @@ public class PlayerController : MonoBehaviour
             return;
         }
         // ✅ Roll / Dodge 期间禁止防御
-        if (isRolling)
+        if (isRolling || isDodging)
         {
             block.RequestBlock(false);
             isBlocking = false;
@@ -957,7 +962,7 @@ public class PlayerController : MonoBehaviour
         if (!sword.IsArmed || isAbility) return;
         if (IsInHitLock) return;
 
-        if (isBlocking || isRolling || isLanding || isBusy)
+        if (isBlocking || isRolling || isDodging || isLanding || isBusy)
             return;
 
         if (Input.GetKeyDown(ability1Key))
@@ -1027,6 +1032,10 @@ public class PlayerController : MonoBehaviour
 
     public void RollEnd() => isRolling = false;
 
+    public void DodgeBegin() => isDodging = true;
+
+    public void DodgeEnd() => isDodging = false;
+
     public void LandBegin()
     {
         ForceExitCrouch();
@@ -1073,6 +1082,7 @@ public class PlayerController : MonoBehaviour
         isBusy = true;
         isAttacking = false;
         isRolling = false;
+        isDodging = false;
         isLanding = false;
         isBlocking = false;
         isAbility = false;
