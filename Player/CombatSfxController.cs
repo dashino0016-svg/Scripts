@@ -1,17 +1,17 @@
 using UnityEngine;
 
 [DisallowMultipleComponent]
-public class PlayerCombatSfxController : MonoBehaviour
+public class CombatSfxController : MonoBehaviour
 {
     [Header("Config")]
-    [SerializeField] PlayerCombatSfxConfig config;
+    [SerializeField] CombatSfxConfig config;
 
     [Header("Playback")]
     [SerializeField] AudioSource sfxSource;
     [SerializeField, Range(0f, 1f)] float oneShotVolume = 1f;
 
     [Header("Conflicts")]
-    [SerializeField] bool suppressPlayerAttackImpactWhenPlayerDefending;
+    [SerializeField] bool suppressAttackImpactWhenDefending;
 
     [Header("Optional BGM")]
     [SerializeField] BgmController bgmController;
@@ -27,23 +27,23 @@ public class PlayerCombatSfxController : MonoBehaviour
 
     void OnEnable()
     {
-        CombatSfxSignals.OnPlayerAttackWhoosh += HandleWhoosh;
+        CombatSfxSignals.OnAttackWhoosh += HandleWhoosh;
         CombatSfxSignals.OnHitResolved += HandleHitResolved;
-        CombatSfxSignals.OnPlayerAbilityTriggered += HandleAbilityTriggered;
-        CombatSfxSignals.OnPlayerAbility3TimeSlowBegin += HandleAbility3TimeSlowBegin;
-        CombatSfxSignals.OnPlayerAbility3TimeSlowEnd += HandleAbility3TimeSlowEnd;
+        CombatSfxSignals.OnAbilityTriggered += HandleAbilityTriggered;
+        CombatSfxSignals.OnAbility3TimeSlowBegin += HandleAbility3TimeSlowBegin;
+        CombatSfxSignals.OnAbility3TimeSlowEnd += HandleAbility3TimeSlowEnd;
     }
 
     void OnDisable()
     {
-        CombatSfxSignals.OnPlayerAttackWhoosh -= HandleWhoosh;
+        CombatSfxSignals.OnAttackWhoosh -= HandleWhoosh;
         CombatSfxSignals.OnHitResolved -= HandleHitResolved;
-        CombatSfxSignals.OnPlayerAbilityTriggered -= HandleAbilityTriggered;
-        CombatSfxSignals.OnPlayerAbility3TimeSlowBegin -= HandleAbility3TimeSlowBegin;
-        CombatSfxSignals.OnPlayerAbility3TimeSlowEnd -= HandleAbility3TimeSlowEnd;
+        CombatSfxSignals.OnAbilityTriggered -= HandleAbilityTriggered;
+        CombatSfxSignals.OnAbility3TimeSlowBegin -= HandleAbility3TimeSlowBegin;
+        CombatSfxSignals.OnAbility3TimeSlowEnd -= HandleAbility3TimeSlowEnd;
     }
 
-    void HandleWhoosh(PlayerAttackSfxKey key)
+    void HandleWhoosh(CombatAttackSfxKey key)
     {
         if (config == null) return;
         if (!config.TryGetWhoosh(key, out var clip)) return;
@@ -54,38 +54,37 @@ public class PlayerCombatSfxController : MonoBehaviour
     {
         if (config == null) return;
 
-        bool hasPlayerDefenderSfx = ctx.ReceiverIsPlayer &&
-                                   (ctx.ResultType == HitResultType.Blocked ||
-                                    ctx.ResultType == HitResultType.PerfectBlock ||
-                                    ctx.ResultType == HitResultType.GuardBreak);
+        bool hasDefenderSfx = ctx.ReceiverIsPlayer &&
+                              (ctx.ResultType == HitResultType.Blocked ||
+                               ctx.ResultType == HitResultType.PerfectBlock ||
+                               ctx.ResultType == HitResultType.GuardBreak);
 
-        bool allowPlayerImpact = !(suppressPlayerAttackImpactWhenPlayerDefending && hasPlayerDefenderSfx);
-        if (allowPlayerImpact && ctx.AttackerIsPlayer && IsImpactResult(ctx.ResultType) &&
-            PlayerAttackSfxKeyUtility.TryGetKey(ctx.AttackData, out var key) &&
+        bool allowImpact = !(suppressAttackImpactWhenDefending && hasDefenderSfx);
+        if (allowImpact && ctx.AttackerIsPlayer && IsImpactResult(ctx.ResultType) &&
+            CombatSfxKeyUtility.TryGetAttackKey(ctx.AttackData, out var key) &&
             config.TryGetImpact(key, out var impactClip))
         {
             PlayOneShot(impactClip);
         }
 
-        if (hasPlayerDefenderSfx)
+        if (hasDefenderSfx)
         {
             AudioClip defenderClip = ctx.ResultType switch
             {
-                HitResultType.Blocked => config.playerBlockedClip,
-                HitResultType.PerfectBlock => config.playerPerfectBlockClip,
-                HitResultType.GuardBreak => config.playerGuardBreakClip,
+                HitResultType.Blocked => config.blockedClip,
+                HitResultType.PerfectBlock => config.perfectBlockClip,
+                HitResultType.GuardBreak => config.guardBreakClip,
                 _ => null,
             };
 
             PlayOneShot(defenderClip);
         }
-
     }
 
-    void HandleAbilityTriggered(PlayerAbilitySystem.AbilityType abilityType)
+    void HandleAbilityTriggered(int abilityId)
     {
         if (config == null) return;
-        PlayOneShot(config.GetAbilityClip(abilityType));
+        PlayOneShot(config.GetAbilityClip(abilityId));
     }
 
     void HandleAbility3TimeSlowBegin()
