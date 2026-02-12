@@ -320,7 +320,14 @@ public class Combat : MonoBehaviour, IEnemyCombat
         nextEngageRunBurstRollTime = Time.time;
 
         cooldownInited = false;
-        nextAbilityDecisionTime = Time.time;
+
+        // 能力决策从“进入战斗后”开始计时：先等待一个随机间隔，再 roll 第一次。
+        // 之后仍由 TryStartAbility 内部每次决策后继续按 interval 计时。
+        {
+            float minI = Mathf.Max(0.05f, abilityDecisionMinInterval);
+            float maxI = Mathf.Max(minI, abilityDecisionMaxInterval);
+            nextAbilityDecisionTime = Time.time + Random.Range(minI, maxI);
+        }
 
         if (anim != null)
         {

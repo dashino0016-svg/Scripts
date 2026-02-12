@@ -17,6 +17,13 @@ public class EnemyAbilitySystem : MonoBehaviour
     [SerializeField] CombatStats stats;
     [SerializeField] Animator animator;
 
+    [Header("Interrupt (Hit)")]
+    [Tooltip("能力被受击打断时，强制切回的 Base Layer 状态（空=不强制切状态，仅清触发）。")]
+    [SerializeField] string interruptFallbackStateName = "Idle";
+
+    [Tooltip("能力被受击打断时，强制切状态的过渡时长。")]
+    [SerializeField, Range(0f, 0.2f)] float interruptCrossFade = 0.05f;
+
     CombatReceiver receiver;
 
     // =========================
@@ -237,9 +244,29 @@ public class EnemyAbilitySystem : MonoBehaviour
 
     void InterruptAbilityByHit()
     {
+        ForceExitAbilityAnimation();
         CancelPending();
         isInAbilityLock = false;
         SetCooldown(pending);
+    }
+
+    void ForceExitAbilityAnimation()
+    {
+        if (animator == null) return;
+
+        // 先清触发，避免被打断后 Trigger 残留再次拉回能力状态
+        animator.ResetTrigger(TriggerAbility1);
+        animator.ResetTrigger(TriggerAbility2);
+
+        if (string.IsNullOrWhiteSpace(interruptFallbackStateName))
+            return;
+
+        int layer = 0;
+        int hash = Animator.StringToHash(interruptFallbackStateName);
+        if (!animator.HasState(layer, hash))
+            return;
+
+        animator.CrossFadeInFixedTime(interruptFallbackStateName, interruptCrossFade, layer, 0f);
     }
 
     // =========================
