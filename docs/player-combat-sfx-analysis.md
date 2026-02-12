@@ -8,12 +8,12 @@
 
 - **类型与映射层**：`Public/CombatSfxTypes.cs`
   - 使用 `CombatAttackSfxKey`（`Group + Variant`）描述攻击音效键，不再硬编码 A1~A4 / B1~B4 固定枚举。
-  - `CombatSfxKeyUtility.TryGetAttackKey(...)` 把 `AttackData.sourceType` 映射到通用分组（ComboA/B、HeavyA/B、SprintA/B）。
+  - `CombatSfxKeyUtility.TryGetAttackKey(...)` 把 `AttackData.sourceType` 映射到通用分组（ComboA/B、HeavyA/B、RunA/B、SprintA/B、AirA/B）。
 
 - **配置层**：`Player/CombatSfxConfig.cs`
   - 采用 `ScriptableObject` 承载音效配置。
   - `AttackSfxEntry` 以 `group + variant` 组织挥空/命中音。
-  - 可配置 `comboCountA/comboCountB`，并可开关 heavyA/B、sprintA/B。
+  - 可配置 `comboCountA/comboCountB`，并可按角色开关 heavyA/B、runA/B、sprintA/B、airA/B。
   - `AbilitySfxEntry[]` 以 `abilityId` 映射技能音，不再写死 ability1~4 字段。
 
 - **播放控制层**：`Player/CombatSfxController.cs`

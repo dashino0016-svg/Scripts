@@ -30,8 +30,12 @@ public class CombatSfxConfig : ScriptableObject
     [Header("Optional attack groups")]
     [SerializeField] bool enableHeavyAttackA = true;
     [SerializeField] bool enableHeavyAttackB = true;
+    [SerializeField] bool enableRunAttackA = true;
+    [SerializeField] bool enableRunAttackB = true;
     [SerializeField] bool enableSprintAttackA = true;
     [SerializeField] bool enableSprintAttackB = true;
+    [SerializeField] bool enableAirAttackA = true;
+    [SerializeField] bool enableAirAttackB = true;
 
     [Header("Defender")]
     public AudioClip blockedClip;
@@ -80,10 +84,18 @@ public class CombatSfxConfig : ScriptableObject
                 return enableHeavyAttackA;
             case CombatSfxAttackGroup.HeavyAttackB:
                 return enableHeavyAttackB;
+            case CombatSfxAttackGroup.RunAttackA:
+                return enableRunAttackA;
+            case CombatSfxAttackGroup.RunAttackB:
+                return enableRunAttackB;
             case CombatSfxAttackGroup.SprintAttackA:
                 return enableSprintAttackA;
             case CombatSfxAttackGroup.SprintAttackB:
                 return enableSprintAttackB;
+            case CombatSfxAttackGroup.AirAttackA:
+                return enableAirAttackA;
+            case CombatSfxAttackGroup.AirAttackB:
+                return enableAirAttackB;
             default:
                 return false;
         }

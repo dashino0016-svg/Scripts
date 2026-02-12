@@ -6,8 +6,12 @@ public enum CombatSfxAttackGroup
     ComboB,
     HeavyAttackA,
     HeavyAttackB,
+    RunAttackA,
+    RunAttackB,
     SprintAttackA,
     SprintAttackB,
+    AirAttackA,
+    AirAttackB,
 }
 
 public readonly struct CombatAttackSfxKey
@@ -43,15 +47,23 @@ public static class CombatSfxKeyUtility
             case AttackSourceType.HeavyAttackB:
                 key = new CombatAttackSfxKey(CombatSfxAttackGroup.HeavyAttackB, 1);
                 return true;
-            case AttackSourceType.SprintAttackA:
             case AttackSourceType.RunAttackA:
-            case AttackSourceType.AirAttackA:
+                key = new CombatAttackSfxKey(CombatSfxAttackGroup.RunAttackA, 1);
+                return true;
+            case AttackSourceType.RunAttackB:
+                key = new CombatAttackSfxKey(CombatSfxAttackGroup.RunAttackB, 1);
+                return true;
+            case AttackSourceType.SprintAttackA:
                 key = new CombatAttackSfxKey(CombatSfxAttackGroup.SprintAttackA, 1);
                 return true;
             case AttackSourceType.SprintAttackB:
-            case AttackSourceType.RunAttackB:
-            case AttackSourceType.AirAttackB:
                 key = new CombatAttackSfxKey(CombatSfxAttackGroup.SprintAttackB, 1);
+                return true;
+            case AttackSourceType.AirAttackA:
+                key = new CombatAttackSfxKey(CombatSfxAttackGroup.AirAttackA, 1);
+                return true;
+            case AttackSourceType.AirAttackB:
+                key = new CombatAttackSfxKey(CombatSfxAttackGroup.AirAttackB, 1);
                 return true;
             default:
                 return false;
