@@ -365,9 +365,6 @@ public class SavePointManager : MonoBehaviour
             if (enemy == null)
                 continue;
 
-            if (!enemy.gameObject.scene.IsValid() || !enemy.gameObject.scene.isLoaded)
-                continue;
-
             LostTarget lostTarget = enemy.GetComponent<LostTarget>();
             Transform homePoint = lostTarget != null ? lostTarget.homePoint : null;
             enemy.ResetToHomeForCheckpoint(homePoint);
