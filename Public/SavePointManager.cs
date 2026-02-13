@@ -24,9 +24,9 @@ public class SavePointManager : MonoBehaviour
     [SerializeField] CharacterController playerCharacterController;
 
     [Header("Animator Triggers")]
-    [SerializeField] string saveTrigger = "Checkpoint_Save";
-    [SerializeField] string exitSaveTrigger = "Checkpoint_Exit";
-    [SerializeField] string exitSaveStateName = "Checkpoint_Exit";
+    [SerializeField] string enterTrigger = "Checkpoint_Save";
+    [SerializeField] string exitTrigger = "Checkpoint_Exit";
+    [SerializeField] string exitStateName = "Checkpoint_Exit";
     [SerializeField] string idleStateName = "UnarmedLocomotion";
 
     [Header("Fader")]
@@ -107,8 +107,8 @@ public class SavePointManager : MonoBehaviour
         playerController.SetCheckpointFlowLock(true);
         playerReceiver.ForceSetInvincible(true);
 
-        playerAnimator.ResetTrigger(exitSaveTrigger);
-        playerAnimator.SetTrigger(saveTrigger);
+        playerAnimator.ResetTrigger(exitTrigger);
+        playerAnimator.SetTrigger(enterTrigger);
         state = SaveFlowState.SavingAnim;
         return true;
     }
@@ -187,8 +187,8 @@ public class SavePointManager : MonoBehaviour
 
                 if (playerAnimator != null)
                 {
-                    playerAnimator.ResetTrigger(saveTrigger);
-                    playerAnimator.SetTrigger(exitSaveTrigger);
+                    playerAnimator.ResetTrigger(enterTrigger);
+                    playerAnimator.SetTrigger(exitTrigger);
                 }
 
                 state = SaveFlowState.ExitingAnim;
@@ -271,12 +271,12 @@ public class SavePointManager : MonoBehaviour
             playerAnimator.Rebind();
             playerAnimator.Update(0f);
 
-            if (HasBaseLayerState(exitSaveStateName))
-                playerAnimator.CrossFade(exitSaveStateName, 0.03f, 0, 0f);
+            if (HasBaseLayerState(exitStateName))
+                playerAnimator.CrossFade(exitStateName, 0.03f, 0, 0f);
             else
             {
-                playerAnimator.ResetTrigger(saveTrigger);
-                playerAnimator.SetTrigger(exitSaveTrigger);
+                playerAnimator.ResetTrigger(enterTrigger);
+                playerAnimator.SetTrigger(exitTrigger);
             }
         }
 
@@ -305,8 +305,8 @@ public class SavePointManager : MonoBehaviour
     {
         if (playerAnimator != null)
         {
-            playerAnimator.ResetTrigger(saveTrigger);
-            playerAnimator.ResetTrigger(exitSaveTrigger);
+            playerAnimator.ResetTrigger(enterTrigger);
+            playerAnimator.ResetTrigger(exitTrigger);
             playerAnimator.SetBool("IsArmed", false);
         }
 
