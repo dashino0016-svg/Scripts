@@ -165,7 +165,6 @@ public class SavePointManager : MonoBehaviour
 
         ApplyRespawnRecovery();
 
-        // TODO: Respawn enemies to their HomePoint (NotCombat state).
 
         state = SaveFlowState.Idle;
     }
@@ -240,8 +239,6 @@ public class SavePointManager : MonoBehaviour
             AlignPlayerToAnchor(respawnAnchor);
         else
             Debug.LogWarning("[SavePointManager] Respawn anchor is missing (both lastSavePoint and initialSavePoint are null).");
-
-        RefreshEnemiesDuringBlackScreen();
 
         if (ShouldPlayCheckpointExitOnRespawn())
             PrepareCheckpointExitRespawnInBlack();
@@ -351,24 +348,6 @@ public class SavePointManager : MonoBehaviour
 
         int hash = Animator.StringToHash(stateName);
         return playerAnimator.HasState(0, hash);
-    }
-
-    void RefreshEnemiesDuringBlackScreen()
-    {
-        EnemyController[] enemies = Resources.FindObjectsOfTypeAll<EnemyController>();
-        if (enemies == null || enemies.Length == 0)
-            return;
-
-        for (int i = 0; i < enemies.Length; i++)
-        {
-            EnemyController enemy = enemies[i];
-            if (enemy == null)
-                continue;
-
-            LostTarget lostTarget = enemy.GetComponent<LostTarget>();
-            Transform homePoint = lostTarget != null ? lostTarget.homePoint : null;
-            enemy.ResetToHomeForCheckpoint(homePoint);
-        }
     }
 
     void AlignPlayerToAnchor(Transform anchor)
