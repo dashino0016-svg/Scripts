@@ -1099,7 +1099,20 @@ public class PlayerController : MonoBehaviour
 
         ForceExitCrouch();
     }
+    // Animation Event receiver fallback:
+    // some player prefabs may not挂载 PlayerCheckpointAnimEvents，
+    // so we also expose these handlers on PlayerController (usually always present).
+    public void Checkpoint_SaveEnd()
+    {
+        if (SavePointManager.Instance != null)
+            SavePointManager.Instance.NotifySaveAnimEnd();
+    }
 
+    public void Checkpoint_ExitEnd()
+    {
+        if (SavePointManager.Instance != null)
+            SavePointManager.Instance.NotifyExitAnimEnd();
+    }
     void OnCharacterDead()
     {
         ForceExitCrouch();
