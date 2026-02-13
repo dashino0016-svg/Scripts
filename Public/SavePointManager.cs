@@ -25,7 +25,6 @@ public class SavePointManager : MonoBehaviour
     [Header("Death Respawn")]
     [SerializeField] Transform defaultRespawnAnchor;
     [SerializeField, Range(0.1f, 3f)] float deathDelay = 1f;
-    [SerializeField, Range(0.2f, 3f)] float exitAnimFailSafeSeconds = 1.2f;
 
     [Header("Animator Triggers")]
     [SerializeField] string saveTrigger = "Save";
@@ -39,9 +38,6 @@ public class SavePointManager : MonoBehaviour
     SaveFlowState state = SaveFlowState.Idle;
     SavePoint currentSavePoint;
     SavePoint lastSavePoint;
-
-    Coroutine deathRespawnCo;
-    Coroutine exitAnimFailSafeCo;
 
     public SavePoint LastSavePoint => lastSavePoint;
 
@@ -87,14 +83,6 @@ public class SavePointManager : MonoBehaviour
 
         if (playerStats != null)
             playerStats.OnDead -= OnPlayerDead;
-
-        if (deathRespawnCo != null)
-        {
-            StopCoroutine(deathRespawnCo);
-            deathRespawnCo = null;
-        }
-
-        StopExitAnimFailSafe();
     }
 
     public bool BeginSaveFlow(SavePoint savePoint)
@@ -153,9 +141,6 @@ public class SavePointManager : MonoBehaviour
     {
         if (state != SaveFlowState.ExitingAnim) return;
 
-        StopExitAnimFailSafe();
-        deathRespawnCo = null;
-
         if (playerReceiver != null)
             playerReceiver.ForceSetInvincible(false);
 
@@ -188,105 +173,18 @@ public class SavePointManager : MonoBehaviour
                 if (upgradeUIManager != null)
                     upgradeUIManager.CloseImmediate();
 
-                BeginExitAnimationFlow();
-            },
-            outDuration: fadeOut,
-            inDuration: fadeIn,
-            blackHoldSeconds: blackHold
-        );
-    }
-
-    void OnPlayerDead()
-    {
-        if (deathRespawnCo != null)
-            StopCoroutine(deathRespawnCo);
-
-        deathRespawnCo = StartCoroutine(CoRespawnAfterDeath());
-    }
-
-    IEnumerator CoRespawnAfterDeath()
-    {
-        yield return new WaitForSecondsRealtime(deathDelay);
-
-        if (ScreenFader.Instance == null)
-        {
-            Debug.LogError("[SavePointManager] ScreenFader.Instance not found.");
-            yield break;
-        }
-
-        ScreenFader.Instance.FadeOutIn(
-            midAction: () =>
-            {
-                Transform anchor = lastSavePoint != null ? lastSavePoint.RespawnAnchor : defaultRespawnAnchor;
-                if (anchor != null)
-                    AlignPlayerToAnchor(anchor);
-
-                if (playerController != null)
-                    playerController.SetCheckpointFlowLock(true);
-
-                if (playerReceiver != null)
+                if (playerAnimator != null)
                 {
-                    playerReceiver.ForceSetInvincible(true);
-                    playerReceiver.HitEnd();
+                    playerAnimator.ResetTrigger(saveTrigger);
+                    playerAnimator.SetTrigger(exitSaveTrigger);
                 }
 
-                if (playerController != null)
-                    playerController.ResetAfterRespawn();
-
-                if (playerStats != null)
-                    playerStats.RespawnFull(keepSpecial: true);
-
-                BeginExitAnimationFlow();
+                state = SaveFlowState.ExitingAnim;
             },
             outDuration: fadeOut,
             inDuration: fadeIn,
             blackHoldSeconds: blackHold
         );
-
-        deathRespawnCo = null;
-    }
-
-    void BeginExitAnimationFlow()
-    {
-        if (playerAnimator != null)
-        {
-            playerAnimator.Rebind();
-            playerAnimator.Update(0f);
-            playerAnimator.ResetTrigger(saveTrigger);
-            playerAnimator.ResetTrigger("Dead");
-            playerAnimator.SetTrigger(exitSaveTrigger);
-        }
-
-        state = SaveFlowState.ExitingAnim;
-        StartExitAnimFailSafe();
-    }
-
-    void StartExitAnimFailSafe()
-    {
-        StopExitAnimFailSafe();
-        exitAnimFailSafeCo = StartCoroutine(CoExitAnimFailSafe());
-    }
-
-    void StopExitAnimFailSafe()
-    {
-        if (exitAnimFailSafeCo == null)
-            return;
-
-        StopCoroutine(exitAnimFailSafeCo);
-        exitAnimFailSafeCo = null;
-    }
-
-    IEnumerator CoExitAnimFailSafe()
-    {
-        yield return new WaitForSecondsRealtime(exitAnimFailSafeSeconds);
-
-        if (state == SaveFlowState.ExitingAnim)
-        {
-            Debug.LogWarning("[SavePointManager] Exit animation event timeout, forcing flow completion.", this);
-            NotifyExitAnimEnd();
-        }
-
-        exitAnimFailSafeCo = null;
     }
 
     void OnPlayerDead()
@@ -361,7 +259,7 @@ public class SavePointManager : MonoBehaviour
 
     static void RespawnAllEnemiesToHome()
     {
-        EnemyController[] enemies = Object.FindObjectsOfType<EnemyController>(true);
+        EnemyController[] enemies = FindObjectsOfType<EnemyController>(true);
         for (int i = 0; i < enemies.Length; i++)
         {
             EnemyController enemy = enemies[i];
