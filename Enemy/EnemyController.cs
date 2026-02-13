@@ -680,9 +680,6 @@ public class EnemyController : MonoBehaviour
         if (enemyState == null)
             return;
 
-        if (enemyState.Current == EnemyStateType.Dead)
-            return;
-
         combatBrain?.ExitCombat();
 
         target = null;
@@ -691,6 +688,37 @@ public class EnemyController : MonoBehaviour
         loseTimer = 0f;
         lastHostileStimulusTime = float.NegativeInfinity;
         nextRetargetTime = 0f;
+
+        if (combatStats != null)
+            combatStats.RestoreForRespawnFull();
+
+        deathByAssassination = false;
+        waitingDeadDelay = false;
+        IsInAssassinationLock = false;
+        IsInWeaponTransition = false;
+        weaponTransitionType = WeaponTransitionType.None;
+
+        if (deadFallbackCo != null)
+        {
+            StopCoroutine(deadFallbackCo);
+            deadFallbackCo = null;
+        }
+
+        if (localTimeCoroutine != null)
+        {
+            StopCoroutine(localTimeCoroutine);
+            localTimeCoroutine = null;
+        }
+        localTimeScale = 1f;
+
+        if (anim != null)
+        {
+            anim.speed = 1f;
+            anim.Rebind();
+            anim.Update(0f);
+        }
+
+        RestoreSolidCollision();
 
         if (cachedNavigator == null) cachedNavigator = GetComponent<EnemyNavigator>();
         if (cachedMove == null) cachedMove = GetComponent<EnemyMove>();
@@ -742,7 +770,34 @@ public class EnemyController : MonoBehaviour
 
         if (combatBrainBehaviour != null) combatBrainBehaviour.enabled = true;
 
-        enemyState.OnReturnHomeReached();
+        enemyState.ForceReviveToNotCombat();
+    }
+
+    void RestoreSolidCollision()
+    {
+        solidCollisionDisabledPermanently = false;
+
+        var cols = GetComponentsInChildren<Collider>(true);
+        for (int i = 0; i < cols.Length; i++)
+        {
+            var c = cols[i];
+            if (c == null) continue;
+            c.enabled = true;
+        }
+
+        var cc = GetComponent<CharacterController>();
+        if (cc != null) cc.enabled = true;
+
+        var rb = GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.detectCollisions = true;
+        }
+
+        var hitBox = GetComponentInChildren<EnemyHitBox>(true);
+        if (hitBox != null) hitBox.enabled = true;
+
+        enabled = true;
     }
 
     void UpdateCombatLoseTimer()

@@ -227,6 +227,18 @@ public class CombatStats : MonoBehaviour
         CurrentHP = maxHP;
     }
 
+    public void RestoreForRespawnFull()
+    {
+        IsDead = false;
+        CurrentHP = maxHP;
+
+        CurrentStamina = maxStamina;
+        staminaF = maxStamina;
+        isGuardBroken = false;
+        isBlocking = false;
+        recoverDelayTimer = 0f;
+    }
+
     void Die()
     {
         if (IsDead) return;
