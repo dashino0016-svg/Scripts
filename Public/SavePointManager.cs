@@ -233,6 +233,8 @@ public class SavePointManager : MonoBehaviour
                     Debug.LogWarning("[SavePointManager] Respawn anchor is missing (both lastSavePoint and initialSavePoint are null).");
 
                 RefreshEnemiesDuringBlackScreen();
+
+                Debug.Log($"[SavePointManager] Death respawn entry done. playCheckpointExit={ShouldPlayCheckpointExitOnRespawn()}");
             },
             outDuration: fadeOut,
             inDuration: fadeIn,
