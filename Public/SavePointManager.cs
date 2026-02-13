@@ -355,20 +355,7 @@ public class SavePointManager : MonoBehaviour
 
     void RefreshEnemiesDuringBlackScreen()
     {
-        EnemyController[] enemies = FindObjectsByType<EnemyController>(FindObjectsSortMode.None);
-        if (enemies == null || enemies.Length == 0)
-            return;
-
-        for (int i = 0; i < enemies.Length; i++)
-        {
-            EnemyController enemy = enemies[i];
-            if (enemy == null)
-                continue;
-
-            LostTarget lostTarget = enemy.GetComponent<LostTarget>();
-            Transform homePoint = lostTarget != null ? lostTarget.homePoint : null;
-            enemy.ResetToHomeForCheckpoint(homePoint);
-        }
+        // TODO(step6): Respawn enemies to their HomePoint (NotCombat state).
     }
 
     void AlignPlayerToAnchor(Transform anchor)
