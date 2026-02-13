@@ -24,9 +24,9 @@ public class SavePointManager : MonoBehaviour
     [SerializeField] CharacterController playerCharacterController;
 
     [Header("Animator Triggers")]
-    [SerializeField] string enterTrigger = "Checkpoint_Save";
-    [SerializeField] string exitTrigger = "Checkpoint_Exit";
-    [SerializeField] string exitStateName = "Checkpoint_Exit";
+    [SerializeField] string enterTrigger = "Save";
+    [SerializeField] string exitTrigger = "Exit";
+    [SerializeField] string exitStateName = "Exit";
     [SerializeField] string idleStateName = "UnarmedLocomotion";
 
     [Header("Fader")]
