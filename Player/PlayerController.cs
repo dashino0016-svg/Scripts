@@ -1079,46 +1079,6 @@ public class PlayerController : MonoBehaviour
         ForceExitCrouch();
     }
 
-    public void ResetAfterRespawn()
-    {
-        isBusy = false;
-        isAttacking = false;
-        isRolling = false;
-        isDodging = false;
-        isLanding = false;
-        isBlocking = false;
-        isAbility = false;
-        isHoldingAttack = false;
-        heavyRequested = false;
-        holdTimer = 0f;
-        rollKeyHolding = false;
-        rollActionTriggered = false;
-
-        if (block != null)
-            block.RequestBlock(false);
-
-        if (receiver != null)
-        {
-            receiver.ForceClearIFrame();
-            receiver.HitEnd();
-        }
-
-        if (sword != null)
-        {
-            sword.AttachToWaist();
-            sword.SetArmed(false);
-        }
-
-        if (anim != null)
-        {
-            anim.Rebind();
-            anim.Update(0f);
-            anim.SetBool("IsArmed", false);
-        }
-
-        ForceExitCrouch();
-    }
-
     public void SetCheckpointFlowLock(bool v)
     {
         isCheckpointFlow = v;

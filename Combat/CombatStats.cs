@@ -220,23 +220,6 @@ public class CombatStats : MonoBehaviour
         return true;
     }
 
-    public void RespawnFull(bool keepSpecial = true)
-    {
-        int special = CurrentSpecial;
-
-        IsDead = false;
-        CurrentHP = maxHP;
-
-        CurrentStamina = maxStamina;
-        staminaF = maxStamina;
-
-        isGuardBroken = false;
-        isBlocking = false;
-        recoverDelayTimer = 0f;
-
-        CurrentSpecial = keepSpecial ? Mathf.Clamp(special, 0, maxSpecial) : maxSpecial;
-    }
-
     void Die()
     {
         if (IsDead) return;
