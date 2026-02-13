@@ -26,6 +26,7 @@ public class SavePointManager : MonoBehaviour
     [Header("Animator Triggers")]
     [SerializeField] string saveTrigger = "Checkpoint_Save";
     [SerializeField] string exitSaveTrigger = "Checkpoint_Exit";
+    [SerializeField] string exitSaveStateName = "Checkpoint_Exit";
     [SerializeField] string idleStateName = "UnarmedLocomotion";
 
     [Header("Fader")]
@@ -224,65 +225,83 @@ public class SavePointManager : MonoBehaviour
             yield return new WaitForSecondsRealtime(deathRespawnDelay);
 
         ScreenFader.Instance.FadeOutIn(
-            midAction: () =>
-            {
-                Transform respawnAnchor = GetRespawnAnchor();
-                if (respawnAnchor != null)
-                    AlignPlayerToAnchor(respawnAnchor);
-                else
-                    Debug.LogWarning("[SavePointManager] Respawn anchor is missing (both lastSavePoint and initialSavePoint are null).");
-
-                RefreshEnemiesDuringBlackScreen();
-            },
+            midAction: ExecuteDeathRespawnDuringBlack,
             outDuration: fadeOut,
             inDuration: fadeIn,
             blackHoldSeconds: blackHold,
-            onComplete: OnDeathRespawnFadeComplete
+            onComplete: () => deathRespawnPending = false
         );
     }
 
-    void OnDeathRespawnFadeComplete()
+    void ExecuteDeathRespawnDuringBlack()
     {
-        bool playCheckpointExit = ShouldPlayCheckpointExitOnRespawn();
+        Transform respawnAnchor = GetRespawnAnchor();
+        if (respawnAnchor != null)
+            AlignPlayerToAnchor(respawnAnchor);
+        else
+            Debug.LogWarning("[SavePointManager] Respawn anchor is missing (both lastSavePoint and initialSavePoint are null).");
 
-        if (playCheckpointExit)
+        RefreshEnemiesDuringBlackScreen();
+
+        if (ShouldPlayCheckpointExitOnRespawn())
+            PrepareCheckpointExitRespawnInBlack();
+        else
+            PrepareIdleRespawnInBlack();
+    }
+
+    void PrepareCheckpointExitRespawnInBlack()
+    {
+        PrepareRespawnVisualBaseline();
+
+        if (playerReceiver != null)
         {
-            if (playerController != null)
-                playerController.SetCheckpointFlowLock(true);
+            playerReceiver.ForceClearHitLock();
+            playerReceiver.ForceClearIFrame();
+            playerReceiver.ForceSetInvincible(true);
+        }
 
-            if (playerReceiver != null)
-                playerReceiver.ForceSetInvincible(true);
+        if (playerStats != null)
+            playerStats.ReviveFullHP();
 
-            if (playerAnimator != null)
+        if (playerController != null)
+            playerController.SetCheckpointFlowLock(true);
+
+        if (playerAnimator != null)
+        {
+            playerAnimator.Rebind();
+            playerAnimator.Update(0f);
+
+            if (HasBaseLayerState(exitSaveStateName))
+                playerAnimator.CrossFade(exitSaveStateName, 0.03f, 0, 0f);
+            else
             {
                 playerAnimator.ResetTrigger(saveTrigger);
                 playerAnimator.SetTrigger(exitSaveTrigger);
             }
-
-            state = SaveFlowState.ExitingAnim;
-        }
-        else
-        {
-            ApplyRespawnRecovery();
-
-            if (playerAnimator != null)
-            {
-                playerAnimator.Rebind();
-                playerAnimator.Update(0f);
-
-                if (HasBaseLayerState(idleStateName))
-                    playerAnimator.CrossFade(idleStateName, 0.05f, 0, 0f);
-                else if (!string.IsNullOrEmpty(idleStateName))
-                    Debug.LogWarning($"[SavePointManager] Idle state '{idleStateName}' not found on Base Layer. Skipping CrossFade.");
-            }
-
-            state = SaveFlowState.Idle;
         }
 
-        deathRespawnPending = false;
+        state = SaveFlowState.ExitingAnim;
     }
 
-    void ApplyRespawnRecovery()
+    void PrepareIdleRespawnInBlack()
+    {
+        ApplyRespawnRecovery();
+
+        if (playerAnimator != null)
+        {
+            playerAnimator.Rebind();
+            playerAnimator.Update(0f);
+
+            if (HasBaseLayerState(idleStateName))
+                playerAnimator.CrossFade(idleStateName, 0.03f, 0, 0f);
+            else if (!string.IsNullOrEmpty(idleStateName))
+                Debug.LogWarning($"[SavePointManager] Idle state '{idleStateName}' not found on Base Layer. Skipping CrossFade.");
+        }
+
+        state = SaveFlowState.Idle;
+    }
+
+    void PrepareRespawnVisualBaseline()
     {
         if (playerAnimator != null)
         {
@@ -300,6 +319,11 @@ public class SavePointManager : MonoBehaviour
                 sword.SetArmed(false);
             }
         }
+    }
+
+    void ApplyRespawnRecovery()
+    {
+        PrepareRespawnVisualBaseline();
 
         if (playerReceiver != null)
         {
