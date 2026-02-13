@@ -28,8 +28,8 @@ public class SavePointManager : MonoBehaviour
     [SerializeField, Range(0.2f, 3f)] float exitAnimFailSafeSeconds = 1.2f;
 
     [Header("Animator Triggers")]
-    [SerializeField] string saveTrigger = "Checkpoint_Save";
-    [SerializeField] string exitSaveTrigger = "Checkpoint_Exit";
+    [SerializeField] string saveTrigger = "Save";
+    [SerializeField] string exitSaveTrigger = "Exit";
 
     [Header("Fader")]
     [SerializeField, Range(0f, 2f)] float fadeOut = 0.35f;
@@ -305,6 +305,17 @@ public class SavePointManager : MonoBehaviour
         playerRoot.SetPositionAndRotation(anchor.position, anchor.rotation);
 
         if (hadCC) playerCharacterController.enabled = true;
+    }
+
+    static void RespawnAllEnemiesToHome()
+    {
+        EnemyController[] enemies = FindObjectsOfType<EnemyController>(true);
+        for (int i = 0; i < enemies.Length; i++)
+        {
+            EnemyController enemy = enemies[i];
+            if (enemy == null) continue;
+            enemy.RespawnToHome();
+        }
     }
 
     void AutoBind()
