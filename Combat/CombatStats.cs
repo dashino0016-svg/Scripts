@@ -221,6 +221,23 @@ public class CombatStats : MonoBehaviour
     }
 
 
+
+
+    public void RestoreStaminaToFull()
+    {
+        staminaF = maxStamina;
+        CurrentStamina = maxStamina;
+        isGuardBroken = false;
+        recoverDelayTimer = 0f;
+        isBlocking = false;
+    }
+
+    public void ReviveFullHPAndStamina()
+    {
+        ReviveFullHP();
+        RestoreStaminaToFull();
+    }
+
     public void ReviveFullHP()
     {
         IsDead = false;
