@@ -284,8 +284,29 @@ public class SavePointManager : MonoBehaviour
 
     void ApplyRespawnRecovery()
     {
+        if (playerAnimator != null)
+        {
+            playerAnimator.ResetTrigger(saveTrigger);
+            playerAnimator.ResetTrigger(exitSaveTrigger);
+            playerAnimator.SetBool("IsArmed", false);
+        }
+
+        if (playerRoot != null)
+        {
+            SwordController sword = playerRoot.GetComponentInChildren<SwordController>(true);
+            if (sword != null)
+            {
+                sword.AttachToWaist();
+                sword.SetArmed(false);
+            }
+        }
+
         if (playerReceiver != null)
+        {
+            playerReceiver.ForceClearHitLock();
+            playerReceiver.ForceClearIFrame();
             playerReceiver.ForceSetInvincible(false);
+        }
 
         if (playerController != null)
         {
