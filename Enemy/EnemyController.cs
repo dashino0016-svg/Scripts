@@ -31,13 +31,13 @@ public class EnemyController : MonoBehaviour
     public float hearingRadius = 12f;
 
     [Header("Combat Lose Buffer")]
-    public float combatLoseDelay = 6f;
+    public float combatLoseDelay = 4f;
 
     [Header("Combat Sticky Target (Recommended)")]
     public bool stickyTargetInCombat = true;
 
     [Range(1f, 2f)]
-    public float combatMaintainRadiusMultiplier = 2f;
+    public float combatMaintainRadiusMultiplier = 1.2f;
 
     [Header("Aggro")]
     public float threatAddPerSecond = 3f;

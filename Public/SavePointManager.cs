@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections;
 
 public class SavePointManager : MonoBehaviour
@@ -163,8 +163,23 @@ public class SavePointManager : MonoBehaviour
     {
         if (state != SaveFlowState.ExitingAnim) return;
 
-        ApplyRespawnRecovery();
+        // NOTE: HP refill for "exit save point" should happen during the black screen (OnUIExitRequested midAction),
+        // not during/after the exit animation. Here we only release locks and end invincibility.
+        PrepareRespawnVisualBaseline();
 
+        if (playerReceiver != null)
+        {
+            playerReceiver.ForceClearHitLock();
+            playerReceiver.ForceClearIFrame();
+            playerReceiver.ForceSetInvincible(false);
+        }
+
+        if (playerController != null)
+        {
+            // Pulse checkpoint flow lock to reuse existing clear-lock logic, then release.
+            playerController.SetCheckpointFlowLock(true);
+            playerController.SetCheckpointFlowLock(false);
+        }
 
         state = SaveFlowState.Idle;
     }
@@ -183,6 +198,24 @@ public class SavePointManager : MonoBehaviour
             {
                 if (upgradeUIManager != null)
                     upgradeUIManager.CloseImmediate();
+
+                // ✅ Refill player HP during the black screen (energy/special stays unchanged).
+                // This avoids showing the refill happening during the exit animation.
+                if (playerStats != null)
+                    playerStats.ReviveFullHP();
+
+                // Keep the player protected/locked while we play the exit animation.
+                PrepareRespawnVisualBaseline();
+
+                if (playerReceiver != null)
+                {
+                    playerReceiver.ForceClearHitLock();
+                    playerReceiver.ForceClearIFrame();
+                    playerReceiver.ForceSetInvincible(true);
+                }
+
+                if (playerController != null)
+                    playerController.SetCheckpointFlowLock(true);
 
                 if (playerAnimator != null)
                 {
