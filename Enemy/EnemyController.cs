@@ -318,6 +318,30 @@ public class EnemyController : MonoBehaviour
         }
     }
 
+    void RestoreSolidCollisionAfterCheckpoint()
+    {
+        var cols = GetComponentsInChildren<Collider>(true);
+        for (int i = 0; i < cols.Length; i++)
+        {
+            var c = cols[i];
+            if (c == null) continue;
+            if (c.isTrigger) continue;
+            c.enabled = true;
+        }
+
+        var cc = GetComponent<CharacterController>();
+        if (cc != null) cc.enabled = true;
+
+        var rb = GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.detectCollisions = true;
+            rb.isKinematic = false;
+        }
+
+        solidCollisionDisabledPermanently = false;
+    }
+
     void DisableSolidCollisionPermanently()
     {
         if (solidCollisionDisabledPermanently) return;
@@ -680,8 +704,19 @@ public class EnemyController : MonoBehaviour
         if (enemyState == null)
             return;
 
-        if (enemyState.Current == EnemyStateType.Dead)
-            return;
+        if (deadFallbackCo != null)
+        {
+            StopCoroutine(deadFallbackCo);
+            deadFallbackCo = null;
+        }
+
+        waitingDeadDelay = false;
+        deathByAssassination = false;
+        IsInAssassinationLock = false;
+        IsInWeaponTransition = false;
+        weaponTransitionType = WeaponTransitionType.None;
+        weaponLockRootMotionValid = false;
+        cachedAnimSpeedValid = false;
 
         combatBrain?.ExitCombat();
 
@@ -691,6 +726,18 @@ public class EnemyController : MonoBehaviour
         loseTimer = 0f;
         lastHostileStimulusTime = float.NegativeInfinity;
         nextRetargetTime = 0f;
+
+        if (receiver == null) receiver = GetComponent<CombatReceiver>();
+        if (receiver != null)
+        {
+            receiver.ForceClearHitLock();
+            receiver.ForceClearIFrame();
+            receiver.ForceSetInvincible(false);
+        }
+
+        if (combatStats == null) combatStats = GetComponent<CombatStats>();
+        if (combatStats != null)
+            combatStats.ReviveFullHPAndStamina();
 
         if (cachedNavigator == null) cachedNavigator = GetComponent<EnemyNavigator>();
         if (cachedMove == null) cachedMove = GetComponent<EnemyMove>();
@@ -708,6 +755,39 @@ public class EnemyController : MonoBehaviour
             cachedMove.SetMoveSpeedLevel(0);
         }
 
+        var melee = GetComponent<MeleeFighter>();
+        if (melee != null && melee.enabled)
+            melee.InterruptAttack();
+
+        var range = GetComponent<RangeFighter>();
+        if (range != null && range.enabled)
+            range.InterruptShoot();
+
+        var block = GetComponent<BlockController>();
+        if (block != null && block.enabled)
+            block.ForceReleaseBlock();
+
+        var ability = GetComponent<EnemyAbilitySystem>();
+        if (ability != null && ability.enabled)
+            ability.ForceCancelForCheckpoint();
+
+        if (sword != null)
+        {
+            sword.AttachToWaist();
+            sword.SetArmed(false);
+        }
+
+        if (anim != null)
+        {
+            anim.Rebind();
+            anim.Update(0f);
+            anim.SetBool("IsArmed", false);
+            anim.speed = 1f;
+            anim.applyRootMotion = false;
+        }
+
+        RestoreSolidCollisionAfterCheckpoint();
+
         if (homePoint != null)
         {
             transform.position = homePoint.position;
@@ -717,22 +797,8 @@ public class EnemyController : MonoBehaviour
         if (cachedNavigator != null)
             cachedNavigator.SyncPosition(transform.position);
 
-        if (receiver == null) receiver = GetComponent<CombatReceiver>();
-        if (receiver != null)
-        {
-            receiver.ForceClearHitLock();
-            receiver.ForceClearIFrame();
-            receiver.ForceSetInvincible(false);
-        }
-
-        if (sword != null)
-        {
-            sword.AttachToWaist();
-            sword.SetArmed(false);
-        }
-
-        if (anim != null)
-            anim.SetBool("IsArmed", false);
+        var hitBox = GetComponentInChildren<EnemyHitBox>(true);
+        if (hitBox != null) hitBox.enabled = true;
 
         var notCombat = GetComponent<NotCombat>();
         if (notCombat != null) notCombat.enabled = true;
@@ -742,7 +808,8 @@ public class EnemyController : MonoBehaviour
 
         if (combatBrainBehaviour != null) combatBrainBehaviour.enabled = true;
 
-        enemyState.OnReturnHomeReached();
+        enabled = true;
+        enemyState.ForceResetToNotCombatForCheckpoint();
     }
 
     void UpdateCombatLoseTimer()

@@ -242,6 +242,13 @@ public class EnemyAbilitySystem : MonoBehaviour
         pendingTarget = null;
     }
 
+    public void ForceCancelForCheckpoint()
+    {
+        ForceExitAbilityAnimation();
+        CancelPending();
+        isInAbilityLock = false;
+    }
+
     void InterruptAbilityByHit()
     {
         ForceExitAbilityAnimation();

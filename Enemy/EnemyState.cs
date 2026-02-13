@@ -119,6 +119,23 @@ public class EnemyState : MonoBehaviour
         ChangeState(EnemyStateType.Dead);
     }
 
+    public void ForceResetToNotCombatForCheckpoint()
+    {
+        EnemyStateType prev = Current;
+
+        if (countedAsCombat)
+        {
+            countedAsCombat = false;
+            globalCombatCount = Mathf.Max(0, globalCombatCount - 1);
+        }
+
+        Current = EnemyStateType.NotCombat;
+        SetLostTargetPhase(LostTargetPhase.Armed);
+
+        if (prev != Current)
+            OnStateChanged?.Invoke(prev, Current);
+    }
+
     void SetLostTargetPhase(LostTargetPhase phase)
     {
         LostTargetPhase = phase;
