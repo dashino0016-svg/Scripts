@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 public class SavePointManager : MonoBehaviour
 {
@@ -13,6 +14,7 @@ public class SavePointManager : MonoBehaviour
     }
 
     [Header("References")]
+    [SerializeField] SavePoint initialSavePoint;
     [SerializeField] Transform playerRoot;
     [SerializeField] Animator playerAnimator;
     [SerializeField] PlayerController playerController;
@@ -30,11 +32,16 @@ public class SavePointManager : MonoBehaviour
     [SerializeField, Range(0f, 2f)] float fadeIn = 0.35f;
     [SerializeField, Range(0f, 1f)] float blackHold = 0.05f;
 
+    [Header("Death Respawn (Step2)")]
+    [SerializeField, Range(0f, 3f)] float deathRespawnDelay = 0.6f;
+
     SaveFlowState state = SaveFlowState.Idle;
     SavePoint currentSavePoint;
     SavePoint lastSavePoint;
+    bool deathRespawnPending;
 
     public SavePoint LastSavePoint => lastSavePoint;
+    public SavePoint InitialSavePoint => initialSavePoint;
 
     void Awake()
     {
@@ -50,6 +57,9 @@ public class SavePointManager : MonoBehaviour
 
     void OnEnable()
     {
+        AutoBind();
+        BindPlayerDeathEvent();
+
         if (upgradeUIManager != null)
         {
             upgradeUIManager.ExitRequested -= OnUIExitRequested;
@@ -62,6 +72,8 @@ public class SavePointManager : MonoBehaviour
 
     void OnDisable()
     {
+        UnbindPlayerDeathEvent();
+
         if (upgradeUIManager != null)
         {
             upgradeUIManager.ExitRequested -= OnUIExitRequested;
@@ -97,6 +109,30 @@ public class SavePointManager : MonoBehaviour
         playerAnimator.SetTrigger(saveTrigger);
         state = SaveFlowState.SavingAnim;
         return true;
+    }
+
+    public SavePoint GetRespawnSavePoint()
+    {
+        if (lastSavePoint != null)
+            return lastSavePoint;
+
+        return initialSavePoint;
+    }
+
+    public Transform GetRespawnAnchor()
+    {
+        SavePoint respawnSavePoint = GetRespawnSavePoint();
+        if (respawnSavePoint == null)
+            return null;
+
+        return respawnSavePoint.RespawnAnchor;
+    }
+
+    public bool ShouldPlayCheckpointExitOnRespawn()
+    {
+        // single-slot save rule:
+        // only after touching a save point should death-respawn use checkpoint exit pose.
+        return lastSavePoint != null;
     }
 
     public void NotifySaveAnimEnd()
@@ -173,6 +209,51 @@ public class SavePointManager : MonoBehaviour
         Debug.Log("[SavePointManager] UnlockDroneBurst requested (placeholder).", this);
     }
 
+    void OnPlayerDead()
+    {
+        if (deathRespawnPending)
+            return;
+
+        if (ScreenFader.Instance == null)
+        {
+            Debug.LogError("[SavePointManager] ScreenFader.Instance not found for death respawn.");
+            return;
+        }
+
+        deathRespawnPending = true;
+        StartCoroutine(CoDeathRespawnEntry());
+    }
+
+    IEnumerator CoDeathRespawnEntry()
+    {
+        if (deathRespawnDelay > 0f)
+            yield return new WaitForSecondsRealtime(deathRespawnDelay);
+
+        ScreenFader.Instance.FadeOutIn(
+            midAction: () =>
+            {
+                Transform respawnAnchor = GetRespawnAnchor();
+                if (respawnAnchor != null)
+                    AlignPlayerToAnchor(respawnAnchor);
+                else
+                    Debug.LogWarning("[SavePointManager] Respawn anchor is missing (both lastSavePoint and initialSavePoint are null).");
+
+                RefreshEnemiesDuringBlackScreen();
+
+                Debug.Log($"[SavePointManager] Death respawn entry done. playCheckpointExit={ShouldPlayCheckpointExitOnRespawn()}");
+            },
+            outDuration: fadeOut,
+            inDuration: fadeIn,
+            blackHoldSeconds: blackHold,
+            onComplete: () => deathRespawnPending = false
+        );
+    }
+
+    void RefreshEnemiesDuringBlackScreen()
+    {
+        // TODO(step6): Respawn enemies to their HomePoint (NotCombat state).
+    }
+
     void AlignPlayerToAnchor(Transform anchor)
     {
         if (anchor == null || playerRoot == null) return;
@@ -210,5 +291,22 @@ public class SavePointManager : MonoBehaviour
 
         if (upgradeUIManager == null)
             upgradeUIManager = FindFirstObjectByType<UpgradeUIManager>();
+    }
+
+    void BindPlayerDeathEvent()
+    {
+        if (playerStats == null)
+            return;
+
+        playerStats.OnDead -= OnPlayerDead;
+        playerStats.OnDead += OnPlayerDead;
+    }
+
+    void UnbindPlayerDeathEvent()
+    {
+        if (playerStats == null)
+            return;
+
+        playerStats.OnDead -= OnPlayerDead;
     }
 }
