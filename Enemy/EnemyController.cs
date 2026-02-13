@@ -12,6 +12,7 @@ public class EnemyController : MonoBehaviour
     MonoBehaviour combatBrainBehaviour;
     Animator anim;
     CombatStats combatStats;
+    CombatReceiver receiver;
     SwordController sword;
 
     [Header("Sensor")]
@@ -176,6 +177,7 @@ public class EnemyController : MonoBehaviour
         enemyState = GetComponent<EnemyState>();
         anim = GetComponent<Animator>();
         combatStats = GetComponent<CombatStats>();
+        receiver = GetComponent<CombatReceiver>();
         sword = GetComponentInChildren<SwordController>();
 
         cachedMove = GetComponent<EnemyMove>();
@@ -671,6 +673,76 @@ public class EnemyController : MonoBehaviour
         // ✅ 被打后锁定点 = 攻击者胶囊中心
         AddAggro(cs, attackedThreatAdd);
         RetargetIfNeeded(true);
+    }
+
+    public void ResetToHomeForCheckpoint(Transform homePoint)
+    {
+        if (enemyState == null)
+            return;
+
+        if (enemyState.Current == EnemyStateType.Dead)
+            return;
+
+        combatBrain?.ExitCombat();
+
+        target = null;
+        targetStats = null;
+        aggroTable.Clear();
+        loseTimer = 0f;
+        lastHostileStimulusTime = float.NegativeInfinity;
+        nextRetargetTime = 0f;
+
+        if (cachedNavigator == null) cachedNavigator = GetComponent<EnemyNavigator>();
+        if (cachedMove == null) cachedMove = GetComponent<EnemyMove>();
+
+        if (cachedNavigator != null)
+        {
+            cachedNavigator.enabled = true;
+            cachedNavigator.Stop();
+        }
+
+        if (cachedMove != null)
+        {
+            cachedMove.enabled = true;
+            cachedMove.SetMoveDirection(Vector3.zero);
+            cachedMove.SetMoveSpeedLevel(0);
+        }
+
+        if (homePoint != null)
+        {
+            transform.position = homePoint.position;
+            transform.rotation = homePoint.rotation;
+        }
+
+        if (cachedNavigator != null)
+            cachedNavigator.SyncPosition(transform.position);
+
+        if (receiver == null) receiver = GetComponent<CombatReceiver>();
+        if (receiver != null)
+        {
+            receiver.ForceClearHitLock();
+            receiver.ForceClearIFrame();
+            receiver.ForceSetInvincible(false);
+        }
+
+        if (sword != null)
+        {
+            sword.AttachToWaist();
+            sword.SetArmed(false);
+        }
+
+        if (anim != null)
+            anim.SetBool("IsArmed", false);
+
+        var notCombat = GetComponent<NotCombat>();
+        if (notCombat != null) notCombat.enabled = true;
+
+        var lostTarget = GetComponent<LostTarget>();
+        if (lostTarget != null) lostTarget.enabled = true;
+
+        if (combatBrainBehaviour != null) combatBrainBehaviour.enabled = true;
+
+        enemyState.OnReturnHomeReached();
     }
 
     void UpdateCombatLoseTimer()
