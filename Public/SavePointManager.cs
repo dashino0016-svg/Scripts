@@ -28,8 +28,8 @@ public class SavePointManager : MonoBehaviour
     [SerializeField, Range(0.2f, 3f)] float exitAnimFailSafeSeconds = 1.2f;
 
     [Header("Animator Triggers")]
-    [SerializeField] string saveTrigger = "Checkpoint_Save";
-    [SerializeField] string exitSaveTrigger = "Checkpoint_Exit";
+    [SerializeField] string saveTrigger = "Save";
+    [SerializeField] string exitSaveTrigger = "Exit";
 
     [Header("Fader")]
     [SerializeField, Range(0f, 2f)] float fadeOut = 0.35f;
@@ -287,6 +287,59 @@ public class SavePointManager : MonoBehaviour
         }
 
         exitAnimFailSafeCo = null;
+    }
+
+    void OnPlayerDead()
+    {
+        StartCoroutine(CoRespawnAfterDeath());
+    }
+
+    IEnumerator CoRespawnAfterDeath()
+    {
+        yield return new WaitForSecondsRealtime(deathDelay);
+
+        if (ScreenFader.Instance == null)
+        {
+            Debug.LogError("[SavePointManager] ScreenFader.Instance not found.");
+            yield break;
+        }
+
+        ScreenFader.Instance.FadeOutIn(
+            midAction: () =>
+            {
+                Transform anchor = lastSavePoint != null ? lastSavePoint.RespawnAnchor : defaultRespawnAnchor;
+                if (anchor != null)
+                    AlignPlayerToAnchor(anchor);
+
+                if (playerController != null)
+                    playerController.SetCheckpointFlowLock(true);
+
+                if (playerReceiver != null)
+                {
+                    playerReceiver.ForceSetInvincible(true);
+                    playerReceiver.HitEnd();
+                }
+
+                if (playerController != null)
+                    playerController.ResetAfterRespawn();
+
+                if (playerStats != null)
+                    playerStats.RespawnFull(keepSpecial: true);
+
+                RespawnAllEnemiesToHome();
+
+                if (playerAnimator != null)
+                {
+                    playerAnimator.ResetTrigger(saveTrigger);
+                    playerAnimator.SetTrigger(exitSaveTrigger);
+                }
+
+                state = SaveFlowState.ExitingAnim;
+            },
+            outDuration: fadeOut,
+            inDuration: fadeIn,
+            blackHoldSeconds: blackHold
+        );
     }
 
     void OnUnlockDroneBurstRequested()
