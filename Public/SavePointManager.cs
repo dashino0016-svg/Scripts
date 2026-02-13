@@ -153,7 +153,7 @@ public class SavePointManager : MonoBehaviour
         if (playerController != null)
             playerController.ResetAfterRespawn();
 
-        EnemyRespawnService.RespawnAllEnemiesToHome();
+        RespawnAllEnemiesToHome();
 
         state = SaveFlowState.Idle;
     }
@@ -224,7 +224,7 @@ public class SavePointManager : MonoBehaviour
                 if (playerStats != null)
                     playerStats.RespawnFull(keepSpecial: true);
 
-                EnemyRespawnService.RespawnAllEnemiesToHome();
+                RespawnAllEnemiesToHome();
 
                 if (playerAnimator != null)
                 {
@@ -255,6 +255,17 @@ public class SavePointManager : MonoBehaviour
         playerRoot.SetPositionAndRotation(anchor.position, anchor.rotation);
 
         if (hadCC) playerCharacterController.enabled = true;
+    }
+
+    static void RespawnAllEnemiesToHome()
+    {
+        EnemyController[] enemies = FindObjectsOfType<EnemyController>(true);
+        for (int i = 0; i < enemies.Length; i++)
+        {
+            EnemyController enemy = enemies[i];
+            if (enemy == null) continue;
+            enemy.RespawnToHome();
+        }
     }
 
     void AutoBind()
