@@ -131,6 +131,9 @@ public class CombatReceiver : MonoBehaviour, IHittable
     // 兜底：外部需要时清掉无敌（例如死亡/强制重置）
     public void ForceClearIFrame() => isInvincible = false;
 
+    // 兜底：外部需要时清掉受击锁（例如死亡回溯后的强制恢复）
+    public void ForceClearHitLock() => isInHitLock = false;
+
     void Awake()
     {
         anim = GetComponent<Animator>();
