@@ -289,59 +289,6 @@ public class SavePointManager : MonoBehaviour
         exitAnimFailSafeCo = null;
     }
 
-    void OnPlayerDead()
-    {
-        StartCoroutine(CoRespawnAfterDeath());
-    }
-
-    IEnumerator CoRespawnAfterDeath()
-    {
-        yield return new WaitForSecondsRealtime(deathDelay);
-
-        if (ScreenFader.Instance == null)
-        {
-            Debug.LogError("[SavePointManager] ScreenFader.Instance not found.");
-            yield break;
-        }
-
-        ScreenFader.Instance.FadeOutIn(
-            midAction: () =>
-            {
-                Transform anchor = lastSavePoint != null ? lastSavePoint.RespawnAnchor : defaultRespawnAnchor;
-                if (anchor != null)
-                    AlignPlayerToAnchor(anchor);
-
-                if (playerController != null)
-                    playerController.SetCheckpointFlowLock(true);
-
-                if (playerReceiver != null)
-                {
-                    playerReceiver.ForceSetInvincible(true);
-                    playerReceiver.HitEnd();
-                }
-
-                if (playerController != null)
-                    playerController.ResetAfterRespawn();
-
-                if (playerStats != null)
-                    playerStats.RespawnFull(keepSpecial: true);
-
-                RespawnAllEnemiesToHome();
-
-                if (playerAnimator != null)
-                {
-                    playerAnimator.ResetTrigger(saveTrigger);
-                    playerAnimator.SetTrigger(exitSaveTrigger);
-                }
-
-                state = SaveFlowState.ExitingAnim;
-            },
-            outDuration: fadeOut,
-            inDuration: fadeIn,
-            blackHoldSeconds: blackHold
-        );
-    }
-
     void OnUnlockDroneBurstRequested()
     {
         Debug.Log("[SavePointManager] UnlockDroneBurst requested (placeholder).", this);
