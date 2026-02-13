@@ -119,6 +119,19 @@ public class EnemyState : MonoBehaviour
         ChangeState(EnemyStateType.Dead);
     }
 
+    public void ForceRespawnToNotCombat()
+    {
+        EnemyStateType prev = Current;
+        Current = EnemyStateType.NotCombat;
+        LostTargetPhase = LostTargetPhase.Armed;
+
+        if (countedAsCombat)
+            ForceCountExitCombatIfNeeded();
+
+        if (prev != Current)
+            OnStateChanged?.Invoke(prev, Current);
+    }
+
     void SetLostTargetPhase(LostTargetPhase phase)
     {
         LostTargetPhase = phase;

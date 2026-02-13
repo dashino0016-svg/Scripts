@@ -82,6 +82,9 @@ public class EnemyController : MonoBehaviour
 
     bool solidCollisionDisabledPermanently;
 
+    Vector3 spawnPos;
+    Quaternion spawnRot;
+
     [Header("Death Collision Timing")]
     [SerializeField] float deadAnimFallbackDelay = 3.0f;
     Coroutine deadFallbackCo;
@@ -180,6 +183,9 @@ public class EnemyController : MonoBehaviour
 
         cachedMove = GetComponent<EnemyMove>();
         cachedNavigator = GetComponent<EnemyNavigator>();
+
+        spawnPos = transform.position;
+        spawnRot = transform.rotation;
 
         ResolveCombatBrain();
     }
@@ -339,6 +345,127 @@ public class EnemyController : MonoBehaviour
             rb.detectCollisions = false;
             rb.isKinematic = true;
         }
+    }
+
+    void EnableSolidCollision()
+    {
+        solidCollisionDisabledPermanently = false;
+
+        var cols = GetComponentsInChildren<Collider>(true);
+        for (int i = 0; i < cols.Length; i++)
+        {
+            var c = cols[i];
+            if (c == null) continue;
+            if (c.isTrigger) continue;
+            c.enabled = true;
+        }
+
+        var cc = GetComponent<CharacterController>();
+        if (cc != null) cc.enabled = true;
+
+        var rb = GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.detectCollisions = true;
+            rb.isKinematic = true;
+        }
+    }
+
+    public void RespawnToHome()
+    {
+        Transform home = null;
+        var lostTarget = GetComponent<LostTarget>();
+        if (lostTarget != null)
+            home = lostTarget.homePoint;
+
+        Vector3 destPos = home != null ? home.position : spawnPos;
+        Quaternion destRot = home != null ? home.rotation : spawnRot;
+
+        if (deadFallbackCo != null)
+        {
+            StopCoroutine(deadFallbackCo);
+            deadFallbackCo = null;
+        }
+        waitingDeadDelay = false;
+
+        transform.SetPositionAndRotation(destPos, destRot);
+
+        target = null;
+        targetStats = null;
+        loseTimer = 0f;
+        targetVisibleThisFrame = false;
+        lastHostileStimulusTime = float.NegativeInfinity;
+        nextRetargetTime = 0f;
+        aggroTable.Clear();
+
+        combatBrain?.ExitCombat();
+
+        var state = GetComponent<EnemyState>();
+        if (state != null)
+            state.ForceRespawnToNotCombat();
+
+        enabled = true;
+        if (state != null) state.enabled = true;
+
+        if (lostTarget != null) lostTarget.enabled = true;
+
+        var notCombat = GetComponent<NotCombat>();
+        if (notCombat != null) notCombat.enabled = true;
+
+        if (combatBrainBehaviour != null) combatBrainBehaviour.enabled = true;
+
+        var move = GetComponent<EnemyMove>();
+        if (move != null)
+        {
+            move.enabled = true;
+            move.SetMoveDirection(Vector3.zero);
+            move.SetMoveSpeedLevel(0);
+        }
+
+        var navigator = GetComponent<EnemyNavigator>();
+        if (navigator != null)
+        {
+            navigator.enabled = true;
+            navigator.Stop();
+            navigator.SyncPosition(transform.position);
+        }
+
+        var hitBox = GetComponentInChildren<EnemyHitBox>(true);
+        if (hitBox != null) hitBox.enabled = true;
+
+        IsInAssassinationLock = false;
+        IsInWeaponTransition = false;
+        weaponTransitionType = WeaponTransitionType.None;
+        deathByAssassination = false;
+        cachedAnimSpeedValid = false;
+
+        if (anim != null)
+        {
+            anim.speed = 1f;
+            anim.Rebind();
+            anim.Update(0f);
+        }
+
+        if (sword != null)
+        {
+            sword.AttachToWaist();
+            sword.SetArmed(false);
+        }
+        if (anim != null)
+            anim.SetBool("IsArmed", false);
+
+        EnableSolidCollision();
+
+        var receiver = GetComponent<CombatReceiver>();
+        if (receiver != null)
+        {
+            receiver.ForceSetInvincible(false);
+            receiver.ForceClearIFrame();
+            receiver.HitEnd();
+        }
+
+        if (combatStats != null)
+            combatStats.RespawnFull(keepSpecial: true);
     }
 
     IEnumerator DeadCollisionDelay()
