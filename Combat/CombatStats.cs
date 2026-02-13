@@ -220,6 +220,13 @@ public class CombatStats : MonoBehaviour
         return true;
     }
 
+
+    public void ReviveFullHP()
+    {
+        IsDead = false;
+        CurrentHP = maxHP;
+    }
+
     void Die()
     {
         if (IsDead) return;

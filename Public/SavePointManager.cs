@@ -26,6 +26,7 @@ public class SavePointManager : MonoBehaviour
     [Header("Animator Triggers")]
     [SerializeField] string saveTrigger = "Checkpoint_Save";
     [SerializeField] string exitSaveTrigger = "Checkpoint_Exit";
+    [SerializeField] string idleStateName = "Idle";
 
     [Header("Fader")]
     [SerializeField, Range(0f, 2f)] float fadeOut = 0.35f;
@@ -161,14 +162,7 @@ public class SavePointManager : MonoBehaviour
     {
         if (state != SaveFlowState.ExitingAnim) return;
 
-        if (playerReceiver != null)
-            playerReceiver.ForceSetInvincible(false);
-
-        if (playerController != null)
-            playerController.SetCheckpointFlowLock(false);
-
-        if (playerStats != null && !playerStats.IsDead)
-            playerStats.HealHP(playerStats.maxHP);
+        ApplyRespawnRecovery();
 
         // TODO: Respawn enemies to their HomePoint (NotCombat state).
 
@@ -245,8 +239,59 @@ public class SavePointManager : MonoBehaviour
             outDuration: fadeOut,
             inDuration: fadeIn,
             blackHoldSeconds: blackHold,
-            onComplete: () => deathRespawnPending = false
+            onComplete: OnDeathRespawnFadeComplete
         );
+    }
+
+    void OnDeathRespawnFadeComplete()
+    {
+        bool playCheckpointExit = ShouldPlayCheckpointExitOnRespawn();
+
+        if (playCheckpointExit)
+        {
+            if (playerController != null)
+                playerController.SetCheckpointFlowLock(true);
+
+            if (playerReceiver != null)
+                playerReceiver.ForceSetInvincible(true);
+
+            if (playerAnimator != null)
+            {
+                playerAnimator.ResetTrigger(saveTrigger);
+                playerAnimator.SetTrigger(exitSaveTrigger);
+            }
+
+            state = SaveFlowState.ExitingAnim;
+        }
+        else
+        {
+            ApplyRespawnRecovery();
+
+            if (playerAnimator != null)
+            {
+                playerAnimator.Rebind();
+                playerAnimator.Update(0f);
+
+                if (!string.IsNullOrEmpty(idleStateName))
+                    playerAnimator.CrossFade(idleStateName, 0.05f, 0, 0f);
+            }
+
+            state = SaveFlowState.Idle;
+        }
+
+        deathRespawnPending = false;
+    }
+
+    void ApplyRespawnRecovery()
+    {
+        if (playerReceiver != null)
+            playerReceiver.ForceSetInvincible(false);
+
+        if (playerController != null)
+            playerController.SetCheckpointFlowLock(false);
+
+        if (playerStats != null)
+            playerStats.ReviveFullHP();
     }
 
     void RefreshEnemiesDuringBlackScreen()
