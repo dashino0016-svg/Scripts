@@ -27,8 +27,8 @@ public class SavePointManager : MonoBehaviour
     [SerializeField, Range(0.1f, 3f)] float deathDelay = 1f;
 
     [Header("Animator Triggers")]
-    [SerializeField] string saveTrigger = "Checkpoint_Save";
-    [SerializeField] string exitSaveTrigger = "Checkpoint_Exit";
+    [SerializeField] string saveTrigger = "Save";
+    [SerializeField] string exitSaveTrigger = "Exit";
 
     [Header("Fader")]
     [SerializeField, Range(0f, 2f)] float fadeOut = 0.35f;
