@@ -26,7 +26,7 @@ public class SavePointManager : MonoBehaviour
     [Header("Animator Triggers")]
     [SerializeField] string saveTrigger = "Checkpoint_Save";
     [SerializeField] string exitSaveTrigger = "Checkpoint_Exit";
-    [SerializeField] string idleStateName = "Idle";
+    [SerializeField] string idleStateName = "UnarmedLocomotion";
 
     [Header("Fader")]
     [SerializeField, Range(0f, 2f)] float fadeOut = 0.35f;
@@ -272,8 +272,10 @@ public class SavePointManager : MonoBehaviour
                 playerAnimator.Rebind();
                 playerAnimator.Update(0f);
 
-                if (!string.IsNullOrEmpty(idleStateName))
+                if (HasBaseLayerState(idleStateName))
                     playerAnimator.CrossFade(idleStateName, 0.05f, 0, 0f);
+                else if (!string.IsNullOrEmpty(idleStateName))
+                    Debug.LogWarning($"[SavePointManager] Idle state '{idleStateName}' not found on Base Layer. Skipping CrossFade.");
             }
 
             state = SaveFlowState.Idle;
@@ -288,10 +290,24 @@ public class SavePointManager : MonoBehaviour
             playerReceiver.ForceSetInvincible(false);
 
         if (playerController != null)
+        {
+            // Death sets internal action locks (e.g. isBusy) in PlayerController.
+            // Pulse checkpoint flow lock to reuse existing clear-lock logic, then release.
+            playerController.SetCheckpointFlowLock(true);
             playerController.SetCheckpointFlowLock(false);
+        }
 
         if (playerStats != null)
             playerStats.ReviveFullHP();
+    }
+
+    bool HasBaseLayerState(string stateName)
+    {
+        if (playerAnimator == null || string.IsNullOrEmpty(stateName))
+            return false;
+
+        int hash = Animator.StringToHash(stateName);
+        return playerAnimator.HasState(0, hash);
     }
 
     void RefreshEnemiesDuringBlackScreen()
