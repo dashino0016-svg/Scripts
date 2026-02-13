@@ -355,7 +355,7 @@ public class SavePointManager : MonoBehaviour
 
     void RefreshEnemiesDuringBlackScreen()
     {
-        EnemyController[] enemies = FindObjectsByType<EnemyController>(FindObjectsSortMode.None);
+        EnemyController[] enemies = Resources.FindObjectsOfTypeAll<EnemyController>();
         if (enemies == null || enemies.Length == 0)
             return;
 
