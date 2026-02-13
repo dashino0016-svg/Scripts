@@ -19,9 +19,7 @@ public class UpgradeUIManager : MonoBehaviour
     [SerializeField, Range(0f, 2f)] float fadeIn = 0.35f;
     [SerializeField, Range(0f, 1f)] float blackHold = 0.05f;
 
-    [Header("Debug")]
-    [SerializeField] bool enableDebugHotkeys = true;
-    [SerializeField] KeyCode openKey = KeyCode.F1;
+    [Header("Keyboard")]
     [SerializeField] KeyCode closeKey = KeyCode.Escape;
 
     bool isOpen;
@@ -52,11 +50,6 @@ public class UpgradeUIManager : MonoBehaviour
 
     void Update()
     {
-        if (!enableDebugHotkeys) return;
-
-        if (!isOpen && Input.GetKeyDown(openKey))
-            Open();
-
         if (isOpen && Input.GetKeyDown(closeKey))
             RequestClose();
     }

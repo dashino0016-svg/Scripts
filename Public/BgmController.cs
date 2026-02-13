@@ -262,7 +262,7 @@ public class BgmController : MonoBehaviour
             float step = Step(dtUnscaled, (exploreTarget > explorationSource.volume) ? fadeInExploration : fadeOutExploration);
             explorationSource.volume = Mathf.MoveTowards(explorationSource.volume, exploreTarget, step);
 
-            if (stopWhenSilent && exploreTarget <= 0.0001f && explorationSource.volume <= 0.0001f && explorationSource.isPlaying)
+            if (stopWhenSilent && !overrideActive && exploreTarget <= 0.0001f && explorationSource.volume <= 0.0001f && explorationSource.isPlaying)
                 explorationSource.Stop();
         }
 
