@@ -23,8 +23,9 @@ public class SavePointManager : MonoBehaviour
     [SerializeField] CharacterController playerCharacterController;
 
     [Header("Death Respawn")]
-    [SerializeField] Transform defaultRespawnAnchor;
+    [SerializeField] SavePoint defaultSavePoint;
     [SerializeField, Range(0.1f, 3f)] float deathDelay = 1f;
+    [SerializeField, Range(0.2f, 3f)] float exitAnimFailSafeSeconds = 1.2f;
 
     [Header("Animator Triggers")]
     [SerializeField] string saveTrigger = "Save";
@@ -39,6 +40,9 @@ public class SavePointManager : MonoBehaviour
     SavePoint currentSavePoint;
     SavePoint lastSavePoint;
 
+    Coroutine deathRespawnCo;
+    Coroutine exitAnimFailSafeCo;
+
     public SavePoint LastSavePoint => lastSavePoint;
 
     void Awake()
@@ -49,6 +53,9 @@ public class SavePointManager : MonoBehaviour
             return;
         }
         Instance = this;
+
+        if (lastSavePoint == null && defaultSavePoint != null)
+            lastSavePoint = defaultSavePoint;
 
         AutoBind();
     }
@@ -68,8 +75,8 @@ public class SavePointManager : MonoBehaviour
 
         if (playerStats != null)
         {
-            playerStats.OnDead -= OnPlayerDead;
-            playerStats.OnDead += OnPlayerDead;
+            playerStats.OnDead -= HandlePlayerDead;
+            playerStats.OnDead += HandlePlayerDead;
         }
     }
 
@@ -82,7 +89,15 @@ public class SavePointManager : MonoBehaviour
         }
 
         if (playerStats != null)
-            playerStats.OnDead -= OnPlayerDead;
+            playerStats.OnDead -= HandlePlayerDead;
+
+        if (deathRespawnCo != null)
+        {
+            StopCoroutine(deathRespawnCo);
+            deathRespawnCo = null;
+        }
+
+        StopExitAnimFailSafe();
     }
 
     public bool BeginSaveFlow(SavePoint savePoint)
@@ -141,6 +156,9 @@ public class SavePointManager : MonoBehaviour
     {
         if (state != SaveFlowState.ExitingAnim) return;
 
+        StopExitAnimFailSafe();
+        deathRespawnCo = null;
+
         if (playerReceiver != null)
             playerReceiver.ForceSetInvincible(false);
 
@@ -153,7 +171,7 @@ public class SavePointManager : MonoBehaviour
         if (playerController != null)
             playerController.ResetAfterRespawn();
 
-        RespawnAllEnemiesToHome();
+        EnemyRespawnService.RespawnAllEnemiesToHome();
 
         state = SaveFlowState.Idle;
     }
@@ -173,18 +191,103 @@ public class SavePointManager : MonoBehaviour
                 if (upgradeUIManager != null)
                     upgradeUIManager.CloseImmediate();
 
-                if (playerAnimator != null)
-                {
-                    playerAnimator.ResetTrigger(saveTrigger);
-                    playerAnimator.SetTrigger(exitSaveTrigger);
-                }
-
-                state = SaveFlowState.ExitingAnim;
+                BeginExitAnimationFlow();
             },
             outDuration: fadeOut,
             inDuration: fadeIn,
             blackHoldSeconds: blackHold
         );
+    }
+
+    void HandlePlayerDead()
+    {
+        if (deathRespawnCo != null)
+            StopCoroutine(deathRespawnCo);
+
+        deathRespawnCo = StartCoroutine(CoRespawnAfterDeath());
+    }
+
+    IEnumerator CoRespawnAfterDeath()
+    {
+        yield return new WaitForSecondsRealtime(deathDelay);
+
+        if (ScreenFader.Instance == null)
+        {
+            Debug.LogError("[SavePointManager] ScreenFader.Instance not found.");
+            yield break;
+        }
+
+        ScreenFader.Instance.FadeOutIn(
+            midAction: () =>
+            {
+                SavePoint sp = lastSavePoint != null ? lastSavePoint : defaultSavePoint;
+                Transform anchor = sp != null ? sp.RespawnAnchor : null;
+                if (anchor != null)
+                    AlignPlayerToAnchor(anchor);
+
+                if (playerReceiver != null)
+                    playerReceiver.HitEnd();
+
+                if (playerController != null)
+                    playerController.SetCheckpointFlowLock(true);
+
+                if (playerStats != null)
+                    playerStats.RespawnFull(keepSpecial: true);
+
+                if (playerReceiver != null)
+                    playerReceiver.ForceSetInvincible(true);
+
+                BeginExitAnimationFlow();
+            },
+            outDuration: fadeOut,
+            inDuration: fadeIn,
+            blackHoldSeconds: blackHold
+        );
+
+        deathRespawnCo = null;
+    }
+
+    void BeginExitAnimationFlow()
+    {
+        if (playerAnimator != null)
+        {
+            playerAnimator.Rebind();
+            playerAnimator.Update(0f);
+            playerAnimator.ResetTrigger(saveTrigger);
+            playerAnimator.ResetTrigger("Dead");
+            playerAnimator.SetTrigger(exitSaveTrigger);
+        }
+
+        state = SaveFlowState.ExitingAnim;
+        StartExitAnimFailSafe();
+    }
+
+    void StartExitAnimFailSafe()
+    {
+        StopExitAnimFailSafe();
+        exitAnimFailSafeCo = StartCoroutine(CoExitAnimFailSafe());
+    }
+
+    void StopExitAnimFailSafe()
+    {
+        if (exitAnimFailSafeCo == null)
+            return;
+
+        StopCoroutine(exitAnimFailSafeCo);
+        exitAnimFailSafeCo = null;
+    }
+
+    IEnumerator CoExitAnimFailSafe()
+    {
+        yield return new WaitForSecondsRealtime(exitAnimFailSafeSeconds);
+
+        if (state == SaveFlowState.ExitingAnim)
+        {
+            Debug.LogWarning("[SavePointManager] Exit animation event timeout, forcing flow completion.", this);
+            NotifyExitAnimEnd();
+        }
+
+        exitAnimFailSafeCo = null;
     }
 
     void OnUnlockDroneBurstRequested()
