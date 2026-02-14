@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 [RequireComponent(typeof(EnemyState))]
 [RequireComponent(typeof(LostTarget))]
@@ -62,6 +63,15 @@ public class EnemyController : MonoBehaviour
     }
 
     readonly Dictionary<CombatStats, AggroEntry> aggroTable = new Dictionary<CombatStats, AggroEntry>();
+    [Header("Weapon Transition Guard")]
+    public bool freezeTransformDuringWeaponTransition = true;
+    public bool freezeRotationDuringWeaponTransition = true;
+
+    Vector3 weaponTransFreezePos;
+    Quaternion weaponTransFreezeRot;
+    bool weaponTransFreezeActive;
+
+    NavMeshAgent cachedAgent;
 
     [Header("Local Time Scale (Enemy Only)")]
     [Range(0.05f, 1f)]
@@ -117,6 +127,13 @@ public class EnemyController : MonoBehaviour
         IsInWeaponTransition = true;
         weaponTransitionType = type;
 
+        if (freezeTransformDuringWeaponTransition)
+        {
+            weaponTransFreezePos = transform.position;
+            weaponTransFreezeRot = transform.rotation;
+            weaponTransFreezeActive = true;
+        }
+
         if (cachedNavigator == null) cachedNavigator = GetComponent<EnemyNavigator>();
         if (cachedNavigator != null)
         {
@@ -169,6 +186,12 @@ public class EnemyController : MonoBehaviour
         weaponLockRootMotionValid = false;
 
         IsInWeaponTransition = false;
+        // 确保 agent 虚拟位置与 transform 对齐（即使 navigator 曾经被禁用）
+        if (cachedAgent != null && cachedAgent.enabled && cachedAgent.isOnNavMesh && !cachedAgent.updatePosition)
+            cachedAgent.nextPosition = transform.position;
+
+        if (cachedNavigator != null)
+            cachedNavigator.SyncPosition(transform.position);
         weaponTransitionType = WeaponTransitionType.None;
     }
 
@@ -179,7 +202,7 @@ public class EnemyController : MonoBehaviour
         combatStats = GetComponent<CombatStats>();
         receiver = GetComponent<CombatReceiver>();
         sword = GetComponentInChildren<SwordController>();
-
+        cachedAgent = GetComponent<NavMeshAgent>();
         cachedMove = GetComponent<EnemyMove>();
         cachedNavigator = GetComponent<EnemyNavigator>();
 
@@ -254,6 +277,22 @@ public class EnemyController : MonoBehaviour
         {
             combatBrain?.Tick();
             UpdateCombatLoseTimer();
+        }
+    }
+    void LateUpdate()
+    {
+        // ===== 修复：WeaponTransition 期间禁止动画曲线改 root transform =====
+        if (IsInWeaponTransition && weaponTransFreezeActive && freezeTransformDuringWeaponTransition)
+        {
+            if (freezeRotationDuringWeaponTransition)
+                transform.SetPositionAndRotation(weaponTransFreezePos, weaponTransFreezeRot);
+            else
+                transform.position = weaponTransFreezePos;
+        }
+        // ===== 修复：即使 EnemyNavigator 被禁用，也持续同步 agent.nextPosition =====
+        if (cachedAgent != null && cachedAgent.enabled && cachedAgent.isOnNavMesh && !cachedAgent.updatePosition)
+        {
+            cachedAgent.nextPosition = transform.position;
         }
     }
 
@@ -704,6 +743,7 @@ public class EnemyController : MonoBehaviour
         if (enemyState == null)
             return;
 
+
         if (deadFallbackCo != null)
         {
             StopCoroutine(deadFallbackCo);
@@ -790,12 +830,62 @@ public class EnemyController : MonoBehaviour
 
         if (homePoint != null)
         {
-            transform.position = homePoint.position;
-            transform.rotation = homePoint.rotation;
-        }
+            // 1) 取组件
+            CharacterController cc = GetComponent<CharacterController>();
+            NavMeshAgent agent = GetComponent<NavMeshAgent>();
 
-        if (cachedNavigator != null)
-            cachedNavigator.SyncPosition(transform.position);
+            bool ccWasEnabled = (cc != null && cc.enabled);
+            if (ccWasEnabled) cc.enabled = false;
+
+            // 2) 先把 Transform 移到目标（避免 Warp 失败时至少视觉到位）
+            Vector3 targetPos = homePoint.position;
+            Quaternion targetRot = homePoint.rotation;
+            transform.SetPositionAndRotation(targetPos, targetRot);
+
+            // 3) 同步 NavMeshAgent 的“权威位置”
+            if (agent != null)
+            {
+                // 先尝试直接 Warp 到 home 点
+                bool warped = agent.Warp(targetPos);
+
+                // 如果 home 点不在 NavMesh，上一步可能失败：再 Sample 一次
+                if (!warped)
+                {
+                    if (NavMesh.SamplePosition(targetPos, out var hit, 2f, NavMesh.AllAreas))
+                    {
+                        agent.Warp(hit.position);
+                        transform.position = hit.position;   // 保证 Transform 与 agent 对齐
+                    }
+                    else
+                    {
+                        // 实在采样不到，就让 agent 尝试 warp 到原点位（可能仍失败，但不会卡死）
+                        agent.Warp(targetPos);
+                    }
+                }
+
+                agent.ResetPath();
+                agent.nextPosition = transform.position;
+            }
+
+            // 4) 让 Navigator 的 nextPosition 与当前 transform 再对齐一次
+            if (cachedNavigator != null)
+                cachedNavigator.SyncPosition(transform.position);
+
+            // 5) 清 EnemyMove 残留速度（避免瞬移后弹飞/抖动）
+            if (cachedMove != null)
+                cachedMove.ResetMotionForTeleport();
+
+            if (ccWasEnabled) cc.enabled = true;
+        }
+        else
+        {
+            // 没传 homePoint 时也至少保证 nextPosition 同步，避免 agent 内部漂移
+            if (cachedNavigator != null)
+                cachedNavigator.SyncPosition(transform.position);
+
+            if (cachedMove != null)
+                cachedMove.ResetMotionForTeleport();
+        }
 
         var hitBox = GetComponentInChildren<EnemyHitBox>(true);
         if (hitBox != null) hitBox.enabled = true;
