@@ -163,8 +163,9 @@ public class SavePointManager : MonoBehaviour
     {
         if (state != SaveFlowState.ExitingAnim) return;
 
-        // NOTE: HP refill for "exit save point" should happen during the black screen (OnUIExitRequested midAction),
-        // not during/after the exit animation. Here we only release locks and end invincibility.
+        // NOTE:
+        // - Exit UI 的补血应在黑屏中完成（OnUIExitRequested midAction），不是在 Exit 动画途中/结束时。
+        // - 这里仅负责释放流程锁和取消无敌。
         PrepareRespawnVisualBaseline();
 
         if (playerReceiver != null)
@@ -196,15 +197,18 @@ public class SavePointManager : MonoBehaviour
         ScreenFader.Instance.FadeOutIn(
             midAction: () =>
             {
+                // ✅ 黑屏中刷新敌人（先做：此时世界仍处于 UI Pause 状态，更稳定）
+                RefreshAllEnemiesToHomeDuringBlack();
+
+                // 关闭升级 UI（内部会 Resume timeScale，并恢复 gameplay HUD）
                 if (upgradeUIManager != null)
                     upgradeUIManager.CloseImmediate();
 
-                // ✅ Refill player HP during the black screen (energy/special stays unchanged).
-                // This avoids showing the refill happening during the exit animation.
+                // ✅ 黑屏中补满血量（能量不动）
                 if (playerStats != null)
                     playerStats.ReviveFullHP();
 
-                // Keep the player protected/locked while we play the exit animation.
+                // Exit 动画期间保持保护/锁输入
                 PrepareRespawnVisualBaseline();
 
                 if (playerReceiver != null)
@@ -272,6 +276,9 @@ public class SavePointManager : MonoBehaviour
             AlignPlayerToAnchor(respawnAnchor);
         else
             Debug.LogWarning("[SavePointManager] Respawn anchor is missing (both lastSavePoint and initialSavePoint are null).");
+
+        // ✅ 黑屏中刷新敌人（含死亡敌人：你的前提是不会 Destroy/SetActive(false)）
+        RefreshAllEnemiesToHomeDuringBlack();
 
         if (ShouldPlayCheckpointExitOnRespawn())
             PrepareCheckpointExitRespawnInBlack();
@@ -373,6 +380,36 @@ public class SavePointManager : MonoBehaviour
         if (playerStats != null)
             playerStats.ReviveFullHP();
     }
+
+    // ========================= Enemy Refresh =========================
+
+    void RefreshAllEnemiesToHomeDuringBlack()
+    {
+        // 根节点都有 EnemyController，且死亡敌人不会 Destroy/SetActive(false) —— 直接全扫即可
+        EnemyController[] enemies = FindObjectsOfType<EnemyController>(true);
+        if (enemies == null || enemies.Length == 0)
+            return;
+
+        for (int i = 0; i < enemies.Length; i++)
+        {
+            EnemyController ec = enemies[i];
+            if (ec == null) continue;
+
+            LostTarget lt = ec.GetComponent<LostTarget>();
+            Transform home = lt != null ? lt.homePoint : null;
+
+            if (home == null)
+            {
+                Debug.LogWarning($"[SavePointManager] Enemy '{ec.name}' has no LostTarget/homePoint. Reset without teleport.");
+                ec.ResetToHomeForCheckpoint(null);
+                continue;
+            }
+
+            ec.ResetToHomeForCheckpoint(home);
+        }
+    }
+
+    // ========================= Utilities =========================
 
     bool HasBaseLayerState(string stateName)
     {
