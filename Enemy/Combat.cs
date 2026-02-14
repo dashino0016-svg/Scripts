@@ -376,6 +376,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
     public void Tick()
     {
+        if (controller != null && controller.IsCheckpointResetting) return;
         if (!active || target == null) return;
 
         dt = GetDt();

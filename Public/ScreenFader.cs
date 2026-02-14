@@ -120,6 +120,16 @@ public class ScreenFader : MonoBehaviour
         return _running;
     }
 
+    public Coroutine FadeOutInRoutine(Func<IEnumerator> midRoutine, float? outDuration = null, float? inDuration = null, float blackHoldSeconds = 0f, Action onComplete = null)
+    {
+        float od = outDuration ?? defaultFadeDuration;
+        float id = inDuration ?? defaultFadeDuration;
+
+        StopRunning();
+        _running = StartCoroutine(CoFadeOutInRoutine(midRoutine, od, id, blackHoldSeconds, onComplete));
+        return _running;
+    }
+
     public void SetAlphaInstant(float alpha)
     {
         alpha = Mathf.Clamp01(alpha);
@@ -208,6 +218,38 @@ public class ScreenFader : MonoBehaviour
         UpdateBlocking(_alpha);
 
         IsFading = false;
+        onComplete?.Invoke();
+        _running = null;
+    }
+
+    IEnumerator CoFadeOutInRoutine(Func<IEnumerator> midRoutine, float outDuration, float inDuration, float hold, Action onComplete)
+    {
+        yield return CoFadeTo(1f, outDuration, null);
+
+        if (midRoutine != null)
+        {
+            try
+            {
+                yield return StartCoroutine(midRoutine());
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ScreenFader] Mid routine failed during FadeOutInRoutine: {ex}", this);
+            }
+        }
+
+        if (hold > 0f)
+        {
+            float t = 0f;
+            while (t < hold)
+            {
+                t += useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
+                yield return null;
+            }
+        }
+
+        yield return CoFadeTo(0f, inDuration, null);
+
         onComplete?.Invoke();
         _running = null;
     }
