@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 [RequireComponent(typeof(EnemyState))]
 [RequireComponent(typeof(LostTarget))]
@@ -80,6 +81,18 @@ public class EnemyController : MonoBehaviour
 
     float cachedAnimSpeedBeforeAssassination = 1f;
     bool cachedAnimSpeedValid;
+
+    public bool IsCheckpointResetting { get; private set; }
+    CharacterController cachedCharacterController;
+    NavMeshAgent cachedNavMeshAgent;
+    bool checkpointCachedControllerEnabled;
+    bool checkpointCachedNavigatorEnabled;
+    bool checkpointCachedMoveEnabled;
+    bool checkpointCachedAgentEnabled;
+    bool checkpointCachedCharacterControllerEnabled;
+    bool checkpointCachedNotCombatEnabled;
+    bool checkpointCachedLostTargetEnabled;
+    bool checkpointCachedCombatBrainEnabled;
 
     bool solidCollisionDisabledPermanently;
 
@@ -182,6 +195,8 @@ public class EnemyController : MonoBehaviour
 
         cachedMove = GetComponent<EnemyMove>();
         cachedNavigator = GetComponent<EnemyNavigator>();
+        cachedCharacterController = GetComponent<CharacterController>();
+        cachedNavMeshAgent = GetComponent<NavMeshAgent>();
 
         ResolveCombatBrain();
     }
@@ -222,6 +237,196 @@ public class EnemyController : MonoBehaviour
         }
     }
 
+    public void BeginCheckpointFreeze()
+    {
+        if (IsCheckpointResetting)
+            return;
+
+        IsCheckpointResetting = true;
+        StopAllCoroutines();
+        CancelInvoke();
+
+        checkpointCachedControllerEnabled = enabled;
+        checkpointCachedNavigatorEnabled = cachedNavigator != null && cachedNavigator.enabled;
+        checkpointCachedMoveEnabled = cachedMove != null && cachedMove.enabled;
+        checkpointCachedAgentEnabled = cachedNavMeshAgent != null && cachedNavMeshAgent.enabled;
+        checkpointCachedCharacterControllerEnabled = cachedCharacterController != null && cachedCharacterController.enabled;
+
+        var notCombat = GetComponent<NotCombat>();
+        var lostTarget = GetComponent<LostTarget>();
+
+        checkpointCachedNotCombatEnabled = notCombat != null && notCombat.enabled;
+        checkpointCachedLostTargetEnabled = lostTarget != null && lostTarget.enabled;
+        checkpointCachedCombatBrainEnabled = combatBrainBehaviour != null && combatBrainBehaviour.enabled;
+
+        if (notCombat != null) notCombat.enabled = false;
+        if (lostTarget != null) lostTarget.enabled = false;
+        if (combatBrainBehaviour != null) combatBrainBehaviour.enabled = false;
+
+        if (cachedMove != null)
+        {
+            cachedMove.SetMoveDirection(Vector3.zero);
+            cachedMove.SetMoveSpeedLevel(0);
+            cachedMove.enabled = false;
+        }
+
+        if (cachedNavigator != null)
+        {
+            cachedNavigator.Stop();
+            cachedNavigator.enabled = false;
+        }
+
+        if (cachedCharacterController != null)
+            cachedCharacterController.enabled = false;
+
+        if (cachedNavMeshAgent != null)
+        {
+            cachedNavMeshAgent.ResetPath();
+            cachedNavMeshAgent.enabled = false;
+        }
+    }
+
+    public void ApplyCheckpointResetDuringFreeze(Vector3 worldPos, Quaternion worldRot)
+    {
+        waitingDeadDelay = false;
+        deathByAssassination = false;
+        IsInAssassinationLock = false;
+        IsInWeaponTransition = false;
+        weaponTransitionType = WeaponTransitionType.None;
+        weaponLockRootMotionValid = false;
+        cachedAnimSpeedValid = false;
+
+        combatBrain?.ExitCombat();
+
+        target = null;
+        targetStats = null;
+        aggroTable.Clear();
+        loseTimer = 0f;
+        lastHostileStimulusTime = float.NegativeInfinity;
+        nextRetargetTime = 0f;
+
+        if (receiver == null) receiver = GetComponent<CombatReceiver>();
+        if (receiver != null)
+        {
+            receiver.ForceClearHitLock();
+            receiver.ForceClearIFrame();
+            receiver.ForceSetInvincible(false);
+        }
+
+        if (combatStats == null) combatStats = GetComponent<CombatStats>();
+        if (combatStats != null)
+            combatStats.ReviveFullHPAndStamina();
+
+        var melee = GetComponent<MeleeFighter>();
+        if (melee != null && melee.enabled)
+            melee.InterruptAttack();
+
+        var range = GetComponent<RangeFighter>();
+        if (range != null && range.enabled)
+            range.InterruptShoot();
+
+        var block = GetComponent<BlockController>();
+        if (block != null && block.enabled)
+            block.ForceReleaseBlock();
+
+        var ability = GetComponent<EnemyAbilitySystem>();
+        if (ability != null && ability.enabled)
+            ability.ForceCancelForCheckpoint();
+
+        if (sword != null)
+        {
+            sword.AttachToWaist();
+            sword.SetArmed(false);
+        }
+
+        transform.SetPositionAndRotation(worldPos, worldRot);
+
+        if (cachedNavMeshAgent != null)
+        {
+            cachedNavMeshAgent.enabled = true;
+            cachedNavMeshAgent.Warp(worldPos);
+            cachedNavMeshAgent.ResetPath();
+            cachedNavMeshAgent.nextPosition = worldPos;
+        }
+
+        if (cachedNavigator != null)
+            cachedNavigator.SyncPosition(transform.position);
+
+        if (anim != null)
+        {
+            anim.SetBool("IsArmed", false);
+            if (anim.HasState(0, Animator.StringToHash("UnarmedLocomotion")))
+                anim.Play("UnarmedLocomotion", 0, 0f);
+            anim.Update(0f);
+            anim.speed = 1f;
+            anim.applyRootMotion = false;
+        }
+
+        RestoreSolidCollisionAfterCheckpoint();
+        enemyState.ForceResetToNotCombatForCheckpoint();
+    }
+
+    public void CheckpointSettleSync()
+    {
+        if (cachedNavMeshAgent != null && cachedNavMeshAgent.enabled)
+            cachedNavMeshAgent.nextPosition = transform.position;
+
+        if (cachedNavigator != null)
+            cachedNavigator.SyncPosition(transform.position);
+    }
+
+    public bool CheckpointReady(float positionEpsilon = 0.1f)
+    {
+        if (cachedNavMeshAgent == null || !cachedNavMeshAgent.enabled)
+            return true;
+
+        if (!cachedNavMeshAgent.isOnNavMesh)
+            return false;
+
+        return Vector3.Distance(cachedNavMeshAgent.nextPosition, transform.position) <= positionEpsilon;
+    }
+
+    public void EndCheckpointFreeze()
+    {
+        if (!IsCheckpointResetting)
+            return;
+
+        if (cachedNavMeshAgent != null)
+        {
+            cachedNavMeshAgent.enabled = checkpointCachedAgentEnabled;
+            if (cachedNavMeshAgent.enabled)
+            {
+                cachedNavMeshAgent.ResetPath();
+                cachedNavMeshAgent.nextPosition = transform.position;
+            }
+        }
+
+        if (cachedNavigator != null)
+        {
+            cachedNavigator.enabled = checkpointCachedNavigatorEnabled;
+            if (cachedNavigator.enabled)
+                cachedNavigator.SyncPosition(transform.position);
+        }
+
+        if (cachedCharacterController != null)
+            cachedCharacterController.enabled = checkpointCachedCharacterControllerEnabled;
+
+        if (cachedMove != null)
+            cachedMove.enabled = checkpointCachedMoveEnabled;
+
+        var notCombat = GetComponent<NotCombat>();
+        if (notCombat != null) notCombat.enabled = checkpointCachedNotCombatEnabled;
+
+        var lostTarget = GetComponent<LostTarget>();
+        if (lostTarget != null) lostTarget.enabled = checkpointCachedLostTargetEnabled;
+
+        if (combatBrainBehaviour != null)
+            combatBrainBehaviour.enabled = checkpointCachedCombatBrainEnabled;
+
+        enabled = checkpointCachedControllerEnabled;
+        IsCheckpointResetting = false;
+    }
+
     void OnEnable()
     {
         enemyState.OnStateChanged += OnStateChanged;
@@ -238,6 +443,9 @@ public class EnemyController : MonoBehaviour
 
     void Update()
     {
+        if (IsCheckpointResetting)
+            return;
+
         if (enemyState != null && enemyState.Current == EnemyStateType.Dead)
             return;
 

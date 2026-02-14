@@ -1,5 +1,7 @@
 ﻿using UnityEngine;
+using UnityEngine.AI;
 using System.Collections;
+using System.Collections.Generic;
 
 public class SavePointManager : MonoBehaviour
 {
@@ -36,6 +38,11 @@ public class SavePointManager : MonoBehaviour
 
     [Header("Death Respawn (Step2)")]
     [SerializeField, Range(0f, 3f)] float deathRespawnDelay = 0.6f;
+
+    [Header("Enemy Checkpoint Refresh")]
+    [SerializeField, Range(0f, 5f)] float checkpointReadyTimeout = 1.2f;
+    [SerializeField, Range(0f, 3f)] float navMeshSampleRadius = 2.5f;
+    [SerializeField] int navMeshAreaMask = NavMesh.AllAreas;
 
     SaveFlowState state = SaveFlowState.Idle;
     SavePoint currentSavePoint;
@@ -146,17 +153,14 @@ public class SavePointManager : MonoBehaviour
             return;
         }
 
-        ScreenFader.Instance.FadeOutIn(
-            midAction: () =>
+        StartCoroutine(CoFadeOutInWithCheckpointRefresh(
+            blackAction: () =>
             {
                 if (upgradeUIManager != null)
                     upgradeUIManager.OpenImmediate();
             },
-            outDuration: fadeOut,
-            inDuration: fadeIn,
-            blackHoldSeconds: blackHold,
             onComplete: () => state = SaveFlowState.InUI
-        );
+        ));
     }
 
     public void NotifyExitAnimEnd()
@@ -193,8 +197,8 @@ public class SavePointManager : MonoBehaviour
             return;
         }
 
-        ScreenFader.Instance.FadeOutIn(
-            midAction: () =>
+        StartCoroutine(CoFadeOutInWithCheckpointRefresh(
+            blackAction: () =>
             {
                 if (upgradeUIManager != null)
                     upgradeUIManager.CloseImmediate();
@@ -224,11 +228,8 @@ public class SavePointManager : MonoBehaviour
                 }
 
                 state = SaveFlowState.ExitingAnim;
-            },
-            outDuration: fadeOut,
-            inDuration: fadeIn,
-            blackHoldSeconds: blackHold
-        );
+            }
+        ));
     }
 
     void OnUnlockDroneBurstRequested()
@@ -256,13 +257,10 @@ public class SavePointManager : MonoBehaviour
         if (deathRespawnDelay > 0f)
             yield return new WaitForSecondsRealtime(deathRespawnDelay);
 
-        ScreenFader.Instance.FadeOutIn(
-            midAction: ExecuteDeathRespawnDuringBlack,
-            outDuration: fadeOut,
-            inDuration: fadeIn,
-            blackHoldSeconds: blackHold,
+        StartCoroutine(CoFadeOutInWithCheckpointRefresh(
+            blackAction: ExecuteDeathRespawnDuringBlack,
             onComplete: () => deathRespawnPending = false
-        );
+        ));
     }
 
     void ExecuteDeathRespawnDuringBlack()
@@ -393,6 +391,100 @@ public class SavePointManager : MonoBehaviour
         playerRoot.SetPositionAndRotation(anchor.position, anchor.rotation);
 
         if (hadCC) playerCharacterController.enabled = true;
+    }
+
+    IEnumerator CoFadeOutInWithCheckpointRefresh(System.Action blackAction, System.Action onComplete = null)
+    {
+        if (ScreenFader.Instance == null)
+            yield break;
+
+        ScreenFader.Instance.FadeOut(fadeOut);
+        while (ScreenFader.Instance.IsFading)
+            yield return null;
+
+        yield return CoCheckpointEnemyRefresh(blackAction);
+
+        if (blackHold > 0f)
+            yield return new WaitForSecondsRealtime(blackHold);
+
+        ScreenFader.Instance.FadeIn(fadeIn);
+        while (ScreenFader.Instance.IsFading)
+            yield return null;
+
+        onComplete?.Invoke();
+    }
+
+    IEnumerator CoCheckpointEnemyRefresh(System.Action postRefreshAction)
+    {
+        EnemyController[] enemies = FindObjectsByType<EnemyController>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        List<EnemyController> valid = new List<EnemyController>(enemies.Length);
+
+        for (int i = 0; i < enemies.Length; i++)
+        {
+            EnemyController e = enemies[i];
+            if (e == null) continue;
+            valid.Add(e);
+            e.BeginCheckpointFreeze();
+        }
+
+        for (int i = 0; i < valid.Count; i++)
+        {
+            EnemyController enemy = valid[i];
+            if (enemy == null) continue;
+
+            Transform home = null;
+            LostTarget lost = enemy.GetComponent<LostTarget>();
+            if (lost != null)
+                home = lost.homePoint;
+
+            Vector3 pos = enemy.transform.position;
+            Quaternion rot = enemy.transform.rotation;
+            if (home != null)
+            {
+                pos = home.position;
+                rot = home.rotation;
+            }
+
+            if (NavMesh.SamplePosition(pos, out NavMeshHit hit, navMeshSampleRadius, navMeshAreaMask))
+                pos = hit.position;
+
+            enemy.ApplyCheckpointResetDuringFreeze(pos, rot);
+        }
+
+        yield return null;
+
+        for (int i = 0; i < valid.Count; i++)
+            valid[i]?.CheckpointSettleSync();
+
+        yield return null;
+
+        float timer = 0f;
+        while (timer < checkpointReadyTimeout)
+        {
+            bool allReady = true;
+            for (int i = 0; i < valid.Count; i++)
+            {
+                EnemyController enemy = valid[i];
+                if (enemy == null) continue;
+                enemy.CheckpointSettleSync();
+                if (!enemy.CheckpointReady())
+                {
+                    allReady = false;
+                    break;
+                }
+            }
+
+            if (allReady)
+                break;
+
+            timer += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        for (int i = 0; i < valid.Count; i++)
+            valid[i]?.EndCheckpointFreeze();
+
+        postRefreshAction?.Invoke();
     }
 
     void AutoBind()
