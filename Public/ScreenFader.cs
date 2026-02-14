@@ -227,16 +227,7 @@ public class ScreenFader : MonoBehaviour
         yield return CoFadeTo(1f, outDuration, null);
 
         if (midRoutine != null)
-        {
-            try
-            {
-                yield return StartCoroutine(midRoutine());
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[ScreenFader] Mid routine failed during FadeOutInRoutine: {ex}", this);
-            }
-        }
+            yield return StartCoroutine(RunMidRoutineSafely(midRoutine()));
 
         if (hold > 0f)
         {
@@ -252,6 +243,31 @@ public class ScreenFader : MonoBehaviour
 
         onComplete?.Invoke();
         _running = null;
+    }
+
+    IEnumerator RunMidRoutineSafely(IEnumerator routine)
+    {
+        if (routine == null)
+            yield break;
+
+        while (true)
+        {
+            object current;
+            try
+            {
+                if (!routine.MoveNext())
+                    yield break;
+
+                current = routine.Current;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ScreenFader] Mid routine failed during FadeOutInRoutine: {ex}", this);
+                yield break;
+            }
+
+            yield return current;
+        }
     }
 
     void UpdateBlocking(float alpha)
