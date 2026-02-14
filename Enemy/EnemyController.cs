@@ -544,7 +544,7 @@ public class EnemyController : MonoBehaviour
         if (rb != null)
         {
             rb.detectCollisions = true;
-            rb.isKinematic = false;
+            rb.isKinematic = true;
         }
 
         solidCollisionDisabledPermanently = false;
