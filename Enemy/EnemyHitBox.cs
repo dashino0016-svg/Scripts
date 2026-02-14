@@ -20,10 +20,6 @@ public class EnemyHitBox : AttackHitBoxBase
         int selfLayer = selfEnemy.gameObject.layer;
         int targetLayer = targetEnemy.gameObject.layer;
         return selfLayer != targetLayer;
-        if (targetEnemy != null)
-            return false;
-
-        return true;
     }
 
     protected override void OnHitConfirmed(AttackData attackData)
