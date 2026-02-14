@@ -227,7 +227,16 @@ public class ScreenFader : MonoBehaviour
         yield return CoFadeTo(1f, outDuration, null);
 
         if (midRoutine != null)
-            yield return StartCoroutine(midRoutine());
+        {
+            try
+            {
+                yield return StartCoroutine(midRoutine());
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ScreenFader] Mid routine failed during FadeOutInRoutine: {ex}", this);
+            }
+        }
 
         if (hold > 0f)
         {

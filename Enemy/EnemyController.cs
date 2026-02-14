@@ -746,7 +746,8 @@ public class EnemyController : MonoBehaviour
         NavMeshAgent agent = GetComponent<NavMeshAgent>();
         if (agent != null)
         {
-            agent.ResetPath();
+            if (agent.enabled && agent.isOnNavMesh)
+                agent.ResetPath();
             agent.enabled = false;
         }
 
@@ -837,10 +838,18 @@ public class EnemyController : MonoBehaviour
         NavMeshAgent agent = GetComponent<NavMeshAgent>();
         if (agent != null)
         {
-            agent.enabled = true;
-            agent.Warp(targetPos);
-            agent.ResetPath();
-            agent.nextPosition = targetPos;
+            if (!agent.enabled)
+                agent.enabled = true;
+
+            if (agent.isOnNavMesh)
+            {
+                bool warped = agent.Warp(targetPos);
+                if (!warped)
+                    transform.position = targetPos;
+
+                agent.ResetPath();
+                agent.nextPosition = transform.position;
+            }
         }
 
         if (anim != null)
@@ -872,7 +881,7 @@ public class EnemyController : MonoBehaviour
     public void SettleAfterCheckpointReset()
     {
         NavMeshAgent agent = GetComponent<NavMeshAgent>();
-        if (agent != null && agent.enabled)
+        if (agent != null && agent.enabled && agent.isOnNavMesh)
             agent.nextPosition = transform.position;
 
         if (cachedNavigator != null)
@@ -886,8 +895,12 @@ public class EnemyController : MonoBehaviour
         {
             if (!agent.enabled)
                 agent.enabled = true;
-            agent.ResetPath();
-            agent.nextPosition = transform.position;
+
+            if (agent.enabled && agent.isOnNavMesh)
+            {
+                agent.ResetPath();
+                agent.nextPosition = transform.position;
+            }
         }
 
         if (cachedNavigator == null) cachedNavigator = GetComponent<EnemyNavigator>();
