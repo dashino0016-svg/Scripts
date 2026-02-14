@@ -63,15 +63,6 @@ public class EnemyController : MonoBehaviour
     }
 
     readonly Dictionary<CombatStats, AggroEntry> aggroTable = new Dictionary<CombatStats, AggroEntry>();
-    [Header("Weapon Transition Guard")]
-    public bool freezeTransformDuringWeaponTransition = true;
-    public bool freezeRotationDuringWeaponTransition = true;
-
-    Vector3 weaponTransFreezePos;
-    Quaternion weaponTransFreezeRot;
-    bool weaponTransFreezeActive;
-
-    NavMeshAgent cachedAgent;
 
     [Header("Local Time Scale (Enemy Only)")]
     [Range(0.05f, 1f)]
@@ -127,13 +118,6 @@ public class EnemyController : MonoBehaviour
         IsInWeaponTransition = true;
         weaponTransitionType = type;
 
-        if (freezeTransformDuringWeaponTransition)
-        {
-            weaponTransFreezePos = transform.position;
-            weaponTransFreezeRot = transform.rotation;
-            weaponTransFreezeActive = true;
-        }
-
         if (cachedNavigator == null) cachedNavigator = GetComponent<EnemyNavigator>();
         if (cachedNavigator != null)
         {
@@ -186,12 +170,6 @@ public class EnemyController : MonoBehaviour
         weaponLockRootMotionValid = false;
 
         IsInWeaponTransition = false;
-        // 确保 agent 虚拟位置与 transform 对齐（即使 navigator 曾经被禁用）
-        if (cachedAgent != null && cachedAgent.enabled && cachedAgent.isOnNavMesh && !cachedAgent.updatePosition)
-            cachedAgent.nextPosition = transform.position;
-
-        if (cachedNavigator != null)
-            cachedNavigator.SyncPosition(transform.position);
         weaponTransitionType = WeaponTransitionType.None;
     }
 
@@ -202,7 +180,7 @@ public class EnemyController : MonoBehaviour
         combatStats = GetComponent<CombatStats>();
         receiver = GetComponent<CombatReceiver>();
         sword = GetComponentInChildren<SwordController>();
-        cachedAgent = GetComponent<NavMeshAgent>();
+
         cachedMove = GetComponent<EnemyMove>();
         cachedNavigator = GetComponent<EnemyNavigator>();
 
@@ -277,22 +255,6 @@ public class EnemyController : MonoBehaviour
         {
             combatBrain?.Tick();
             UpdateCombatLoseTimer();
-        }
-    }
-    void LateUpdate()
-    {
-        // ===== 修复：WeaponTransition 期间禁止动画曲线改 root transform =====
-        if (IsInWeaponTransition && weaponTransFreezeActive && freezeTransformDuringWeaponTransition)
-        {
-            if (freezeRotationDuringWeaponTransition)
-                transform.SetPositionAndRotation(weaponTransFreezePos, weaponTransFreezeRot);
-            else
-                transform.position = weaponTransFreezePos;
-        }
-        // ===== 修复：即使 EnemyNavigator 被禁用，也持续同步 agent.nextPosition =====
-        if (cachedAgent != null && cachedAgent.enabled && cachedAgent.isOnNavMesh && !cachedAgent.updatePosition)
-        {
-            cachedAgent.nextPosition = transform.position;
         }
     }
 
