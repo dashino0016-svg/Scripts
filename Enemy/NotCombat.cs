@@ -17,7 +17,6 @@ public class NotCombat : MonoBehaviour
     EnemyMove move;
     EnemyNavigator navigator;
     CombatReceiver receiver;
-    EnemyController controller;
 
     int currentPatrolIndex;
     float idleTimer;
@@ -39,8 +38,6 @@ public class NotCombat : MonoBehaviour
         move = GetComponent<EnemyMove>();
         navigator = GetComponent<EnemyNavigator>();
         receiver = GetComponent<CombatReceiver>();
-        controller = GetComponent<EnemyController>();
-
         lastState = enemyState != null ? enemyState.Current : EnemyStateType.NotCombat;
     }
 
@@ -54,10 +51,6 @@ public class NotCombat : MonoBehaviour
     {
         if (enemyState == null || move == null || navigator == null)
             return;
-
-        if (controller != null && controller.IsCheckpointResetting)
-            return;
-
         // ✅ 只在 NotCombat 状态下运行本脚本
         if (enemyState.Current != EnemyStateType.NotCombat)
         {
