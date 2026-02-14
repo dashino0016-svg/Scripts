@@ -71,6 +71,7 @@ public class EnemyController : MonoBehaviour
     Coroutine localTimeCoroutine;
 
     public bool IsInAssassinationLock { get; private set; }
+    public bool IsCheckpointResetting { get; private set; }
     bool deathByAssassination;
     public void MarkDeathByAssassination() => deathByAssassination = true;
 
@@ -242,7 +243,7 @@ public class EnemyController : MonoBehaviour
         if (enemyState != null && enemyState.Current == EnemyStateType.Dead)
             return;
 
-        if (IsInAssassinationLock)
+        if (IsInAssassinationLock || IsCheckpointResetting)
             return;
 
         CheckTargetDead();
@@ -702,9 +703,17 @@ public class EnemyController : MonoBehaviour
 
     public void ResetToHomeForCheckpoint(Transform homePoint)
     {
-        if (enemyState == null)
-            return;
+        FreezeForCheckpointReset();
+        TeleportAndResetForCheckpoint(homePoint);
+        UnfreezeAfterCheckpointReset();
+    }
 
+    public void FreezeForCheckpointReset()
+    {
+        IsCheckpointResetting = true;
+
+        StopAllCoroutines();
+        CancelInvoke();
 
         if (deadFallbackCo != null)
         {
@@ -713,6 +722,54 @@ public class EnemyController : MonoBehaviour
         }
 
         waitingDeadDelay = false;
+
+        if (cachedNavigator == null) cachedNavigator = GetComponent<EnemyNavigator>();
+        if (cachedNavigator != null)
+        {
+            cachedNavigator.Stop();
+            cachedNavigator.SyncPosition(transform.position);
+            cachedNavigator.enabled = false;
+        }
+
+        if (cachedMove == null) cachedMove = GetComponent<EnemyMove>();
+        if (cachedMove != null)
+        {
+            cachedMove.SetMoveDirection(Vector3.zero);
+            cachedMove.SetMoveSpeedLevel(0);
+            cachedMove.enabled = false;
+        }
+
+        CharacterController cc = GetComponent<CharacterController>();
+        if (cc != null && cc.enabled)
+            cc.enabled = false;
+
+        NavMeshAgent agent = GetComponent<NavMeshAgent>();
+        if (agent != null)
+        {
+            agent.ResetPath();
+            agent.enabled = false;
+        }
+
+        if (combatBrainBehaviour != null)
+            combatBrainBehaviour.enabled = false;
+
+        Combat combat = GetComponent<Combat>();
+        if (combat != null) combat.enabled = false;
+
+        RangeCombat rangeCombat = GetComponent<RangeCombat>();
+        if (rangeCombat != null) rangeCombat.enabled = false;
+
+        NotCombat notCombat = GetComponent<NotCombat>();
+        if (notCombat != null) notCombat.enabled = false;
+
+        LostTarget lostTarget = GetComponent<LostTarget>();
+        if (lostTarget != null) lostTarget.enabled = false;
+
+        enabled = false;
+    }
+
+    public void TeleportAndResetForCheckpoint(Transform homePoint)
+    {
         deathByAssassination = false;
         IsInAssassinationLock = false;
         IsInWeaponTransition = false;
@@ -741,22 +798,6 @@ public class EnemyController : MonoBehaviour
         if (combatStats != null)
             combatStats.ReviveFullHPAndStamina();
 
-        if (cachedNavigator == null) cachedNavigator = GetComponent<EnemyNavigator>();
-        if (cachedMove == null) cachedMove = GetComponent<EnemyMove>();
-
-        if (cachedNavigator != null)
-        {
-            cachedNavigator.enabled = true;
-            cachedNavigator.Stop();
-        }
-
-        if (cachedMove != null)
-        {
-            cachedMove.enabled = true;
-            cachedMove.SetMoveDirection(Vector3.zero);
-            cachedMove.SetMoveSpeedLevel(0);
-        }
-
         var melee = GetComponent<MeleeFighter>();
         if (melee != null && melee.enabled)
             melee.InterruptAttack();
@@ -779,89 +820,99 @@ public class EnemyController : MonoBehaviour
             sword.SetArmed(false);
         }
 
+        Vector3 targetPos = transform.position;
+        Quaternion targetRot = transform.rotation;
+
+        if (homePoint != null)
+        {
+            targetPos = homePoint.position;
+            targetRot = homePoint.rotation;
+
+            if (NavMesh.SamplePosition(targetPos, out var hit, 3f, NavMesh.AllAreas))
+                targetPos = hit.position;
+        }
+
+        transform.SetPositionAndRotation(targetPos, targetRot);
+
+        NavMeshAgent agent = GetComponent<NavMeshAgent>();
+        if (agent != null)
+        {
+            agent.enabled = true;
+            agent.Warp(targetPos);
+            agent.ResetPath();
+            agent.nextPosition = targetPos;
+        }
+
         if (anim != null)
         {
-            anim.Rebind();
-            anim.Update(0f);
-            anim.SetBool("IsArmed", false);
-            anim.speed = 1f;
             anim.applyRootMotion = false;
+            anim.speed = 1f;
+            anim.SetBool("IsArmed", false);
+
+            int idleHash = Animator.StringToHash("UnarmedLocomotion");
+            if (anim.HasState(0, idleHash))
+                anim.Play(idleHash, 0, 0f);
+            anim.Update(0f);
         }
 
         RestoreSolidCollisionAfterCheckpoint();
 
-        if (homePoint != null)
-        {
-            // 1) 取组件
-            CharacterController cc = GetComponent<CharacterController>();
-            NavMeshAgent agent = GetComponent<NavMeshAgent>();
+        if (cachedNavigator != null)
+            cachedNavigator.SyncPosition(transform.position);
 
-            bool ccWasEnabled = (cc != null && cc.enabled);
-            if (ccWasEnabled) cc.enabled = false;
-
-            // 2) 先把 Transform 移到目标（避免 Warp 失败时至少视觉到位）
-            Vector3 targetPos = homePoint.position;
-            Quaternion targetRot = homePoint.rotation;
-            transform.SetPositionAndRotation(targetPos, targetRot);
-
-            // 3) 同步 NavMeshAgent 的“权威位置”
-            if (agent != null)
-            {
-                // 先尝试直接 Warp 到 home 点
-                bool warped = agent.Warp(targetPos);
-
-                // 如果 home 点不在 NavMesh，上一步可能失败：再 Sample 一次
-                if (!warped)
-                {
-                    if (NavMesh.SamplePosition(targetPos, out var hit, 2f, NavMesh.AllAreas))
-                    {
-                        agent.Warp(hit.position);
-                        transform.position = hit.position;   // 保证 Transform 与 agent 对齐
-                    }
-                    else
-                    {
-                        // 实在采样不到，就让 agent 尝试 warp 到原点位（可能仍失败，但不会卡死）
-                        agent.Warp(targetPos);
-                    }
-                }
-
-                agent.ResetPath();
-                agent.nextPosition = transform.position;
-            }
-
-            // 4) 让 Navigator 的 nextPosition 与当前 transform 再对齐一次
-            if (cachedNavigator != null)
-                cachedNavigator.SyncPosition(transform.position);
-
-            // 5) 清 EnemyMove 残留速度（避免瞬移后弹飞/抖动）
-            if (cachedMove != null)
-                cachedMove.ResetMotionForTeleport();
-
-            if (ccWasEnabled) cc.enabled = true;
-        }
-        else
-        {
-            // 没传 homePoint 时也至少保证 nextPosition 同步，避免 agent 内部漂移
-            if (cachedNavigator != null)
-                cachedNavigator.SyncPosition(transform.position);
-
-            if (cachedMove != null)
-                cachedMove.ResetMotionForTeleport();
-        }
+        if (cachedMove != null)
+            cachedMove.ResetMotionForTeleport();
 
         var hitBox = GetComponentInChildren<EnemyHitBox>(true);
         if (hitBox != null) hitBox.enabled = true;
 
-        var notCombat = GetComponent<NotCombat>();
+        enemyState.ForceResetToNotCombatForCheckpoint();
+    }
+
+    public void SettleAfterCheckpointReset()
+    {
+        NavMeshAgent agent = GetComponent<NavMeshAgent>();
+        if (agent != null && agent.enabled)
+            agent.nextPosition = transform.position;
+
+        if (cachedNavigator != null)
+            cachedNavigator.SyncPosition(transform.position);
+    }
+
+    public void UnfreezeAfterCheckpointReset()
+    {
+        NavMeshAgent agent = GetComponent<NavMeshAgent>();
+        if (agent != null)
+        {
+            if (!agent.enabled)
+                agent.enabled = true;
+            agent.ResetPath();
+            agent.nextPosition = transform.position;
+        }
+
+        if (cachedNavigator == null) cachedNavigator = GetComponent<EnemyNavigator>();
+        if (cachedNavigator != null)
+            cachedNavigator.enabled = true;
+
+        CharacterController cc = GetComponent<CharacterController>();
+        if (cc != null)
+            cc.enabled = true;
+
+        if (cachedMove == null) cachedMove = GetComponent<EnemyMove>();
+        if (cachedMove != null)
+            cachedMove.enabled = true;
+
+        NotCombat notCombat = GetComponent<NotCombat>();
         if (notCombat != null) notCombat.enabled = true;
 
-        var lostTarget = GetComponent<LostTarget>();
+        LostTarget lostTarget = GetComponent<LostTarget>();
         if (lostTarget != null) lostTarget.enabled = true;
 
-        if (combatBrainBehaviour != null) combatBrainBehaviour.enabled = true;
+        if (combatBrainBehaviour != null)
+            combatBrainBehaviour.enabled = true;
 
         enabled = true;
-        enemyState.ForceResetToNotCombatForCheckpoint();
+        IsCheckpointResetting = false;
     }
 
     void UpdateCombatLoseTimer()

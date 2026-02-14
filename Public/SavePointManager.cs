@@ -194,41 +194,8 @@ public class SavePointManager : MonoBehaviour
             return;
         }
 
-        ScreenFader.Instance.FadeOutIn(
-            midAction: () =>
-            {
-                // ✅ 黑屏中刷新敌人（先做：此时世界仍处于 UI Pause 状态，更稳定）
-                RefreshAllEnemiesToHomeDuringBlack();
-
-                // 关闭升级 UI（内部会 Resume timeScale，并恢复 gameplay HUD）
-                if (upgradeUIManager != null)
-                    upgradeUIManager.CloseImmediate();
-
-                // ✅ 黑屏中补满血量（能量不动）
-                if (playerStats != null)
-                    playerStats.ReviveFullHP();
-
-                // Exit 动画期间保持保护/锁输入
-                PrepareRespawnVisualBaseline();
-
-                if (playerReceiver != null)
-                {
-                    playerReceiver.ForceClearHitLock();
-                    playerReceiver.ForceClearIFrame();
-                    playerReceiver.ForceSetInvincible(true);
-                }
-
-                if (playerController != null)
-                    playerController.SetCheckpointFlowLock(true);
-
-                if (playerAnimator != null)
-                {
-                    playerAnimator.ResetTrigger(enterTrigger);
-                    playerAnimator.SetTrigger(exitTrigger);
-                }
-
-                state = SaveFlowState.ExitingAnim;
-            },
+        ScreenFader.Instance.FadeOutInRoutine(
+            midRoutine: CoExitUICheckpointRefreshDuringBlack,
             outDuration: fadeOut,
             inDuration: fadeIn,
             blackHoldSeconds: blackHold
@@ -260,8 +227,8 @@ public class SavePointManager : MonoBehaviour
         if (deathRespawnDelay > 0f)
             yield return new WaitForSecondsRealtime(deathRespawnDelay);
 
-        ScreenFader.Instance.FadeOutIn(
-            midAction: ExecuteDeathRespawnDuringBlack,
+        ScreenFader.Instance.FadeOutInRoutine(
+            midRoutine: CoExecuteDeathRespawnDuringBlack,
             outDuration: fadeOut,
             inDuration: fadeIn,
             blackHoldSeconds: blackHold,
@@ -269,7 +236,7 @@ public class SavePointManager : MonoBehaviour
         );
     }
 
-    void ExecuteDeathRespawnDuringBlack()
+    IEnumerator CoExecuteDeathRespawnDuringBlack()
     {
         Transform respawnAnchor = GetRespawnAnchor();
         if (respawnAnchor != null)
@@ -277,13 +244,47 @@ public class SavePointManager : MonoBehaviour
         else
             Debug.LogWarning("[SavePointManager] Respawn anchor is missing (both lastSavePoint and initialSavePoint are null).");
 
-        // ✅ 黑屏中刷新敌人（含死亡敌人：你的前提是不会 Destroy/SetActive(false)）
-        RefreshAllEnemiesToHomeDuringBlack();
+        yield return CoRefreshAllEnemiesToHomeDuringBlack();
 
         if (ShouldPlayCheckpointExitOnRespawn())
             PrepareCheckpointExitRespawnInBlack();
         else
             PrepareIdleRespawnInBlack();
+    }
+
+    IEnumerator CoExitUICheckpointRefreshDuringBlack()
+    {
+        // ✅ 黑屏中刷新敌人（先做：此时世界仍处于 UI Pause 状态，更稳定）
+        yield return CoRefreshAllEnemiesToHomeDuringBlack();
+
+        // 关闭升级 UI（内部会 Resume timeScale，并恢复 gameplay HUD）
+        if (upgradeUIManager != null)
+            upgradeUIManager.CloseImmediate();
+
+        // ✅ 黑屏中补满血量（能量不动）
+        if (playerStats != null)
+            playerStats.ReviveFullHP();
+
+        // Exit 动画期间保持保护/锁输入
+        PrepareRespawnVisualBaseline();
+
+        if (playerReceiver != null)
+        {
+            playerReceiver.ForceClearHitLock();
+            playerReceiver.ForceClearIFrame();
+            playerReceiver.ForceSetInvincible(true);
+        }
+
+        if (playerController != null)
+            playerController.SetCheckpointFlowLock(true);
+
+        if (playerAnimator != null)
+        {
+            playerAnimator.ResetTrigger(enterTrigger);
+            playerAnimator.SetTrigger(exitTrigger);
+        }
+
+        state = SaveFlowState.ExitingAnim;
     }
 
     void PrepareCheckpointExitRespawnInBlack()
@@ -383,13 +384,21 @@ public class SavePointManager : MonoBehaviour
 
     // ========================= Enemy Refresh =========================
 
-    void RefreshAllEnemiesToHomeDuringBlack()
+    IEnumerator CoRefreshAllEnemiesToHomeDuringBlack()
     {
-        // 根节点都有 EnemyController，且死亡敌人不会 Destroy/SetActive(false) —— 直接全扫即可
         EnemyController[] enemies = FindObjectsOfType<EnemyController>(true);
         if (enemies == null || enemies.Length == 0)
-            return;
+            yield break;
 
+        // Phase A — Freeze
+        for (int i = 0; i < enemies.Length; i++)
+        {
+            EnemyController ec = enemies[i];
+            if (ec == null) continue;
+            ec.FreezeForCheckpointReset();
+        }
+
+        // Phase B — Teleport + Reset
         for (int i = 0; i < enemies.Length; i++)
         {
             EnemyController ec = enemies[i];
@@ -399,13 +408,33 @@ public class SavePointManager : MonoBehaviour
             Transform home = lt != null ? lt.homePoint : null;
 
             if (home == null)
-            {
                 Debug.LogWarning($"[SavePointManager] Enemy '{ec.name}' has no LostTarget/homePoint. Reset without teleport.");
-                ec.ResetToHomeForCheckpoint(null);
-                continue;
-            }
 
-            ec.ResetToHomeForCheckpoint(home);
+            ec.TeleportAndResetForCheckpoint(home);
+        }
+
+        // Phase C — Settle
+        yield return null;
+        for (int i = 0; i < enemies.Length; i++)
+        {
+            EnemyController ec = enemies[i];
+            if (ec == null) continue;
+            ec.SettleAfterCheckpointReset();
+        }
+
+        yield return null;
+        for (int i = 0; i < enemies.Length; i++)
+        {
+            EnemyController ec = enemies[i];
+            if (ec == null) continue;
+            ec.SettleAfterCheckpointReset();
+        }
+
+        for (int i = 0; i < enemies.Length; i++)
+        {
+            EnemyController ec = enemies[i];
+            if (ec == null) continue;
+            ec.UnfreezeAfterCheckpointReset();
         }
     }
 
