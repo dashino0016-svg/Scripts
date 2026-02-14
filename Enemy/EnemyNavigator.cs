@@ -70,14 +70,6 @@ public class EnemyNavigator : MonoBehaviour
         // stoppingDistance 通常不应缩放（距离是空间量），保持基准
         agent.stoppingDistance = baseStoppingDistance;
     }
-    void LateUpdate()
-    {
-        if (agent == null) return;
-        if (!agent.isOnNavMesh) return;
-
-        // 关键：当 updatePosition=false 时，必须每帧把 nextPosition 跟随真实 transform
-        agent.nextPosition = transform.position;
-    }
 
     void CaptureBaseFromAgent()
     {

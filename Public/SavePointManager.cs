@@ -163,9 +163,8 @@ public class SavePointManager : MonoBehaviour
     {
         if (state != SaveFlowState.ExitingAnim) return;
 
-        // NOTE:
-        // - Exit UI 的补血应在黑屏中完成（OnUIExitRequested midAction），不是在 Exit 动画途中/结束时。
-        // - 这里仅负责释放流程锁和取消无敌。
+        // NOTE: HP refill for "exit save point" should happen during the black screen (OnUIExitRequested midAction),
+        // not during/after the exit animation. Here we only release locks and end invincibility.
         PrepareRespawnVisualBaseline();
 
         if (playerReceiver != null)
@@ -194,8 +193,38 @@ public class SavePointManager : MonoBehaviour
             return;
         }
 
-        ScreenFader.Instance.FadeOutInRoutine(
-            midRoutine: CoExitUICheckpointRefreshDuringBlack,
+        ScreenFader.Instance.FadeOutIn(
+            midAction: () =>
+            {
+                if (upgradeUIManager != null)
+                    upgradeUIManager.CloseImmediate();
+
+                // ✅ Refill player HP during the black screen (energy/special stays unchanged).
+                // This avoids showing the refill happening during the exit animation.
+                if (playerStats != null)
+                    playerStats.ReviveFullHP();
+
+                // Keep the player protected/locked while we play the exit animation.
+                PrepareRespawnVisualBaseline();
+
+                if (playerReceiver != null)
+                {
+                    playerReceiver.ForceClearHitLock();
+                    playerReceiver.ForceClearIFrame();
+                    playerReceiver.ForceSetInvincible(true);
+                }
+
+                if (playerController != null)
+                    playerController.SetCheckpointFlowLock(true);
+
+                if (playerAnimator != null)
+                {
+                    playerAnimator.ResetTrigger(enterTrigger);
+                    playerAnimator.SetTrigger(exitTrigger);
+                }
+
+                state = SaveFlowState.ExitingAnim;
+            },
             outDuration: fadeOut,
             inDuration: fadeIn,
             blackHoldSeconds: blackHold
@@ -227,8 +256,8 @@ public class SavePointManager : MonoBehaviour
         if (deathRespawnDelay > 0f)
             yield return new WaitForSecondsRealtime(deathRespawnDelay);
 
-        ScreenFader.Instance.FadeOutInRoutine(
-            midRoutine: CoExecuteDeathRespawnDuringBlack,
+        ScreenFader.Instance.FadeOutIn(
+            midAction: ExecuteDeathRespawnDuringBlack,
             outDuration: fadeOut,
             inDuration: fadeIn,
             blackHoldSeconds: blackHold,
@@ -236,7 +265,7 @@ public class SavePointManager : MonoBehaviour
         );
     }
 
-    IEnumerator CoExecuteDeathRespawnDuringBlack()
+    void ExecuteDeathRespawnDuringBlack()
     {
         Transform respawnAnchor = GetRespawnAnchor();
         if (respawnAnchor != null)
@@ -244,47 +273,10 @@ public class SavePointManager : MonoBehaviour
         else
             Debug.LogWarning("[SavePointManager] Respawn anchor is missing (both lastSavePoint and initialSavePoint are null).");
 
-        yield return CoRefreshAllEnemiesToHomeDuringBlack();
-
         if (ShouldPlayCheckpointExitOnRespawn())
             PrepareCheckpointExitRespawnInBlack();
         else
             PrepareIdleRespawnInBlack();
-    }
-
-    IEnumerator CoExitUICheckpointRefreshDuringBlack()
-    {
-        // ✅ 黑屏中刷新敌人（先做：此时世界仍处于 UI Pause 状态，更稳定）
-        yield return CoRefreshAllEnemiesToHomeDuringBlack();
-
-        // 关闭升级 UI（内部会 Resume timeScale，并恢复 gameplay HUD）
-        if (upgradeUIManager != null)
-            upgradeUIManager.CloseImmediate();
-
-        // ✅ 黑屏中补满血量（能量不动）
-        if (playerStats != null)
-            playerStats.ReviveFullHP();
-
-        // Exit 动画期间保持保护/锁输入
-        PrepareRespawnVisualBaseline();
-
-        if (playerReceiver != null)
-        {
-            playerReceiver.ForceClearHitLock();
-            playerReceiver.ForceClearIFrame();
-            playerReceiver.ForceSetInvincible(true);
-        }
-
-        if (playerController != null)
-            playerController.SetCheckpointFlowLock(true);
-
-        if (playerAnimator != null)
-        {
-            playerAnimator.ResetTrigger(enterTrigger);
-            playerAnimator.SetTrigger(exitTrigger);
-        }
-
-        state = SaveFlowState.ExitingAnim;
     }
 
     void PrepareCheckpointExitRespawnInBlack()
@@ -381,64 +373,6 @@ public class SavePointManager : MonoBehaviour
         if (playerStats != null)
             playerStats.ReviveFullHP();
     }
-
-    // ========================= Enemy Refresh =========================
-
-    IEnumerator CoRefreshAllEnemiesToHomeDuringBlack()
-    {
-        EnemyController[] enemies = FindObjectsOfType<EnemyController>(true);
-        if (enemies == null || enemies.Length == 0)
-            yield break;
-
-        // Phase A — Freeze
-        for (int i = 0; i < enemies.Length; i++)
-        {
-            EnemyController ec = enemies[i];
-            if (ec == null) continue;
-            ec.FreezeForCheckpointReset();
-        }
-
-        // Phase B — Teleport + Reset
-        for (int i = 0; i < enemies.Length; i++)
-        {
-            EnemyController ec = enemies[i];
-            if (ec == null) continue;
-
-            LostTarget lt = ec.GetComponent<LostTarget>();
-            Transform home = lt != null ? lt.homePoint : null;
-
-            if (home == null)
-                Debug.LogWarning($"[SavePointManager] Enemy '{ec.name}' has no LostTarget/homePoint. Reset without teleport.");
-
-            ec.TeleportAndResetForCheckpoint(home);
-        }
-
-        // Phase C — Settle
-        yield return null;
-        for (int i = 0; i < enemies.Length; i++)
-        {
-            EnemyController ec = enemies[i];
-            if (ec == null) continue;
-            ec.SettleAfterCheckpointReset();
-        }
-
-        yield return null;
-        for (int i = 0; i < enemies.Length; i++)
-        {
-            EnemyController ec = enemies[i];
-            if (ec == null) continue;
-            ec.SettleAfterCheckpointReset();
-        }
-
-        for (int i = 0; i < enemies.Length; i++)
-        {
-            EnemyController ec = enemies[i];
-            if (ec == null) continue;
-            ec.UnfreezeAfterCheckpointReset();
-        }
-    }
-
-    // ========================= Utilities =========================
 
     bool HasBaseLayerState(string stateName)
     {

@@ -58,23 +58,6 @@ public class EnemyMove : MonoBehaviour
     static readonly int AnimMoveY = Animator.StringToHash("MoveY");
 
     /* ================= 对外接口 ================= */
-    public void ResetMotionForTeleport()
-    {
-        // 清空运动输入
-        desiredMoveDir = Vector3.zero;
-        desiredSpeed = 0f;
-        desiredSpeedLevel = 0;
-
-        // 清空转向/重力残留
-        turnVelocity = 0f;
-        velocityY = 0f;
-
-        // 让下一帧重新做 grounded 判定
-        isGrounded = false;
-        wasGrounded = false;
-        lastGroundedTime = -999f;
-        groundNormal = Vector3.up;
-    }
 
     public void SetMoveDirection(Vector3 dir)
     {
