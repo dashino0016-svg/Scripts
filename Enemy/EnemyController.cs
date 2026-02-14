@@ -16,6 +16,10 @@ public class EnemyController : MonoBehaviour
     CombatReceiver receiver;
     SwordController sword;
 
+    // Cache Death Layer index so we can reliably disable it on checkpoint reset.
+    // (Some controllers keep Death Layer weight at 1, which would keep overriding Base Layer.)
+    int deathLayerIndex = -1;
+
     [Header("Sensor")]
     public float viewRadius = 10f;
 
@@ -193,12 +197,36 @@ public class EnemyController : MonoBehaviour
         receiver = GetComponent<CombatReceiver>();
         sword = GetComponentInChildren<SwordController>();
 
+        CacheDeathLayerIndex();
+
         cachedMove = GetComponent<EnemyMove>();
         cachedNavigator = GetComponent<EnemyNavigator>();
         cachedCharacterController = GetComponent<CharacterController>();
         cachedNavMeshAgent = GetComponent<NavMeshAgent>();
 
         ResolveCombatBrain();
+    }
+
+    void CacheDeathLayerIndex()
+    {
+        deathLayerIndex = -1;
+        if (anim == null) return;
+
+        // Prefer exact name.
+        deathLayerIndex = anim.GetLayerIndex("Death Layer");
+        if (deathLayerIndex >= 0) return;
+
+        // Fallback: find any layer containing "death".
+        for (int i = 0; i < anim.layerCount; i++)
+        {
+            string ln = anim.GetLayerName(i);
+            if (string.IsNullOrEmpty(ln)) continue;
+            if (ln.ToLowerInvariant().Contains("death"))
+            {
+                deathLayerIndex = i;
+                return;
+            }
+        }
     }
 
     void ResolveCombatBrain()
@@ -288,6 +316,8 @@ public class EnemyController : MonoBehaviour
 
     public void ApplyCheckpointResetDuringFreeze(Vector3 worldPos, Quaternion worldRot)
     {
+        bool wasDeadBeforeReset = (enemyState != null && enemyState.Current == EnemyStateType.Dead);
+
         waitingDeadDelay = false;
         deathByAssassination = false;
         IsInAssassinationLock = false;
@@ -295,6 +325,12 @@ public class EnemyController : MonoBehaviour
         weaponTransitionType = WeaponTransitionType.None;
         weaponLockRootMotionValid = false;
         cachedAnimSpeedValid = false;
+
+        if (deadFallbackCo != null)
+        {
+            StopCoroutine(deadFallbackCo);
+            deadFallbackCo = null;
+        }
 
         combatBrain?.ExitCombat();
 
@@ -315,7 +351,10 @@ public class EnemyController : MonoBehaviour
 
         if (combatStats == null) combatStats = GetComponent<CombatStats>();
         if (combatStats != null)
+        {
+            wasDeadBeforeReset |= combatStats.IsDead;
             combatStats.ReviveFullHPAndStamina();
+        }
 
         var melee = GetComponent<MeleeFighter>();
         if (melee != null && melee.enabled)
@@ -354,16 +393,50 @@ public class EnemyController : MonoBehaviour
 
         if (anim != null)
         {
+            anim.enabled = true;
+            anim.speed = 1f;
+            anim.applyRootMotion = false;
+
+            // Reset Animator to default states on all layers.
+            anim.Rebind();
+            anim.Update(0f);
+
+            // Clear triggers that could keep us in death/transition states.
+            anim.ResetTrigger("Dead");
+            anim.ResetTrigger("DrawSword");
+            anim.ResetTrigger("SheathSword");
+
+            // Ensure Death Layer doesn't override Base Layer after respawn.
+            if (deathLayerIndex >= 0)
+                anim.SetLayerWeight(deathLayerIndex, 0f);
+
             anim.SetBool("IsArmed", false);
             if (anim.HasState(0, Animator.StringToHash("UnarmedLocomotion")))
                 anim.Play("UnarmedLocomotion", 0, 0f);
             anim.Update(0f);
-            anim.speed = 1f;
-            anim.applyRootMotion = false;
         }
+
+        // Re-enable hitbox if it was disabled by Dead state.
+        var hitBox = GetComponentInChildren<EnemyHitBox>(true);
+        if (hitBox != null) hitBox.enabled = true;
 
         RestoreSolidCollisionAfterCheckpoint();
         enemyState.ForceResetToNotCombatForCheckpoint();
+
+        // If this enemy was dead, BeginCheckpointFreeze likely cached many components as disabled.
+        // Force caches to "enabled" so EndCheckpointFreeze can bring it back to active gameplay state.
+        if (wasDeadBeforeReset)
+        {
+            checkpointCachedControllerEnabled = true;
+            checkpointCachedNotCombatEnabled = true;
+            checkpointCachedLostTargetEnabled = true;
+            checkpointCachedCombatBrainEnabled = true;
+
+            checkpointCachedMoveEnabled = true;
+            checkpointCachedNavigatorEnabled = true;
+            checkpointCachedAgentEnabled = true;
+            checkpointCachedCharacterControllerEnabled = true;
+        }
     }
 
     public void CheckpointSettleSync()
@@ -544,7 +617,12 @@ public class EnemyController : MonoBehaviour
         if (rb != null)
         {
             rb.detectCollisions = true;
+            // Enemy root is driven by CharacterController/NavMeshAgent/our scripts.
+            // Keep Rigidbody kinematic to avoid physics depenetration causing snap/teleport-like motion.
             rb.isKinematic = true;
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.Sleep();
         }
 
         solidCollisionDisabledPermanently = false;
@@ -990,8 +1068,17 @@ public class EnemyController : MonoBehaviour
             anim.Rebind();
             anim.Update(0f);
             anim.SetBool("IsArmed", false);
+            anim.ResetTrigger("Dead");
+            anim.ResetTrigger("DrawSword");
+            anim.ResetTrigger("SheathSword");
+            if (deathLayerIndex >= 0)
+                anim.SetLayerWeight(deathLayerIndex, 0f);
             anim.speed = 1f;
             anim.applyRootMotion = false;
+
+            if (anim.HasState(0, Animator.StringToHash("UnarmedLocomotion")))
+                anim.Play("UnarmedLocomotion", 0, 0f);
+            anim.Update(0f);
         }
 
         RestoreSolidCollisionAfterCheckpoint();
@@ -1174,6 +1261,10 @@ public class EnemyController : MonoBehaviour
 
             var hitBox = GetComponentInChildren<EnemyHitBox>();
             if (hitBox != null) hitBox.enabled = false;
+
+            // Ensure Death Layer takes over when dead.
+            if (deathLayerIndex >= 0)
+                anim.SetLayerWeight(deathLayerIndex, 1f);
 
             if (!deathByAssassination)
                 anim.SetTrigger("Dead");
