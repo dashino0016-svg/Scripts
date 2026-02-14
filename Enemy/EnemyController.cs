@@ -87,6 +87,10 @@ public class EnemyController : MonoBehaviour
 
     [Header("Death Collision Timing")]
     [SerializeField] float deadAnimFallbackDelay = 3.0f;
+    [Header("Checkpoint Animator Reset")]
+    [SerializeField] string checkpointResetStateName = "UnarmedLocomotion";
+    [SerializeField] string checkpointFallbackStateName = "Empty";
+
     Coroutine deadFallbackCo;
     bool waitingDeadDelay;
 
@@ -174,18 +178,23 @@ public class EnemyController : MonoBehaviour
         weaponTransitionType = WeaponTransitionType.None;
     }
 
+    void EnsureRuntimeRefs()
+    {
+        if (enemyState == null) enemyState = GetComponent<EnemyState>();
+        if (anim == null) anim = GetComponent<Animator>();
+        if (combatStats == null) combatStats = GetComponent<CombatStats>();
+        if (receiver == null) receiver = GetComponent<CombatReceiver>();
+        if (sword == null) sword = GetComponentInChildren<SwordController>(true);
+        if (cachedMove == null) cachedMove = GetComponent<EnemyMove>();
+        if (cachedNavigator == null) cachedNavigator = GetComponent<EnemyNavigator>();
+
+        if (combatBrain == null || combatBrainBehaviour == null)
+            ResolveCombatBrain();
+    }
+
     void Awake()
     {
-        enemyState = GetComponent<EnemyState>();
-        anim = GetComponent<Animator>();
-        combatStats = GetComponent<CombatStats>();
-        receiver = GetComponent<CombatReceiver>();
-        sword = GetComponentInChildren<SwordController>();
-
-        cachedMove = GetComponent<EnemyMove>();
-        cachedNavigator = GetComponent<EnemyNavigator>();
-
-        ResolveCombatBrain();
+        EnsureRuntimeRefs();
     }
 
     void ResolveCombatBrain()
@@ -710,6 +719,7 @@ public class EnemyController : MonoBehaviour
 
     public void FreezeForCheckpointReset()
     {
+        EnsureRuntimeRefs();
         IsCheckpointResetting = true;
 
         StopAllCoroutines();
@@ -771,6 +781,7 @@ public class EnemyController : MonoBehaviour
 
     public void TeleportAndResetForCheckpoint(Transform homePoint)
     {
+        EnsureRuntimeRefs();
         deathByAssassination = false;
         IsInAssassinationLock = false;
         IsInWeaponTransition = false;
@@ -852,17 +863,7 @@ public class EnemyController : MonoBehaviour
             }
         }
 
-        if (anim != null)
-        {
-            anim.applyRootMotion = false;
-            anim.speed = 1f;
-            anim.SetBool("IsArmed", false);
-
-            int idleHash = Animator.StringToHash("UnarmedLocomotion");
-            if (anim.HasState(0, idleHash))
-                anim.Play(idleHash, 0, 0f);
-            anim.Update(0f);
-        }
+        ApplyCheckpointAnimatorBaseline();
 
         RestoreSolidCollisionAfterCheckpoint();
 
@@ -875,7 +876,54 @@ public class EnemyController : MonoBehaviour
         var hitBox = GetComponentInChildren<EnemyHitBox>(true);
         if (hitBox != null) hitBox.enabled = true;
 
-        enemyState.ForceResetToNotCombatForCheckpoint();
+        if (enemyState != null)
+            enemyState.ForceResetToNotCombatForCheckpoint();
+    }
+
+    void ApplyCheckpointAnimatorBaseline()
+    {
+        if (anim == null)
+            return;
+
+        anim.applyRootMotion = false;
+        anim.speed = 1f;
+
+        anim.ResetTrigger("Dead");
+        anim.ResetTrigger("DrawSword");
+        anim.ResetTrigger("SheathSword");
+
+        anim.SetBool("IsArmed", false);
+
+        bool played = false;
+
+        if (!string.IsNullOrEmpty(checkpointResetStateName))
+        {
+            int resetHash = Animator.StringToHash(checkpointResetStateName);
+            if (anim.HasState(0, resetHash))
+            {
+                anim.Play(resetHash, 0, 0f);
+                played = true;
+            }
+        }
+
+        if (!played && !string.IsNullOrEmpty(checkpointFallbackStateName))
+        {
+            int fallbackHash = Animator.StringToHash(checkpointFallbackStateName);
+            if (anim.HasState(0, fallbackHash))
+            {
+                anim.Play(fallbackHash, 0, 0f);
+                played = true;
+            }
+        }
+
+        if (!played)
+        {
+            // ultimate fallback: fully rebuild animator runtime state to avoid staying in Dead pose.
+            anim.Rebind();
+        }
+
+        anim.Update(0f);
+        anim.SetBool("IsArmed", false);
     }
 
     public void SettleAfterCheckpointReset()
@@ -890,6 +938,8 @@ public class EnemyController : MonoBehaviour
 
     public void UnfreezeAfterCheckpointReset()
     {
+        EnsureRuntimeRefs();
+
         NavMeshAgent agent = GetComponent<NavMeshAgent>();
         if (agent != null)
         {
