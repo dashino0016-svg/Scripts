@@ -9,6 +9,14 @@ public class EnemyExperienceGiver : MonoBehaviour
 {
     [Header("Bind")]
     [SerializeField] CombatStats stats;
+
+    [Header("XP")]
+    [Tooltip("该敌人死亡时给予玩家的经验值。")]
+    [Min(0)]
+    [SerializeField] int experienceValue = 30;
+
+    [Header("Legacy (migration only)")]
+    [Tooltip("旧版经验值组件；迁移期用于自动兼容读取。")]
     [SerializeField] EnemyExperienceValue xpValue;
 
     bool awardedThisLife;
@@ -18,6 +26,10 @@ public class EnemyExperienceGiver : MonoBehaviour
     {
         if (stats == null) stats = GetComponent<CombatStats>();
         if (xpValue == null) xpValue = GetComponent<EnemyExperienceValue>();
+
+        // Migration compatibility: if legacy component exists, use its value.
+        if (xpValue != null)
+            experienceValue = Mathf.Max(0, xpValue.experienceValue);
     }
 
     void OnEnable()
@@ -52,7 +64,12 @@ public class EnemyExperienceGiver : MonoBehaviour
         if (awardedThisLife) return;
         awardedThisLife = true;
 
-        int amount = (xpValue != null) ? Mathf.Max(0, xpValue.experienceValue) : 0;
+        int amount = Mathf.Max(0, experienceValue);
+
+        // Fallback for legacy prefabs not yet migrated.
+        if (amount <= 0 && xpValue != null)
+            amount = Mathf.Max(0, xpValue.experienceValue);
+
         if (amount <= 0) return;
 
         var pe = PlayerExperience.Instance;
@@ -61,5 +78,10 @@ public class EnemyExperienceGiver : MonoBehaviour
 
         if (pe != null)
             pe.AddXP(amount);
+    }
+
+    void OnValidate()
+    {
+        if (experienceValue < 0) experienceValue = 0;
     }
 }
