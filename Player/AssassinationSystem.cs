@@ -71,7 +71,7 @@ public class AssassinationSystem : MonoBehaviour
 
     CombatStats currentTargetStats;
     EnemyController currentEnemyController;
-    AssassinationTarget currentTargetCfg;
+    EnemyController currentTargetEnemy;
     Animator currentEnemyAnim;
 
     // ✅ 输入由 PlayerController 统一管理：这里仅接收“本帧按下”
@@ -130,10 +130,10 @@ public class AssassinationSystem : MonoBehaviour
         StartTakedown(type, cfg, targetStats);
     }
 
-    bool EvaluateCanTakedown(out TakedownType type, out AssassinationTarget cfg, out CombatStats targetStats)
+    bool EvaluateCanTakedown(out TakedownType type, out EnemyController targetEnemy, out CombatStats targetStats)
     {
         type = TakedownType.None;
-        cfg = null;
+        targetEnemy = null;
         targetStats = null;
 
         if (lockOn == null || !lockOn.IsLocked || lockOn.CurrentTargetStats == null)
@@ -148,15 +148,15 @@ public class AssassinationSystem : MonoBehaviour
         if (targetStats.IsDead || targetStats.CurrentHP <= 0)
             return false;
 
-        cfg = targetStats.GetComponentInParent<AssassinationTarget>();
-        if (cfg == null)
+        targetEnemy = targetStats.GetComponentInParent<EnemyController>();
+        if (targetEnemy == null)
             return false;
 
         // 暗杀优先（蹲 + 敌人非战斗）
-        if (CanAssassinateInternal(cfg, targetStats))
+        if (CanAssassinateInternal(targetEnemy, targetStats))
         {
-            Transform a = cfg.GetAnchorOrSelf(forExecute: false);
-            if (Vector3.Distance(transform.position, a.position) <= cfg.maxDistance)
+            Transform a = targetEnemy.GetTakedownAnchorOrSelf(forExecute: false);
+            if (Vector3.Distance(transform.position, a.position) <= targetEnemy.takedownMaxDistance)
             {
                 type = TakedownType.Assassinate;
                 return true;
@@ -164,10 +164,10 @@ public class AssassinationSystem : MonoBehaviour
         }
 
         // 处决（非蹲 + 持剑 + 敌人战斗中 + 破防恢复期 + 非防御）
-        if (CanExecuteInternal(cfg, targetStats))
+        if (CanExecuteInternal(targetEnemy, targetStats))
         {
-            Transform a = cfg.GetAnchorOrSelf(forExecute: true);
-            if (Vector3.Distance(transform.position, a.position) <= cfg.maxDistance)
+            Transform a = targetEnemy.GetTakedownAnchorOrSelf(forExecute: true);
+            if (Vector3.Distance(transform.position, a.position) <= targetEnemy.takedownMaxDistance)
             {
                 type = TakedownType.Execute;
                 return true;
@@ -177,9 +177,9 @@ public class AssassinationSystem : MonoBehaviour
         return false;
     }
 
-    bool CanAssassinateInternal(AssassinationTarget cfg, CombatStats targetStats)
+    bool CanAssassinateInternal(EnemyController targetEnemy, CombatStats targetStats)
     {
-        if (!cfg.canBeAssassinated) return false;
+        if (targetEnemy == null || !targetEnemy.canBeAssassinated) return false;
         if (anim == null || !anim.GetBool(crouchBoolName)) return false;
 
         var enemyState = targetStats.GetComponentInParent<EnemyState>();
@@ -200,9 +200,9 @@ public class AssassinationSystem : MonoBehaviour
         return true;
     }
 
-    bool CanExecuteInternal(AssassinationTarget cfg, CombatStats targetStats)
+    bool CanExecuteInternal(EnemyController targetEnemy, CombatStats targetStats)
     {
-        if (!cfg.canBeExecuted) return false;
+        if (targetEnemy == null || !targetEnemy.canBeExecuted) return false;
         if (lockOn == null || !lockOn.IsLocked) return false;
 
         if (sword == null || !sword.IsArmed) return false;
@@ -221,14 +221,14 @@ public class AssassinationSystem : MonoBehaviour
         return true;
     }
 
-    void StartTakedown(TakedownType type, AssassinationTarget cfg, CombatStats targetStats)
+    void StartTakedown(TakedownType type, EnemyController targetEnemy, CombatStats targetStats)
     {
         if (isAssassinating) return;
 
         currentType = type;
-        currentTargetCfg = cfg;
+        currentTargetEnemy = targetEnemy;
         currentTargetStats = targetStats;
-        currentEnemyController = (targetStats != null) ? targetStats.GetComponentInParent<EnemyController>() : null;
+        currentEnemyController = targetEnemy;
         currentEnemyAnim = (currentEnemyController != null) ? currentEnemyController.GetComponent<Animator>() : null;
 
         isAssassinating = true;
@@ -256,9 +256,9 @@ public class AssassinationSystem : MonoBehaviour
         if (currentEnemyController != null)
             currentEnemyController.EnterAssassinationLock();
 
-        if (snapOnStart && currentTargetCfg != null)
+        if (snapOnStart && currentTargetEnemy != null)
         {
-            Transform anchor = currentTargetCfg.GetAnchorOrSelf(forExecute: currentType == TakedownType.Execute);
+            Transform anchor = currentTargetEnemy.GetTakedownAnchorOrSelf(forExecute: currentType == TakedownType.Execute);
             TeleportToAnchor_NoCC(anchor);
         }
 
@@ -416,7 +416,7 @@ public class AssassinationSystem : MonoBehaviour
         }
 
         currentType = TakedownType.None;
-        currentTargetCfg = null;
+        currentTargetEnemy = null;
         currentEnemyController = null;
         currentEnemyAnim = null;
         currentTargetStats = null;

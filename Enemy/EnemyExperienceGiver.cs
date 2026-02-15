@@ -9,7 +9,11 @@ public class EnemyExperienceGiver : MonoBehaviour
 {
     [Header("Bind")]
     [SerializeField] CombatStats stats;
-    [SerializeField] EnemyExperienceValue xpValue;
+
+    [Header("XP")]
+    [Tooltip("该敌人死亡时给予玩家的经验值。")]
+    [Min(0)]
+    [SerializeField] int experienceValue = 30;
 
     bool awardedThisLife;
     bool lastDead;
@@ -17,7 +21,6 @@ public class EnemyExperienceGiver : MonoBehaviour
     void Awake()
     {
         if (stats == null) stats = GetComponent<CombatStats>();
-        if (xpValue == null) xpValue = GetComponent<EnemyExperienceValue>();
     }
 
     void OnEnable()
@@ -52,7 +55,7 @@ public class EnemyExperienceGiver : MonoBehaviour
         if (awardedThisLife) return;
         awardedThisLife = true;
 
-        int amount = (xpValue != null) ? Mathf.Max(0, xpValue.experienceValue) : 0;
+        int amount = Mathf.Max(0, experienceValue);
         if (amount <= 0) return;
 
         var pe = PlayerExperience.Instance;
@@ -61,5 +64,10 @@ public class EnemyExperienceGiver : MonoBehaviour
 
         if (pe != null)
             pe.AddXP(amount);
+    }
+
+    void OnValidate()
+    {
+        if (experienceValue < 0) experienceValue = 0;
     }
 }

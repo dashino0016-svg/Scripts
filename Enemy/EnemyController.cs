@@ -78,6 +78,19 @@ public class EnemyController : MonoBehaviour
     bool deathByAssassination;
     public void MarkDeathByAssassination() => deathByAssassination = true;
 
+    [Header("Takedown")]
+    public bool canBeAssassinated = true;
+    public bool canBeExecuted = true;
+
+    [Tooltip("暗杀贴合用锚点（可选）。空则回退到自身 transform。")]
+    public Transform assassinateAnchor;
+
+    [Tooltip("处决贴合用锚点（可选）。空则回退到暗杀锚点，再回退到自身 transform。")]
+    public Transform executeAnchor;
+
+    [Min(0f)]
+    public float takedownMaxDistance = 1.5f;
+
     EnemyMove cachedMove;
     EnemyNavigator cachedNavigator;
     bool cachedMoveEnabled;
@@ -123,6 +136,19 @@ public class EnemyController : MonoBehaviour
             if (targetStats == null || targetStats.IsDead) return false;
             return targetStats.GetComponentInParent<PlayerController>() != null;
         }
+    }
+
+    public Transform GetTakedownAnchorOrSelf(bool forExecute)
+    {
+        if (forExecute)
+        {
+            if (executeAnchor != null) return executeAnchor;
+            if (assassinateAnchor != null) return assassinateAnchor;
+            return transform;
+        }
+
+        if (assassinateAnchor != null) return assassinateAnchor;
+        return transform;
     }
 
     // ================= Weapon Transition Lock =================
