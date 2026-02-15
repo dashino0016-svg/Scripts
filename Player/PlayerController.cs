@@ -13,6 +13,7 @@ public class PlayerController : MonoBehaviour
     public KeyCode jumpKey = KeyCode.Space;
     public KeyCode takedownKey = KeyCode.V;
     public KeyCode crouchKey = KeyCode.C;
+    public KeyCode savePointInteractKey = KeyCode.E;
     public KeyCode attackAKey = KeyCode.Mouse0;
     public KeyCode attackBKey = KeyCode.E;
 
@@ -53,6 +54,8 @@ public class PlayerController : MonoBehaviour
     bool isBlocking;
     bool isAbility;
     bool isCheckpointFlow;
+
+    Transform currentSavePointRoot;
 
     // ✅ crouch runtime
     bool isCrouching;
@@ -190,6 +193,7 @@ public class PlayerController : MonoBehaviour
         HandleBlockInput();
         HandleAbilityInput();
         HandleTakedownInput();
+        HandleSavePointInteractInput();
         HandleMiniDroneInput();
     }
 
@@ -329,6 +333,18 @@ public class PlayerController : MonoBehaviour
             return;
 
         assassination.NotifyTakedownPressed();
+    }
+
+    void HandleSavePointInteractInput()
+    {
+        if (!Input.GetKeyDown(savePointInteractKey)) return;
+        if (currentSavePointRoot == null) return;
+        if (SavePointManager.Instance == null) return;
+        if (TimeController.Instance != null && TimeController.Instance.IsPaused) return;
+        if (sword != null && sword.IsArmed) return;
+        if (IsInActionLock) return;
+
+        SavePointManager.Instance.BeginSaveFlow(currentSavePointRoot);
     }
 
     // ✅ 统一强制退出 crouch（用于受击/收剑/死亡等兜底）
@@ -768,6 +784,20 @@ public class PlayerController : MonoBehaviour
             rollKeyHolding = false;
             rollActionTriggered = false;
         }
+    }
+
+    void OnTriggerEnter(Collider other)
+    {
+        if (SavePointManager.Instance == null) return;
+        if (SavePointManager.Instance.TryResolveSavePointRoot(other, out Transform savePointRoot))
+            currentSavePointRoot = savePointRoot;
+    }
+
+    void OnTriggerExit(Collider other)
+    {
+        if (SavePointManager.Instance == null || currentSavePointRoot == null) return;
+        if (SavePointManager.Instance.TryResolveSavePointRoot(other, out Transform savePointRoot) && savePointRoot == currentSavePointRoot)
+            currentSavePointRoot = null;
     }
 
     void OnDisable()

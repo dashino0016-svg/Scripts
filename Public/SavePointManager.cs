@@ -15,8 +15,19 @@ public class SavePointManager : MonoBehaviour
         ExitingAnim
     }
 
+    [System.Serializable]
+    public class SavePointData
+    {
+        public Transform triggerRoot;
+        public Transform interactAnchor;
+        public Transform respawnAnchor;
+
+        public Transform RespawnAnchor => respawnAnchor != null ? respawnAnchor : interactAnchor;
+    }
+
     [Header("References")]
-    [SerializeField] SavePoint initialSavePoint;
+    [SerializeField] int initialSavePointIndex = -1;
+    [SerializeField] List<SavePointData> savePoints = new List<SavePointData>();
     [SerializeField] Transform playerRoot;
     [SerializeField] Animator playerAnimator;
     [SerializeField] PlayerController playerController;
@@ -45,12 +56,12 @@ public class SavePointManager : MonoBehaviour
     [SerializeField] int navMeshAreaMask = NavMesh.AllAreas;
 
     SaveFlowState state = SaveFlowState.Idle;
-    SavePoint currentSavePoint;
-    SavePoint lastSavePoint;
+    SavePointData currentSavePoint;
+    SavePointData lastSavePoint;
     bool deathRespawnPending;
 
-    public SavePoint LastSavePoint => lastSavePoint;
-    public SavePoint InitialSavePoint => initialSavePoint;
+    public SavePointData LastSavePoint => lastSavePoint;
+    public SavePointData InitialSavePoint => GetInitialSavePoint();
 
     void Awake()
     {
@@ -109,12 +120,13 @@ public class SavePointManager : MonoBehaviour
         }
     }
 
-    public bool BeginSaveFlow(SavePoint savePoint)
+    public bool BeginSaveFlow(Transform savePointRoot)
     {
         if (state != SaveFlowState.Idle) return false;
+        SavePointData savePoint = GetSavePointByRoot(savePointRoot);
         if (savePoint == null || savePoint.interactAnchor == null)
         {
-            Debug.LogWarning("[SavePointManager] SavePoint/interactAnchor missing.");
+            Debug.LogWarning("[SavePointManager] SavePointData/interactAnchor missing.");
             return false;
         }
 
@@ -139,17 +151,17 @@ public class SavePointManager : MonoBehaviour
         return true;
     }
 
-    public SavePoint GetRespawnSavePoint()
+    public SavePointData GetRespawnSavePoint()
     {
         if (lastSavePoint != null)
             return lastSavePoint;
 
-        return initialSavePoint;
+        return GetInitialSavePoint();
     }
 
     public Transform GetRespawnAnchor()
     {
-        SavePoint respawnSavePoint = GetRespawnSavePoint();
+        SavePointData respawnSavePoint = GetRespawnSavePoint();
         if (respawnSavePoint == null)
             return null;
 
@@ -161,6 +173,44 @@ public class SavePointManager : MonoBehaviour
         // single-slot save rule:
         // only after touching a save point should death-respawn use checkpoint exit pose.
         return lastSavePoint != null;
+    }
+
+    SavePointData GetInitialSavePoint()
+    {
+        if (initialSavePointIndex < 0 || initialSavePointIndex >= savePoints.Count)
+            return null;
+        return savePoints[initialSavePointIndex];
+    }
+
+    SavePointData GetSavePointByRoot(Transform savePointRoot)
+    {
+        if (savePointRoot == null) return null;
+        for (int i = 0; i < savePoints.Count; i++)
+        {
+            SavePointData sp = savePoints[i];
+            if (sp == null || sp.triggerRoot == null) continue;
+            if (sp.triggerRoot == savePointRoot) return sp;
+        }
+        return null;
+    }
+
+    public bool TryResolveSavePointRoot(Collider other, out Transform savePointRoot)
+    {
+        savePointRoot = null;
+        if (other == null) return false;
+
+        Transform t = other.transform;
+        for (int i = 0; i < savePoints.Count; i++)
+        {
+            SavePointData sp = savePoints[i];
+            if (sp == null || sp.triggerRoot == null) continue;
+            if (t == sp.triggerRoot || t.IsChildOf(sp.triggerRoot))
+            {
+                savePointRoot = sp.triggerRoot;
+                return true;
+            }
+        }
+        return false;
     }
 
     public void NotifySaveAnimEnd()
@@ -291,7 +341,7 @@ public class SavePointManager : MonoBehaviour
         if (respawnAnchor != null)
             AlignPlayerToAnchor(respawnAnchor);
         else
-            Debug.LogWarning("[SavePointManager] Respawn anchor is missing (both lastSavePoint and initialSavePoint are null).");
+            Debug.LogWarning("[SavePointManager] Respawn anchor is missing (both lastSavePoint and configured initial save point are null).");
 
         if (ShouldPlayCheckpointExitOnRespawn())
             PrepareCheckpointExitRespawnInBlack();
