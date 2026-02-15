@@ -1,15 +1,21 @@
 using System;
 using UnityEngine;
+using CyberpunkGenericHexUI;
 
 public class UpgradeUIManager : MonoBehaviour
 {
-    public event Action ExitRequested;
-    public event Action UnlockDroneBurstRequested;
+    public event Action CloseRequested;
+
+    public event Action Button1Requested;
+    public event Action Button2Requested;
+    public event Action Button3Requested;
+    public event Action Button4Requested;
+    public event Action Button5Requested;
+    public event Action Button6Requested;
 
     [Header("UI Root (scene instance)")]
     [SerializeField] GameObject uiRoot;
-
-    [SerializeField] CyberpunkAttributeUIScreen uiScreen;
+    [SerializeField] CyberpunkGenericHexUIScreen uiScreen;
 
     [Header("Audio")]
     [SerializeField] AudioClip uiBgmLoop;
@@ -29,12 +35,12 @@ public class UpgradeUIManager : MonoBehaviour
     {
         if (uiRoot == null)
         {
-            Debug.LogWarning("[UpgradeUIManager] uiRoot is null. Please assign the UI prefab instance in scene.");
+            Debug.LogWarning("[UpgradeUIManager] uiRoot is null. Please assign the UI root GameObject in scene.");
         }
         else
         {
             if (uiScreen == null)
-                uiScreen = uiRoot.GetComponentInChildren<CyberpunkAttributeUIScreen>(true);
+                uiScreen = uiRoot.GetComponentInChildren<CyberpunkGenericHexUIScreen>(true);
 
             uiRoot.SetActive(false);
         }
@@ -43,10 +49,7 @@ public class UpgradeUIManager : MonoBehaviour
         WireUIEvents();
     }
 
-    void OnEnable()
-    {
-        WireUIEvents();
-    }
+    void OnEnable() => WireUIEvents();
 
     void Update()
     {
@@ -58,16 +61,28 @@ public class UpgradeUIManager : MonoBehaviour
     {
         if (uiScreen == null) return;
 
-        uiScreen.onExit.RemoveListener(RequestClose);
-        uiScreen.onUnlockDroneBurst.RemoveListener(OnClickUnlockDroneBurst);
+        uiScreen.onClose.RemoveListener(RequestClose);
+        uiScreen.onClose.AddListener(RequestClose);
 
-        uiScreen.onExit.AddListener(RequestClose);
-        uiScreen.onUnlockDroneBurst.AddListener(OnClickUnlockDroneBurst);
+        uiScreen.onButton1.RemoveListener(OnClickButton1);
+        uiScreen.onButton2.RemoveListener(OnClickButton2);
+        uiScreen.onButton3.RemoveListener(OnClickButton3);
+        uiScreen.onButton4.RemoveListener(OnClickButton4);
+        uiScreen.onButton5.RemoveListener(OnClickButton5);
+        uiScreen.onButton6.RemoveListener(OnClickButton6);
+
+        uiScreen.onButton1.AddListener(OnClickButton1);
+        uiScreen.onButton2.AddListener(OnClickButton2);
+        uiScreen.onButton3.AddListener(OnClickButton3);
+        uiScreen.onButton4.AddListener(OnClickButton4);
+        uiScreen.onButton5.AddListener(OnClickButton5);
+        uiScreen.onButton6.AddListener(OnClickButton6);
     }
 
     public void Open()
     {
         if (isOpen) return;
+
         if (ScreenFader.Instance == null)
         {
             Debug.LogError("[UpgradeUIManager] ScreenFader.Instance not found. Please add ScreenFader to scene.");
@@ -86,9 +101,9 @@ public class UpgradeUIManager : MonoBehaviour
     {
         if (!isOpen) return;
 
-        if (ExitRequested != null)
+        if (CloseRequested != null)
         {
-            ExitRequested.Invoke();
+            CloseRequested.Invoke();
             return;
         }
 
@@ -139,9 +154,10 @@ public class UpgradeUIManager : MonoBehaviour
         );
     }
 
-    void OnClickUnlockDroneBurst()
-    {
-        UnlockDroneBurstRequested?.Invoke();
-        Debug.Log("[UpgradeUIManager] Unlock Drone Burst clicked (placeholder).");
-    }
+    void OnClickButton1() => Button1Requested?.Invoke();
+    void OnClickButton2() => Button2Requested?.Invoke();
+    void OnClickButton3() => Button3Requested?.Invoke();
+    void OnClickButton4() => Button4Requested?.Invoke();
+    void OnClickButton5() => Button5Requested?.Invoke();
+    void OnClickButton6() => Button6Requested?.Invoke();
 }

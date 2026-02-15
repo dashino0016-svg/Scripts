@@ -71,11 +71,24 @@ public class SavePointManager : MonoBehaviour
 
         if (upgradeUIManager != null)
         {
-            upgradeUIManager.ExitRequested -= OnUIExitRequested;
-            upgradeUIManager.ExitRequested += OnUIExitRequested;
+            // 通用：关闭
+            upgradeUIManager.CloseRequested -= OnUICloseRequested;
+            upgradeUIManager.CloseRequested += OnUICloseRequested;
 
-            upgradeUIManager.UnlockDroneBurstRequested -= OnUnlockDroneBurstRequested;
-            upgradeUIManager.UnlockDroneBurstRequested += OnUnlockDroneBurstRequested;
+            // 通用：6个按钮
+            upgradeUIManager.Button1Requested -= OnUIButton1Requested;
+            upgradeUIManager.Button2Requested -= OnUIButton2Requested;
+            upgradeUIManager.Button3Requested -= OnUIButton3Requested;
+            upgradeUIManager.Button4Requested -= OnUIButton4Requested;
+            upgradeUIManager.Button5Requested -= OnUIButton5Requested;
+            upgradeUIManager.Button6Requested -= OnUIButton6Requested;
+
+            upgradeUIManager.Button1Requested += OnUIButton1Requested;
+            upgradeUIManager.Button2Requested += OnUIButton2Requested;
+            upgradeUIManager.Button3Requested += OnUIButton3Requested;
+            upgradeUIManager.Button4Requested += OnUIButton4Requested;
+            upgradeUIManager.Button5Requested += OnUIButton5Requested;
+            upgradeUIManager.Button6Requested += OnUIButton6Requested;
         }
     }
 
@@ -85,8 +98,14 @@ public class SavePointManager : MonoBehaviour
 
         if (upgradeUIManager != null)
         {
-            upgradeUIManager.ExitRequested -= OnUIExitRequested;
-            upgradeUIManager.UnlockDroneBurstRequested -= OnUnlockDroneBurstRequested;
+            upgradeUIManager.CloseRequested -= OnUICloseRequested;
+
+            upgradeUIManager.Button1Requested -= OnUIButton1Requested;
+            upgradeUIManager.Button2Requested -= OnUIButton2Requested;
+            upgradeUIManager.Button3Requested -= OnUIButton3Requested;
+            upgradeUIManager.Button4Requested -= OnUIButton4Requested;
+            upgradeUIManager.Button5Requested -= OnUIButton5Requested;
+            upgradeUIManager.Button6Requested -= OnUIButton6Requested;
         }
     }
 
@@ -167,7 +186,7 @@ public class SavePointManager : MonoBehaviour
     {
         if (state != SaveFlowState.ExitingAnim) return;
 
-        // NOTE: HP refill for "exit save point" should happen during the black screen (OnUIExitRequested midAction),
+        // NOTE: HP refill for "exit save point" should happen during the black screen (OnUICloseRequested midAction),
         // not during/after the exit animation. Here we only release locks and end invincibility.
         PrepareRespawnVisualBaseline();
 
@@ -188,7 +207,8 @@ public class SavePointManager : MonoBehaviour
         state = SaveFlowState.Idle;
     }
 
-    void OnUIExitRequested()
+    // ========= 通用：关闭请求 =========
+    void OnUICloseRequested()
     {
         if (state != SaveFlowState.InUI) return;
         if (ScreenFader.Instance == null)
@@ -204,7 +224,6 @@ public class SavePointManager : MonoBehaviour
                     upgradeUIManager.CloseImmediate();
 
                 // ✅ Refill player HP during the black screen (energy/special stays unchanged).
-                // This avoids showing the refill happening during the exit animation.
                 if (playerStats != null)
                     playerStats.ReviveFullHP();
 
@@ -232,10 +251,13 @@ public class SavePointManager : MonoBehaviour
         ));
     }
 
-    void OnUnlockDroneBurstRequested()
-    {
-        Debug.Log("[SavePointManager] UnlockDroneBurst requested (placeholder).", this);
-    }
+    // ========= 通用：6个按钮占位接口（以后你接入具体功能） =========
+    void OnUIButton1Requested() => Debug.Log("[SavePointManager] Button1 requested (placeholder).", this);
+    void OnUIButton2Requested() => Debug.Log("[SavePointManager] Button2 requested (placeholder).", this);
+    void OnUIButton3Requested() => Debug.Log("[SavePointManager] Button3 requested (placeholder).", this);
+    void OnUIButton4Requested() => Debug.Log("[SavePointManager] Button4 requested (placeholder).", this);
+    void OnUIButton5Requested() => Debug.Log("[SavePointManager] Button5 requested (placeholder).", this);
+    void OnUIButton6Requested() => Debug.Log("[SavePointManager] Button6 requested (placeholder).", this);
 
     void OnPlayerDead()
     {
