@@ -1,5 +1,16 @@
 using UnityEngine;
 
+/// <summary>
+/// Simple 0~1 UI fill controller.
+/// - Works by resizing a RectTransform's width (sizeDelta.x)
+/// - Supports smooth lerp
+///
+/// Typical hierarchy:
+///   BG (Image + Mask)
+///     Fill (Image + UIFillBar)
+///
+/// UIFillBar is usually placed on the Fill object.
+/// </summary>
 public class UIFillBar : MonoBehaviour
 {
     [SerializeField] RectTransform fillRect;
@@ -32,7 +43,7 @@ public class UIFillBar : MonoBehaviour
 
         RecalculateFullWidth();
 
-        // 默认满宽=当前宽，避免起始为0导致看不见
+        // Initialize to current width, so it won't start at 0 by mistake.
         current01 = Mathf.Clamp01(fullWidth <= 0f ? 0f : (fillRect.sizeDelta.x / fullWidth));
         target01 = current01;
         SetWidth(current01);
@@ -45,7 +56,7 @@ public class UIFillBar : MonoBehaviour
 
         current01 = Mathf.Lerp(current01, target01, dt * smoothSpeed);
 
-        // 逼近收敛
+        // Snap when close.
         if (Mathf.Abs(current01 - target01) < 0.0015f)
             current01 = target01;
 
@@ -56,17 +67,24 @@ public class UIFillBar : MonoBehaviour
     {
         if (fillRect == null)
             fillRect = GetComponent<RectTransform>();
+
         fullWidth = fillRect.sizeDelta.x;
         if (fullWidth < 0.0001f) fullWidth = 1f;
     }
 
-    /// <summary>设置目标值（会动画过去）</summary>
+    /// <summary>Set target value (smooth).</summary>
     public void SetTarget01(float value01)
     {
         target01 = Mathf.Clamp01(value01);
     }
 
-    /// <summary>立即设置（不动画）</summary>
+    /// <summary>Backwards-compatible API used by existing HUD scripts (smooth).</summary>
+    public void Set01(float value01)
+    {
+        SetTarget01(value01);
+    }
+
+    /// <summary>Set immediately (no smooth).</summary>
     public void SetImmediate01(float value01)
     {
         current01 = target01 = Mathf.Clamp01(value01);
