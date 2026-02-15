@@ -22,14 +22,30 @@ public class ExperienceUI : MonoBehaviour
     [SerializeField] Color barFillColor = new Color(0.95f, 0.75f, 0.55f, 0.95f);
     [SerializeField] Color pointsTextColor = new Color(1f, 1f, 1f, 0.95f);
 
-    [Header("Show/Hide")]
+    [Header("Show/Hide (gain)")]
     [SerializeField] float fadeInTime = 0.16f;
     [SerializeField] float holdTime = 1.6f;
     [SerializeField] float fadeOutTime = 0.30f;
     [SerializeField] bool useUnscaledTime = true;
 
-    [Header("Fill Smoothing")]
+    [Header("Fill Smoothing (gain)")]
     [SerializeField] float fillSmoothSpeed = 14f;
+
+    [Header("Death Drain (new)")]
+    [Tooltip("玩家死亡时是否显示经验条，并播放经验掉到0的动画。")]
+    [SerializeField] bool showAndDrainOnDeath = true;
+
+    [Tooltip("死亡时经验掉到0的持续时间（秒）。")]
+    [SerializeField, Range(0.05f, 3f)] float deathDrainDuration = 0.55f;
+
+    [Tooltip("掉到0之后停留多久再淡出。")]
+    [SerializeField, Range(0f, 3f)] float deathHoldAfterDrain = 0.35f;
+
+    [Tooltip("死亡时显示的淡入时间（秒）。")]
+    [SerializeField, Range(0f, 2f)] float deathFadeInTime = 0.12f;
+
+    [Tooltip("死亡时隐藏的淡出时间（秒）。")]
+    [SerializeField, Range(0f, 2f)] float deathFadeOutTime = 0.28f;
 
     CanvasGroup group;
     Text pointsText;
@@ -37,8 +53,12 @@ public class ExperienceUI : MonoBehaviour
     bool built;
 
     Sprite capsuleSprite;
+
     Coroutine showHideCo;
     Coroutine fillAnimCo;
+    Coroutine deathDrainCo;
+
+    bool isDeathDraining;
 
     void OnEnable()
     {
@@ -193,9 +213,11 @@ public class ExperienceUI : MonoBehaviour
         }
     }
 
-    // ✅ 用详细事件做“真正动画”，并支持溢出升级表现
+    // 经验获得：显示 + 填充动画（支持溢出）
     void OnXPGainedDetailed(int gained, int oldXP, int newXP, int maxXP, int oldPoints, int newPoints, int levelUps)
     {
+        CancelDeathDrain();
+
         if (pointsText != null) pointsText.text = newPoints.ToString();
 
         if (fillAnimCo != null) StopCoroutine(fillAnimCo);
@@ -205,9 +227,11 @@ public class ExperienceUI : MonoBehaviour
         showHideCo = StartCoroutine(ShowThenHide());
     }
 
-    // ✅ 状态同步不要再 SetImmediate01，否则会把动画打断
+    // 状态同步：不要瞬间 snap（避免打断动画）
     void OnXPStateChanged(int curXP, int maxXP, int points)
     {
+        if (isDeathDraining) return;
+
         if (pointsText != null) pointsText.text = points.ToString();
         if (fillBar != null)
         {
@@ -216,15 +240,89 @@ public class ExperienceUI : MonoBehaviour
         }
     }
 
+    // ✅ 玩家死亡：显示经验条，然后播放掉到0
     void OnXPResetByDeath()
     {
+        if (!showAndDrainOnDeath)
+        {
+            // 旧行为：直接清空并隐藏
+            if (showHideCo != null) StopCoroutine(showHideCo);
+            if (fillAnimCo != null) StopCoroutine(fillAnimCo);
+            if (deathDrainCo != null) StopCoroutine(deathDrainCo);
+            showHideCo = null; fillAnimCo = null; deathDrainCo = null;
+
+            if (fillBar != null) fillBar.SetImmediate01(0f);
+            SetAlpha(0f);
+            return;
+        }
+
+        // 取消“击杀显示”流程，改为死亡 drain 流程
         if (showHideCo != null) StopCoroutine(showHideCo);
         if (fillAnimCo != null) StopCoroutine(fillAnimCo);
+        if (deathDrainCo != null) StopCoroutine(deathDrainCo);
         showHideCo = null;
         fillAnimCo = null;
 
-        if (fillBar != null) fillBar.SetImmediate01(0f);
-        SetAlpha(0f);
+        // 经验点保留：显示当前点数
+        if (experience != null && pointsText != null)
+            pointsText.text = experience.XPPoints.ToString();
+
+        deathDrainCo = StartCoroutine(CoDeathDrainToZero());
+    }
+
+    void CancelDeathDrain()
+    {
+        isDeathDraining = false;
+        if (deathDrainCo != null)
+        {
+            StopCoroutine(deathDrainCo);
+            deathDrainCo = null;
+        }
+    }
+
+    IEnumerator CoDeathDrainToZero()
+    {
+        if (fillBar == null || group == null)
+            yield break;
+
+        isDeathDraining = true;
+
+        // 取死亡前 UI 上的“当前显示值”作为起点（这时 experience.currentXP 已被清0，但 fillBar 仍停留在上一帧值）
+        float start01 = Mathf.Clamp01(fillBar.Current01);
+
+        // 如果本来就是0，就不播 drain，只是快速闪现一下（可选）
+        if (start01 <= 0.0005f)
+        {
+            yield return FadeTo(1f, deathFadeInTime);
+            yield return Wait(deathHoldAfterDrain * 0.5f);
+            yield return FadeTo(0f, deathFadeOutTime);
+            isDeathDraining = false;
+            yield break;
+        }
+
+        // 显示
+        yield return FadeTo(1f, deathFadeInTime);
+
+        // 线性掉到0（不依赖 UIFillBar 的指数平滑，保证 duration 可控）
+        float t = 0f;
+        float dur = Mathf.Max(0.05f, deathDrainDuration);
+        while (t < 1f)
+        {
+            t += Dt() / dur;
+            float v = Mathf.Lerp(start01, 0f, Mathf.Clamp01(t));
+            fillBar.SetImmediate01(v);
+            yield return null;
+        }
+        fillBar.SetImmediate01(0f);
+
+        // 停留一下再淡出
+        if (deathHoldAfterDrain > 0f)
+            yield return Wait(deathHoldAfterDrain);
+
+        yield return FadeTo(0f, deathFadeOutTime);
+
+        isDeathDraining = false;
+        deathDrainCo = null;
     }
 
     IEnumerator CoAnimateGain(int oldXP, int newXP, int maxXP, int levelUps)
@@ -235,7 +333,6 @@ public class ExperienceUI : MonoBehaviour
         float old01 = Mathf.Clamp01((float)oldXP / maxXP);
         float new01 = Mathf.Clamp01((float)newXP / maxXP);
 
-        // 先确保起点一致（避免中途状态导致跳动）
         fillBar.SetImmediate01(old01);
 
         if (levelUps <= 0)
@@ -244,13 +341,10 @@ public class ExperienceUI : MonoBehaviour
             yield break;
         }
 
-        // 溢出：做 “填满->归零” 多次，再填到余量
         for (int i = 0; i < levelUps; i++)
         {
             fillBar.SetTarget01(1f);
             yield return WaitUntilNear(1f, 0.004f);
-
-            // 瞬间归零（符合你描述：满后清0再加剩余）
             fillBar.SetImmediate01(0f);
             yield return null;
         }
@@ -260,7 +354,6 @@ public class ExperienceUI : MonoBehaviour
 
     IEnumerator WaitUntilNear(float target, float eps)
     {
-        // 等到 fillBar.Current01 接近 target
         while (fillBar != null && Mathf.Abs(fillBar.Current01 - target) > eps)
             yield return null;
     }
@@ -324,21 +417,21 @@ public class ExperienceUI : MonoBehaviour
         Vector2 right = new Vector2(w - radius, radius);
 
         for (int y = 0; y < h; y++)
-        for (int x = 0; x < w; x++)
-        {
-            Vector2 p = new Vector2(x + 0.5f, y + 0.5f);
+            for (int x = 0; x < w; x++)
+            {
+                Vector2 p = new Vector2(x + 0.5f, y + 0.5f);
 
-            float d;
-            if (p.x < left.x) d = Vector2.Distance(p, left) - radius;
-            else if (p.x > right.x) d = Vector2.Distance(p, right) - radius;
-            else d = Mathf.Abs(p.y - radius) - radius;
+                float d;
+                if (p.x < left.x) d = Vector2.Distance(p, left) - radius;
+                else if (p.x > right.x) d = Vector2.Distance(p, right) - radius;
+                else d = Mathf.Abs(p.y - radius) - radius;
 
-            float aa = 1.2f;
-            float a = Mathf.Clamp01(1f - (d / aa));
-            byte A = (byte)Mathf.Clamp(Mathf.RoundToInt(a * 255f), 0, 255);
+                float aa = 1.2f;
+                float a = Mathf.Clamp01(1f - (d / aa));
+                byte A = (byte)Mathf.Clamp(Mathf.RoundToInt(a * 255f), 0, 255);
 
-            pixels[y * w + x] = new Color32(255, 255, 255, A);
-        }
+                pixels[y * w + x] = new Color32(255, 255, 255, A);
+            }
 
         tex.SetPixels32(pixels);
         tex.Apply(false, true);
