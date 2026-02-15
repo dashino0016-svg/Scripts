@@ -1,6 +1,12 @@
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// Player HUD (HP/Stamina/Special).
+/// - Can be wired to existing UIFillBar references in scene
+/// - Or can build a minimal HUD by code at runtime (no sprite assets required)
+/// - Supports external show/hide (for example: hide while Upgrade UI is open)
+/// </summary>
 public class PlayerHUD : MonoBehaviour
 {
     [Header("Target")]
@@ -37,7 +43,15 @@ public class PlayerHUD : MonoBehaviour
     [Tooltip("If true, add StaminaBarColorEffect to the stamina fill when building runtime UI.")]
     [SerializeField] bool addStaminaColorEffect = true;
 
+    [Header("Visibility")]
+    [Tooltip("Optional: if set, visibility changes will be applied to this root instead of the runtime canvas.")]
+    [SerializeField] GameObject visibilityRootOverride;
+
+    [Tooltip("Optional: if set, will fade/disable HUD using this CanvasGroup. If empty, it will be created on the visibility root when possible.")]
+    [SerializeField] CanvasGroup visibilityGroup;
+
     RectTransform runtimeCanvas;
+    bool visibilityInitialized;
 
     void Awake()
     {
@@ -46,6 +60,8 @@ public class PlayerHUD : MonoBehaviour
 
         if (buildRuntimeUIIfMissing && (hpBar == null || staminaBar == null || specialBar == null))
             BuildRuntimeUI();
+
+        EnsureVisibilityGroup();
 
         // Make sure we start from correct values (no one-frame full bars).
         RefreshImmediate();
@@ -63,6 +79,52 @@ public class PlayerHUD : MonoBehaviour
 
         if (specialBar != null)
             specialBar.Set01(Safe01(stats.CurrentSpecial, stats.maxSpecial));
+    }
+
+    /// <summary>
+    /// External API: show/hide the player HUD (used to prevent overlap with Upgrade UI).
+    /// Uses CanvasGroup when possible.
+    /// </summary>
+    public void SetVisible(bool visible)
+    {
+        EnsureVisibilityGroup();
+
+        if (visibilityGroup != null)
+        {
+            visibilityGroup.alpha = visible ? 1f : 0f;
+            visibilityGroup.interactable = false;
+            visibilityGroup.blocksRaycasts = false;
+            return;
+        }
+
+        // Fallback: toggle runtime canvas if exists, otherwise toggle individual bars.
+        if (runtimeCanvas != null)
+        {
+            runtimeCanvas.gameObject.SetActive(visible);
+            return;
+        }
+
+        if (hpBar != null) hpBar.gameObject.SetActive(visible);
+        if (staminaBar != null) staminaBar.gameObject.SetActive(visible);
+        if (specialBar != null) specialBar.gameObject.SetActive(visible);
+    }
+
+    void EnsureVisibilityGroup()
+    {
+        if (visibilityInitialized) return;
+        visibilityInitialized = true;
+
+        if (visibilityGroup != null)
+            return;
+
+        GameObject rootGO = null;
+        if (visibilityRootOverride != null)
+            rootGO = visibilityRootOverride;
+        else if (runtimeCanvas != null)
+            rootGO = runtimeCanvas.gameObject;
+
+        if (rootGO != null)
+            visibilityGroup = rootGO.GetComponent<CanvasGroup>() ?? rootGO.AddComponent<CanvasGroup>();
     }
 
     void RefreshImmediate()
@@ -100,6 +162,10 @@ public class PlayerHUD : MonoBehaviour
         // Avoid blocking gameplay input.
         var raycaster = runtimeCanvas.GetComponent<GraphicRaycaster>();
         if (raycaster != null) raycaster.enabled = false;
+
+        // Default: visibility controlled on runtime canvas.
+        if (visibilityRootOverride == null)
+            visibilityRootOverride = runtimeCanvas.gameObject;
     }
 
     float Safe01(float cur, float max)

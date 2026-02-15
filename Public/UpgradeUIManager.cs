@@ -28,6 +28,13 @@ public class UpgradeUIManager : MonoBehaviour
     [Header("Keyboard")]
     [SerializeField] KeyCode closeKey = KeyCode.Escape;
 
+    [Header("HUD Auto Hide")]
+    [Tooltip("Hide PlayerHUD while the Upgrade UI is open (prevents HUD overlap).")]
+    [SerializeField] bool autoHidePlayerHUDWhileOpen = true;
+
+    [Tooltip("Optional: assign explicitly. If empty, it will auto-find the first PlayerHUD in scene.")]
+    [SerializeField] PlayerHUD playerHUD;
+
     bool isOpen;
     BgmController bgm;
 
@@ -46,6 +53,9 @@ public class UpgradeUIManager : MonoBehaviour
         }
 
         bgm = FindFirstObjectByType<BgmController>();
+        if (playerHUD == null)
+            playerHUD = FindFirstObjectByType<PlayerHUD>();
+
         WireUIEvents();
     }
 
@@ -117,11 +127,14 @@ public class UpgradeUIManager : MonoBehaviour
         if (uiRoot != null) uiRoot.SetActive(true);
         isOpen = true;
 
+        // Pause world (your SavePoint flow also pauses; this keeps compatibility when UI is opened standalone).
         if (TimeController.Instance != null) TimeController.Instance.Pause();
         else Time.timeScale = 0f;
 
         if (bgm != null && uiBgmLoop != null)
             bgm.BeginOverrideLoop(uiBgmLoop);
+
+        ApplyPlayerHUDVisible(false);
     }
 
     public void CloseImmediate()
@@ -136,6 +149,8 @@ public class UpgradeUIManager : MonoBehaviour
 
         if (uiRoot != null) uiRoot.SetActive(false);
         isOpen = false;
+
+        ApplyPlayerHUDVisible(true);
     }
 
     void CloseWithFadeFallback()
@@ -152,6 +167,17 @@ public class UpgradeUIManager : MonoBehaviour
             inDuration: fadeIn,
             blackHoldSeconds: blackHold
         );
+    }
+
+    void ApplyPlayerHUDVisible(bool visible)
+    {
+        if (!autoHidePlayerHUDWhileOpen) return;
+
+        if (playerHUD == null)
+            playerHUD = FindFirstObjectByType<PlayerHUD>();
+
+        if (playerHUD != null)
+            playerHUD.SetVisible(visible);
     }
 
     void OnClickButton1() => Button1Requested?.Invoke();
