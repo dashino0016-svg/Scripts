@@ -568,9 +568,18 @@ public class EnemyController : MonoBehaviour
             return;
 
         if (isLanding && Time.time - landingLockStartTime > landingLockTimeout)
-            isLanding = false;
+        {
+            if (!IsLandingAnimationPlaying())
+                isLanding = false;
+        }
 
         CheckTargetDead();
+
+        if (IsAirborne || isLanding)
+        {
+            ForceStopDuringAirOrLandingLock(isLanding);
+            return;
+        }
 
         UpdateSensor();
         DecayAggro(Time.deltaTime);
@@ -1353,6 +1362,56 @@ public class EnemyController : MonoBehaviour
     public void ClearAirLandFacingLock()
     {
         hasAirLandLockedYaw = false;
+    }
+
+    bool IsLandingAnimationPlaying()
+    {
+        if (anim == null) return false;
+
+        AnimatorStateInfo st = anim.GetCurrentAnimatorStateInfo(0);
+        if (IsLandingState(st)) return true;
+
+        if (anim.IsInTransition(0))
+        {
+            AnimatorStateInfo next = anim.GetNextAnimatorStateInfo(0);
+            if (IsLandingState(next)) return true;
+        }
+
+        return false;
+    }
+
+    bool IsLandingState(AnimatorStateInfo st)
+    {
+        int hard = Animator.StringToHash("HardLand");
+        int soft = Animator.StringToHash("SoftLand");
+
+        if (st.shortNameHash == hard || st.shortNameHash == soft)
+            return true;
+
+        return st.IsName("HardLand") || st.IsName("SoftLand") ||
+               st.IsName("Base Layer.HardLand") || st.IsName("Base Layer.SoftLand") ||
+               st.IsTag("HardLand") || st.IsTag("SoftLand") || st.IsTag("Land");
+    }
+
+    void ForceStopDuringAirOrLandingLock(bool hardStopMove)
+    {
+        if (cachedNavigator == null) cachedNavigator = GetComponent<EnemyNavigator>();
+        if (cachedNavigator != null)
+            cachedNavigator.Stop();
+
+        if (hardStopMove)
+        {
+            if (cachedMove == null) cachedMove = GetComponent<EnemyMove>();
+            if (cachedMove != null)
+            {
+                cachedMove.SetMoveDirection(Vector3.zero);
+                cachedMove.SetMoveSpeedLevel(0);
+            }
+        }
+
+        var block = GetComponent<BlockController>();
+        if (block != null)
+            block.RequestBlock(false);
     }
 
     // ================= Landing Event Lock =================

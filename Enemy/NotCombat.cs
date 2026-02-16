@@ -84,11 +84,17 @@ public class NotCombat : MonoBehaviour
             return;
         }
 
-        if (controller != null && (controller.IsAirborne || controller.IsInLandLock))
+        if (controller != null && controller.IsInLandLock)
         {
             navigator.Stop();
             move.SetMoveDirection(Vector3.zero);
             move.SetMoveSpeedLevel(0);
+            return;
+        }
+
+        if (controller != null && controller.IsAirborne)
+        {
+            navigator.Stop();
             return;
         }
 
