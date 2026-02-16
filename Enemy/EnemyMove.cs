@@ -49,7 +49,6 @@ public class EnemyMove : MonoBehaviour
     float velocityY;
     float lastAirVelocityY;
     float minAirVelocityY;
-    float landingEnterVelocityY;
     float turnVelocity;
 
     bool isGrounded;
@@ -121,9 +120,6 @@ public class EnemyMove : MonoBehaviour
             lastGroundedTime = Time.time;
 
         isGrounded = groundedRawNow || (Time.time - lastGroundedTime <= groundedGraceTime);
-
-        if (!wasGroundedRaw && isGroundedRaw)
-            landingEnterVelocityY = velocityY;
 
         // 进入离地瞬间记录朝向：坠落+落地期间锁定该朝向
         if (wasGroundedRaw && !isGroundedRaw)
@@ -245,7 +241,6 @@ public class EnemyMove : MonoBehaviour
             if (velocityY < groundedGravity)
                 velocityY = groundedGravity;
             minAirVelocityY = groundedGravity;
-            landingEnterVelocityY = groundedGravity;
 
             horizontal = Vector3.ProjectOnPlane(horizontal, groundNormal);
         }
@@ -310,7 +305,7 @@ public class EnemyMove : MonoBehaviour
             if (range != null)
                 range.InterruptShoot();
 
-            float impactVelocityY = Mathf.Min(lastAirVelocityY, minAirVelocityY, landingEnterVelocityY, velocityY);
+            float impactVelocityY = Mathf.Min(lastAirVelocityY, minAirVelocityY, velocityY);
             bool hardLand = (impactVelocityY <= hardLandVelocity);
 
             // 预先进入落地锁，防止 AI 在动画事件触发前抢回攻击逻辑导致落地状态被打断。
@@ -328,7 +323,6 @@ public class EnemyMove : MonoBehaviour
 
             velocityY = groundedGravity;
             minAirVelocityY = groundedGravity;
-            landingEnterVelocityY = groundedGravity;
         }
     }
 
