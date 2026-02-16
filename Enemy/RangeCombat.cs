@@ -344,10 +344,17 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
             return;
         }
 
-        if (controller != null && (controller.IsAirborne || controller.IsInLandLock))
+        if (controller != null && controller.IsInLandLock)
         {
             StopMove();
-            navigator.Stop();
+            if (block != null) block.RequestBlock(false);
+            return;
+        }
+
+        // 空中（坠落/离地）期间禁止进入常规战斗动作（含攻击）
+        if (controller != null && controller.IsAirborne)
+        {
+            StopMove();
             if (block != null) block.RequestBlock(false);
             return;
         }
@@ -355,13 +362,9 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         if (targetFighter == null || targetStats == null) CacheTargetRefs();
 
         Vector3 toTarget3D = GetTargetPoint() - transform.position;
-        float distanceXYZ = toTarget3D.magnitude;
-        float distanceY = Mathf.Abs(toTarget3D.y);
-
         Vector3 toTarget = toTarget3D;  // ✅ 这个 toTarget 仍然用于转向/距离（平面）
         toTarget.y = 0f;
         float distance = toTarget.magnitude;
-        bool withinAttackDistance3D = (distanceXYZ <= attackDecisionDistance) && (distanceY <= attackDecisionDistance);
 
         navigator.SyncPosition(transform.position);
 
@@ -462,7 +465,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
                     EnterState(State.Shoot);
                 }
 
-                UpdateRanged(zone, toTarget, distance, withinAttackDistance3D);
+                UpdateRanged(zone, toTarget, distance);
                 return;
 
             case Zone.Melee:
@@ -475,7 +478,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
                     EnterState(State.Engage);
                 }
 
-                UpdateMelee(distance, toTarget, playerGuardBroken, withinAttackDistance3D);
+                UpdateMelee(distance, toTarget, playerGuardBroken);
                 return;
         }
     }
@@ -557,7 +560,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         move.SetMoveSpeedLevel(Mathf.RoundToInt(currentSpeedLevel));
     }
 
-    void UpdateRanged(Zone z, Vector3 toTarget, float distance, bool withinAttackDistance3D)
+    void UpdateRanged(Zone z, Vector3 toTarget, float distance)
     {
         if (state == State.Cooldown)
         {
@@ -600,7 +603,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
         bool doShoot = (rangeFighter != null && rangeFighter.enabled) && (Random.value <= shootChance);
 
-        if (doShoot && withinAttackDistance3D)
+        if (doShoot)
         {
             Vector3 aim3D = GetAimDir3D(); // ✅ 不抹 y：从枪口指向目标胶囊中心
             if (rangeFighter.TryShoot(aim3D, target))
@@ -624,7 +627,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     // Melee (Combat-like)
     // =========================
 
-    void UpdateMelee(float distance, Vector3 toTarget, bool playerGuardBroken, bool withinAttackDistance3D)
+    void UpdateMelee(float distance, Vector3 toTarget, bool playerGuardBroken)
     {
         if (playerGuardBroken && block != null)
             block.RequestBlock(false);
@@ -632,7 +635,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         switch (state)
         {
             case State.Engage:
-                UpdateMeleeEngage(distance, toTarget, playerGuardBroken, withinAttackDistance3D);
+                UpdateMeleeEngage(distance, toTarget, playerGuardBroken);
                 break;
             case State.Block:
                 UpdateBlock(distance);
@@ -659,7 +662,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
             RotateToTarget(toTarget);
     }
 
-    void UpdateMeleeEngage(float distance, Vector3 toTarget, bool playerGuardBroken, bool withinAttackDistance3D)
+    void UpdateMeleeEngage(float distance, Vector3 toTarget, bool playerGuardBroken)
     {
         if (!playerGuardBroken && distance <= defenseDistance && ShouldStartBlock(distance))
         {
@@ -668,7 +671,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
             return;
         }
 
-        if (distance > attackDecisionDistance || !withinAttackDistance3D)
+        if (distance > attackDecisionDistance)
         {
             WalkApproach(toTarget);
             return;
@@ -692,9 +695,6 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
             EnterState(State.Attack);
             return;
         }
-
-        if (!withinAttackDistance3D)
-            return;
 
         StartNormalPlan(playerGuardBroken);
         EnterState(State.Attack);

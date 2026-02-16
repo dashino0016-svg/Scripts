@@ -16,7 +16,6 @@ public class NotCombat : MonoBehaviour
     EnemyState enemyState;
     EnemyMove move;
     EnemyNavigator navigator;
-    EnemyController controller;
     CombatReceiver receiver;
 
     int currentPatrolIndex;
@@ -38,7 +37,6 @@ public class NotCombat : MonoBehaviour
         enemyState = GetComponent<EnemyState>();
         move = GetComponent<EnemyMove>();
         navigator = GetComponent<EnemyNavigator>();
-        controller = GetComponent<EnemyController>();
         receiver = GetComponent<CombatReceiver>();
         lastState = enemyState != null ? enemyState.Current : EnemyStateType.NotCombat;
     }
@@ -77,14 +75,6 @@ public class NotCombat : MonoBehaviour
 
         // ⭐⭐⭐ 受击优先级最高：冻结 NotCombat
         if (receiver != null && receiver.IsInHitLock)
-        {
-            navigator.Stop();
-            move.SetMoveDirection(Vector3.zero);
-            move.SetMoveSpeedLevel(0);
-            return;
-        }
-
-        if (controller != null && (controller.IsAirborne || controller.IsInLandLock))
         {
             navigator.Stop();
             move.SetMoveDirection(Vector3.zero);
