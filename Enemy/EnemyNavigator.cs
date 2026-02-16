@@ -11,6 +11,19 @@ public class EnemyNavigator : MonoBehaviour
     [SerializeField] float navMeshSampleRadius = 2f;
     [SerializeField] int navMeshAreaMask = NavMesh.AllAreas;
 
+    [Header("Follow Owner")]
+    [Tooltip("开启后，NavMeshAgent 每帧都会强同步到角色 Transform，避免高低落差后与角色脱节。")]
+    [SerializeField] bool alwaysSyncAgentToTransform = true;
+
+    [Tooltip("当 Agent 与角色位置偏差超过该值时，使用 Warp 强制回贴（米）。")]
+    [SerializeField] float hardSnapDistance = 1.5f;
+
+    [Tooltip("当 Agent 与角色高度差超过该值时，强制重挂到角色附近 NavMesh（米）。")]
+    [SerializeField] float hardSnapHeightDistance = 1f;
+
+    [Tooltip("脱离 NavMesh 时用于重挂的扩展采样半径（米）。")]
+    [SerializeField] float navMeshReattachRadius = 12f;
+
     // ✅ 基准参数（未缩放）
     float baseSpeed;
     float baseAngularSpeed;
@@ -59,16 +72,20 @@ public class EnemyNavigator : MonoBehaviour
         if (Mathf.Abs(scale - 1f) < 0.0001f)
         {
             CaptureBaseFromAgent();
-            return;
+        }
+        else
+        {
+            // scale!=1 时，用“基准 * scale”
+            agent.speed = baseSpeed * scale;
+            agent.angularSpeed = baseAngularSpeed * scale;
+            agent.acceleration = baseAcceleration * scale;
+
+            // stoppingDistance 通常不应缩放（距离是空间量），保持基准
+            agent.stoppingDistance = baseStoppingDistance;
         }
 
-        // scale!=1 时，用“基准 * scale”
-        agent.speed = baseSpeed * scale;
-        agent.angularSpeed = baseAngularSpeed * scale;
-        agent.acceleration = baseAcceleration * scale;
-
-        // stoppingDistance 通常不应缩放（距离是空间量），保持基准
-        agent.stoppingDistance = baseStoppingDistance;
+        if (alwaysSyncAgentToTransform)
+            SyncPosition(transform.position);
     }
 
     void CaptureBaseFromAgent()
@@ -144,8 +161,24 @@ public class EnemyNavigator : MonoBehaviour
 
         EnsureAgentOnNavMesh(worldPos);
 
+        // ✅ 关键：即便当前 still isOnNavMesh，也可能“挂在旧楼层”。
+        // 当高度差过大时，主动按当前位置重挂到底层可用 NavMesh。
+        float heightDelta = Mathf.Abs(agent.nextPosition.y - worldPos.y);
+        if (heightDelta > hardSnapHeightDistance)
+            ReattachAgentToClosestNavMesh(worldPos);
+
         if (!agent.isOnNavMesh)
             return;
+
+        Vector3 flat = worldPos;
+        flat.y = agent.nextPosition.y;
+
+        float planarDelta = (agent.nextPosition - flat).sqrMagnitude;
+        if (planarDelta > hardSnapDistance * hardSnapDistance)
+        {
+            ReattachAgentToClosestNavMesh(worldPos);
+            return;
+        }
 
         agent.nextPosition = worldPos;
     }
@@ -162,14 +195,31 @@ public class EnemyNavigator : MonoBehaviour
         if (agent == null || agent.isOnNavMesh)
             return;
 
+        ReattachAgentToClosestNavMesh(worldPos);
+    }
+
+    void ReattachAgentToClosestNavMesh(Vector3 worldPos)
+    {
+        if (agent == null)
+            return;
+
         if (TryGetNavMeshPosition(worldPos, out var sampled))
         {
             agent.Warp(sampled);
+            return;
         }
-        else
+
+        // 高落差场景：首次半径命不中时，用更大半径再尝试重挂
+        float reattach = Mathf.Max(navMeshSampleRadius, navMeshReattachRadius);
+        if (reattach > navMeshSampleRadius &&
+            NavMesh.SamplePosition(worldPos, out var farHit, reattach, navMeshAreaMask))
         {
-            agent.Warp(worldPos);
+            agent.Warp(farHit.position);
+            return;
         }
+
+        // 最后兜底：仍然尝试贴到当前点（若不可用则保持未上网格）
+        agent.Warp(worldPos);
     }
 
     bool TryGetNavMeshPosition(Vector3 worldPos, out Vector3 sampled)

@@ -8,6 +8,9 @@ public class EnemyMove : MonoBehaviour
     public float runSpeed = 2f;      // 对应 BlendTree 阈值 2
     public float sprintSpeed = 4f;   // 对应 BlendTree 阈值 4
 
+    [Header("Jump")]
+    public float hardLandVelocity = -10f;
+
     [Header("Rotation")]
     public float rotationSmoothTime = 0.08f;
 
@@ -44,6 +47,7 @@ public class EnemyMove : MonoBehaviour
     int desiredSpeedLevel;    // ✅ 代号（0/1/2/3）
 
     float velocityY;
+    float lastAirVelocityY;
     float turnVelocity;
 
     bool isGrounded;
@@ -53,6 +57,7 @@ public class EnemyMove : MonoBehaviour
     bool rotationEnabled = true;
 
     static readonly int AnimIsGrounded = Animator.StringToHash("IsGrounded");
+    static readonly int AnimVerticalVelocity = Animator.StringToHash("VerticalVelocity");
     static readonly int AnimSpeed = Animator.StringToHash("Speed");
     static readonly int AnimMoveX = Animator.StringToHash("MoveX");
     static readonly int AnimMoveY = Animator.StringToHash("MoveY");
@@ -108,30 +113,39 @@ public class EnemyMove : MonoBehaviour
 
         isGrounded = groundedNow || (Time.time - lastGroundedTime <= groundedGraceTime);
         if (anim != null)
+        {
             anim.SetBool(AnimIsGrounded, isGrounded);
+            anim.SetFloat(AnimVerticalVelocity, velocityY);
+        }
 
-        if (rotationEnabled)
-            Rotate(desiredMoveDir, dt);
+        bool landLock = enemyController != null && enemyController.IsInLandLock;
+        Vector3 moveDir = landLock ? Vector3.zero : desiredMoveDir;
+        float moveSpeed = landLock ? 0f : desiredSpeed;
+        int speedLevel = landLock ? 0 : desiredSpeedLevel;
 
-        Move(desiredMoveDir, desiredSpeed, dt);
+        if (rotationEnabled && !landLock)
+            Rotate(moveDir, dt);
+
+        Move(moveDir, moveSpeed, dt);
 
         if (anim != null)
         {
             // ✅ 关键：Animator 的 Speed 参数喂“真实速度值”(0/1/2/4)，匹配你 BlendTree 阈值
             // Sprint/Run 直接钉死，Walk/Idle 可阻尼（你也可以全都直接 set）
-            if (desiredSpeedLevel >= 2)
+            if (speedLevel >= 2)
             {
-                anim.SetFloat(AnimSpeed, desiredSpeed);
+                anim.SetFloat(AnimSpeed, moveSpeed);
             }
             else
             {
-                anim.SetFloat(AnimSpeed, desiredSpeed, speedDampTime, dt);
+                anim.SetFloat(AnimSpeed, moveSpeed, speedDampTime, dt);
             }
 
             UpdateMoveXY(dt);
         }
 
         ApplyGravity(dt);
+        HandleLanding();
     }
 
     /* ================= Ground ================= */
@@ -217,14 +231,16 @@ public class EnemyMove : MonoBehaviour
     {
         if (!driveMoveXY) return;
 
-        if (driveMoveXYOnlyWhenWalking && desiredSpeedLevel != 1)
+        int effectiveSpeedLevel = (enemyController != null && enemyController.IsInLandLock) ? 0 : desiredSpeedLevel;
+
+        if (driveMoveXYOnlyWhenWalking && effectiveSpeedLevel != 1)
         {
             anim.SetFloat(AnimMoveX, 0f);
             anim.SetFloat(AnimMoveY, 0f);
             return;
         }
 
-        if (desiredSpeedLevel == 0 || desiredMoveDir.sqrMagnitude < 0.0001f)
+        if (effectiveSpeedLevel == 0 || desiredMoveDir.sqrMagnitude < 0.0001f)
         {
             anim.SetFloat(AnimMoveX, 0f, moveDampTime, dt);
             anim.SetFloat(AnimMoveY, 0f, moveDampTime, dt);
@@ -248,6 +264,31 @@ public class EnemyMove : MonoBehaviour
         {
             velocityY += gravity * dt;
             velocityY = Mathf.Max(velocityY, terminalVelocity);
+            lastAirVelocityY = velocityY;
+        }
+    }
+
+    void HandleLanding()
+    {
+        if (!wasGrounded && isGrounded)
+        {
+            var melee = GetComponent<MeleeFighter>();
+            if (melee != null)
+                melee.InterruptAttack();
+
+            var range = GetComponent<RangeFighter>();
+            if (range != null)
+                range.InterruptShoot();
+
+            if (anim != null)
+            {
+                if (lastAirVelocityY <= hardLandVelocity)
+                    anim.SetTrigger("HardLand");
+                else
+                    anim.SetTrigger("SoftLand");
+            }
+
+            velocityY = groundedGravity;
         }
     }
 

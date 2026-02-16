@@ -344,6 +344,13 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
             return;
         }
 
+        if (controller != null && controller.IsInLandLock)
+        {
+            StopMove();
+            if (block != null) block.RequestBlock(false);
+            return;
+        }
+
         if (targetFighter == null || targetStats == null) CacheTargetRefs();
 
         Vector3 toTarget3D = GetTargetPoint() - transform.position;
