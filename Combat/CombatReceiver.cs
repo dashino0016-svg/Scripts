@@ -580,7 +580,10 @@ public class CombatReceiver : MonoBehaviour, IHittable
             controller.OnAttacked(attacker);
     }
 
-    public void HitBegin() { isInHitLock = true; FaceAttacker(); }
+    public void HitBegin()
+    {
+        isInHitLock = true;
+    }
 
     public void HitRecover()
     {
@@ -598,17 +601,6 @@ public class CombatReceiver : MonoBehaviour, IHittable
     {
         isInHitLock = false;
         lastHitWasBlocked = false;
-    }
-
-    void FaceAttacker()
-    {
-        if (lastAttacker == null) return;
-
-        Vector3 dir = lastAttacker.position - transform.position;
-        dir.y = 0f;
-        if (dir.sqrMagnitude < 0.0001f) return;
-
-        transform.rotation = Quaternion.LookRotation(dir);
     }
 
     public bool IsInHitLock => isInHitLock;

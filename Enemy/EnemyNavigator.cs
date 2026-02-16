@@ -18,6 +18,9 @@ public class EnemyNavigator : MonoBehaviour
     [Tooltip("当 Agent 与角色位置偏差超过该值时，使用 Warp 强制回贴（米）。")]
     [SerializeField] float hardSnapDistance = 1.5f;
 
+    [Tooltip("当 Agent 与角色高度差超过该值时，强制重挂到角色附近 NavMesh（米）。")]
+    [SerializeField] float hardSnapHeightDistance = 1f;
+
     [Tooltip("脱离 NavMesh 时用于重挂的扩展采样半径（米）。")]
     [SerializeField] float navMeshReattachRadius = 12f;
 
@@ -158,6 +161,12 @@ public class EnemyNavigator : MonoBehaviour
 
         EnsureAgentOnNavMesh(worldPos);
 
+        // ✅ 关键：即便当前 still isOnNavMesh，也可能“挂在旧楼层”。
+        // 当高度差过大时，主动按当前位置重挂到底层可用 NavMesh。
+        float heightDelta = Mathf.Abs(agent.nextPosition.y - worldPos.y);
+        if (heightDelta > hardSnapHeightDistance)
+            ReattachAgentToClosestNavMesh(worldPos);
+
         if (!agent.isOnNavMesh)
             return;
 
@@ -167,7 +176,7 @@ public class EnemyNavigator : MonoBehaviour
         float planarDelta = (agent.nextPosition - flat).sqrMagnitude;
         if (planarDelta > hardSnapDistance * hardSnapDistance)
         {
-            agent.Warp(worldPos);
+            ReattachAgentToClosestNavMesh(worldPos);
             return;
         }
 
@@ -184,6 +193,14 @@ public class EnemyNavigator : MonoBehaviour
     void EnsureAgentOnNavMesh(Vector3 worldPos)
     {
         if (agent == null || agent.isOnNavMesh)
+            return;
+
+        ReattachAgentToClosestNavMesh(worldPos);
+    }
+
+    void ReattachAgentToClosestNavMesh(Vector3 worldPos)
+    {
+        if (agent == null)
             return;
 
         if (TryGetNavMeshPosition(worldPos, out var sampled))
