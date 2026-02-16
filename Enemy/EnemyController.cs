@@ -124,6 +124,12 @@ public class EnemyController : MonoBehaviour
     float landingLockStartTime = -999f;
     bool isLanding;
 
+    [Header("Air/Land Facing Lock")]
+    [Tooltip("坠落与落地期间是否锁定朝向为进入坠落时的朝向。")]
+    [SerializeField] bool lockFacingDuringAirAndLand = true;
+    float airLandLockedYaw;
+    bool hasAirLandLockedYaw;
+
     public bool IsInLandLock => isLanding;
     public bool IsAirborne => cachedMove != null && !cachedMove.IsGrounded;
     public bool IsInWeaponTransition { get; private set; }
@@ -357,6 +363,7 @@ public class EnemyController : MonoBehaviour
         IsInAssassinationLock = false;
         IsInWeaponTransition = false;
         isLanding = false;
+        ClearAirLandFacingLock();
         weaponTransitionType = WeaponTransitionType.None;
         weaponLockRootMotionValid = false;
         cachedAnimSpeedValid = false;
@@ -1039,6 +1046,7 @@ public class EnemyController : MonoBehaviour
         IsInAssassinationLock = false;
         IsInWeaponTransition = false;
         isLanding = false;
+        ClearAirLandFacingLock();
         weaponTransitionType = WeaponTransitionType.None;
         weaponLockRootMotionValid = false;
         cachedAnimSpeedValid = false;
@@ -1248,6 +1256,7 @@ public class EnemyController : MonoBehaviour
     public void OnCharacterDead()
     {
         isLanding = false;
+        ClearAirLandFacingLock();
 
         if (enemyState.Current == EnemyStateType.Dead)
             return;
@@ -1326,6 +1335,26 @@ public class EnemyController : MonoBehaviour
             return;
         }
     }
+    public bool ShouldApplyAirLandFacingLock =>
+        lockFacingDuringAirAndLand && hasAirLandLockedYaw && (IsAirborne || IsInLandLock);
+
+    public Quaternion GetAirLandFacingLockRotation()
+    {
+        return Quaternion.Euler(0f, airLandLockedYaw, 0f);
+    }
+
+    public void CaptureAirLandFacingLock(Quaternion worldRotation)
+    {
+        if (!lockFacingDuringAirAndLand) return;
+        airLandLockedYaw = worldRotation.eulerAngles.y;
+        hasAirLandLockedYaw = true;
+    }
+
+    public void ClearAirLandFacingLock()
+    {
+        hasAirLandLockedYaw = false;
+    }
+
     // ================= Landing Event Lock =================
 
     public void LandBegin()
@@ -1344,6 +1373,7 @@ public class EnemyController : MonoBehaviour
     public void LandEnd()
     {
         isLanding = false;
+        ClearAirLandFacingLock();
     }
 
 }

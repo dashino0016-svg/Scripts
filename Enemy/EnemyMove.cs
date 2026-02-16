@@ -62,6 +62,8 @@ public class EnemyMove : MonoBehaviour
     static readonly int AnimMoveX = Animator.StringToHash("MoveX");
     static readonly int AnimMoveY = Animator.StringToHash("MoveY");
 
+    [SerializeField] float landRestartFade = 0.02f;
+
     /* ================= 对外接口 ================= */
 
     public void SetMoveDirection(Vector3 dir)
@@ -112,6 +114,11 @@ public class EnemyMove : MonoBehaviour
             lastGroundedTime = Time.time;
 
         isGrounded = groundedNow || (Time.time - lastGroundedTime <= groundedGraceTime);
+
+        // 进入离地瞬间记录朝向：坠落+落地期间锁定该朝向
+        if (wasGrounded && !isGrounded && enemyController != null)
+            enemyController.CaptureAirLandFacingLock(transform.rotation);
+
         if (anim != null)
         {
             anim.SetBool(AnimIsGrounded, isGrounded);
@@ -123,7 +130,11 @@ public class EnemyMove : MonoBehaviour
         float moveSpeed = landLock ? 0f : desiredSpeed;
         int speedLevel = landLock ? 0 : desiredSpeedLevel;
 
-        if (rotationEnabled && !landLock)
+        bool airLandFacingLock = enemyController != null && enemyController.ShouldApplyAirLandFacingLock;
+        if (airLandFacingLock)
+            transform.rotation = enemyController.GetAirLandFacingLockRotation();
+
+        if (rotationEnabled && !landLock && !airLandFacingLock)
             Rotate(moveDir, dt);
 
         Move(moveDir, moveSpeed, dt);
@@ -280,12 +291,21 @@ public class EnemyMove : MonoBehaviour
             if (range != null)
                 range.InterruptShoot();
 
+            bool hardLand = (lastAirVelocityY <= hardLandVelocity);
+
+            // 预先进入落地锁，防止 AI 在动画事件触发前抢回攻击逻辑导致落地状态被打断。
+            if (enemyController != null)
+                enemyController.LandBegin();
+
             if (anim != null)
             {
-                if (lastAirVelocityY <= hardLandVelocity)
-                    anim.SetTrigger("HardLand");
+                string stateName = hardLand ? "HardLand" : "SoftLand";
+                int hash = Animator.StringToHash(stateName);
+
+                if (anim.HasState(0, hash))
+                    anim.CrossFadeInFixedTime(stateName, landRestartFade, 0, 0f);
                 else
-                    anim.SetTrigger("SoftLand");
+                    anim.SetTrigger(stateName);
             }
 
             velocityY = groundedGravity;
