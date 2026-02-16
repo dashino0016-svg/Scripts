@@ -351,6 +351,14 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
             return;
         }
 
+        // 空中（坠落/离地）期间禁止进入常规战斗动作（含攻击）
+        if (controller != null && controller.IsAirborne)
+        {
+            StopMove();
+            if (block != null) block.RequestBlock(false);
+            return;
+        }
+
         if (targetFighter == null || targetStats == null) CacheTargetRefs();
 
         Vector3 toTarget3D = GetTargetPoint() - transform.position;

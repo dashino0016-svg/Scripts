@@ -125,6 +125,7 @@ public class EnemyController : MonoBehaviour
     bool isLanding;
 
     public bool IsInLandLock => isLanding;
+    public bool IsAirborne => cachedMove != null && !cachedMove.IsGrounded;
     public bool IsInWeaponTransition { get; private set; }
 
     enum WeaponTransitionType { None, Draw, Sheath }
