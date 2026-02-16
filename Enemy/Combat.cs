@@ -392,6 +392,21 @@ public class Combat : MonoBehaviour, IEnemyCombat
             return;
         }
 
+        if (controller != null && controller.IsInLandLock)
+        {
+            StopMove();
+            if (block != null) block.RequestBlock(false);
+            return;
+        }
+
+        // 空中（坠落/离地）期间禁止进入常规战斗动作（含攻击）
+        if (controller != null && controller.IsAirborne)
+        {
+            StopMove();
+            if (block != null) block.RequestBlock(false);
+            return;
+        }
+
         if (ability != null && ability.IsInAbilityLock)
         {
             StopMove();

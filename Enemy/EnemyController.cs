@@ -118,6 +118,20 @@ public class EnemyController : MonoBehaviour
     Coroutine deadFallbackCo;
     bool waitingDeadDelay;
 
+    [Header("Land Lock Fallback")]
+    [Tooltip("落地锁事件丢失时的兜底超时（秒）。")]
+    [SerializeField] float landingLockTimeout = 1.2f;
+    float landingLockStartTime = -999f;
+    bool isLanding;
+
+    [Header("Air/Land Facing Lock")]
+    [Tooltip("坠落与落地期间是否锁定朝向为进入坠落时的朝向。")]
+    [SerializeField] bool lockFacingDuringAirAndLand = true;
+    float airLandLockedYaw;
+    bool hasAirLandLockedYaw;
+
+    public bool IsInLandLock => isLanding;
+    public bool IsAirborne => cachedMove != null && !cachedMove.IsGrounded;
     public bool IsInWeaponTransition { get; private set; }
 
     enum WeaponTransitionType { None, Draw, Sheath }
@@ -348,6 +362,8 @@ public class EnemyController : MonoBehaviour
         deathByAssassination = false;
         IsInAssassinationLock = false;
         IsInWeaponTransition = false;
+        isLanding = false;
+        ClearAirLandFacingLock();
         weaponTransitionType = WeaponTransitionType.None;
         weaponLockRootMotionValid = false;
         cachedAnimSpeedValid = false;
@@ -550,6 +566,9 @@ public class EnemyController : MonoBehaviour
 
         if (IsInAssassinationLock)
             return;
+
+        if (isLanding && Time.time - landingLockStartTime > landingLockTimeout)
+            isLanding = false;
 
         CheckTargetDead();
 
@@ -1026,6 +1045,8 @@ public class EnemyController : MonoBehaviour
         deathByAssassination = false;
         IsInAssassinationLock = false;
         IsInWeaponTransition = false;
+        isLanding = false;
+        ClearAirLandFacingLock();
         weaponTransitionType = WeaponTransitionType.None;
         weaponLockRootMotionValid = false;
         cachedAnimSpeedValid = false;
@@ -1234,6 +1255,9 @@ public class EnemyController : MonoBehaviour
 
     public void OnCharacterDead()
     {
+        isLanding = false;
+        ClearAirLandFacingLock();
+
         if (enemyState.Current == EnemyStateType.Dead)
             return;
 
@@ -1311,4 +1335,45 @@ public class EnemyController : MonoBehaviour
             return;
         }
     }
+    public bool ShouldApplyAirLandFacingLock =>
+        lockFacingDuringAirAndLand && hasAirLandLockedYaw && (IsAirborne || IsInLandLock);
+
+    public Quaternion GetAirLandFacingLockRotation()
+    {
+        return Quaternion.Euler(0f, airLandLockedYaw, 0f);
+    }
+
+    public void CaptureAirLandFacingLock(Quaternion worldRotation)
+    {
+        if (!lockFacingDuringAirAndLand) return;
+        airLandLockedYaw = worldRotation.eulerAngles.y;
+        hasAirLandLockedYaw = true;
+    }
+
+    public void ClearAirLandFacingLock()
+    {
+        hasAirLandLockedYaw = false;
+    }
+
+    // ================= Landing Event Lock =================
+
+    public void LandBegin()
+    {
+        isLanding = true;
+        landingLockStartTime = Time.time;
+
+        if (receiver != null)
+            receiver.ForceClearIFrame();
+
+        var block = GetComponent<BlockController>();
+        if (block != null)
+            block.RequestBlock(false);
+    }
+
+    public void LandEnd()
+    {
+        isLanding = false;
+        ClearAirLandFacingLock();
+    }
+
 }
