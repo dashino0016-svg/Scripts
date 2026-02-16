@@ -392,6 +392,13 @@ public class Combat : MonoBehaviour, IEnemyCombat
             return;
         }
 
+        if (controller != null && controller.IsInLandLock)
+        {
+            StopMove();
+            if (block != null) block.RequestBlock(false);
+            return;
+        }
+
         if (ability != null && ability.IsInAbilityLock)
         {
             StopMove();

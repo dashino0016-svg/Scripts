@@ -118,6 +118,13 @@ public class EnemyController : MonoBehaviour
     Coroutine deadFallbackCo;
     bool waitingDeadDelay;
 
+    [Header("Land Lock Fallback")]
+    [Tooltip("落地锁事件丢失时的兜底超时（秒）。")]
+    [SerializeField] float landingLockTimeout = 1.2f;
+    float landingLockStartTime = -999f;
+    bool isLanding;
+
+    public bool IsInLandLock => isLanding;
     public bool IsInWeaponTransition { get; private set; }
 
     enum WeaponTransitionType { None, Draw, Sheath }
@@ -348,6 +355,7 @@ public class EnemyController : MonoBehaviour
         deathByAssassination = false;
         IsInAssassinationLock = false;
         IsInWeaponTransition = false;
+        isLanding = false;
         weaponTransitionType = WeaponTransitionType.None;
         weaponLockRootMotionValid = false;
         cachedAnimSpeedValid = false;
@@ -550,6 +558,9 @@ public class EnemyController : MonoBehaviour
 
         if (IsInAssassinationLock)
             return;
+
+        if (isLanding && Time.time - landingLockStartTime > landingLockTimeout)
+            isLanding = false;
 
         CheckTargetDead();
 
@@ -1026,6 +1037,7 @@ public class EnemyController : MonoBehaviour
         deathByAssassination = false;
         IsInAssassinationLock = false;
         IsInWeaponTransition = false;
+        isLanding = false;
         weaponTransitionType = WeaponTransitionType.None;
         weaponLockRootMotionValid = false;
         cachedAnimSpeedValid = false;
@@ -1234,6 +1246,8 @@ public class EnemyController : MonoBehaviour
 
     public void OnCharacterDead()
     {
+        isLanding = false;
+
         if (enemyState.Current == EnemyStateType.Dead)
             return;
 
@@ -1311,4 +1325,24 @@ public class EnemyController : MonoBehaviour
             return;
         }
     }
+    // ================= Landing Event Lock =================
+
+    public void LandBegin()
+    {
+        isLanding = true;
+        landingLockStartTime = Time.time;
+
+        if (receiver != null)
+            receiver.ForceClearIFrame();
+
+        var block = GetComponent<BlockController>();
+        if (block != null)
+            block.RequestBlock(false);
+    }
+
+    public void LandEnd()
+    {
+        isLanding = false;
+    }
+
 }
