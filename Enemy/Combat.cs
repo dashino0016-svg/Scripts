@@ -392,10 +392,17 @@ public class Combat : MonoBehaviour, IEnemyCombat
             return;
         }
 
-        if (controller != null && (controller.IsAirborne || controller.IsInLandLock))
+        if (controller != null && controller.IsInLandLock)
         {
             StopMove();
-            navigator.Stop();
+            if (block != null) block.RequestBlock(false);
+            return;
+        }
+
+        // 空中（坠落/离地）期间禁止进入常规战斗动作（含攻击）
+        if (controller != null && controller.IsAirborne)
+        {
+            StopMove();
             if (block != null) block.RequestBlock(false);
             return;
         }
@@ -408,11 +415,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
         if (targetFighter == null || targetStats == null) CacheTargetRefs();
 
-        Vector3 toTarget3D = GetTargetPoint() - transform.position;
-        float distanceXYZ = toTarget3D.magnitude;
-        float distanceY = Mathf.Abs(toTarget3D.y);
-
-        Vector3 toTarget = toTarget3D;
+        Vector3 toTarget = GetTargetPoint() - transform.position;
         toTarget.y = 0f;
         float distance = toTarget.magnitude;
 
@@ -433,8 +436,6 @@ public class Combat : MonoBehaviour, IEnemyCombat
             EnterState(State.Cooldown);
 
         UpdateRangeMode(distance);
-
-        bool withinAttackDistance3D = (distanceXYZ <= attackDecisionDistance) && (distanceY <= attackDecisionDistance);
 
         bool retreatActive = (selfStats != null) && selfStats.IsGuardBroken;
 
@@ -496,7 +497,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
             cooldownInited = false;
 
             state = State.Chase;
-            UpdateChase(distance, toTarget, withinAttackDistance3D);
+            UpdateChase(distance, toTarget);
 
             if (lastNavDir.sqrMagnitude > 0.0001f)
                 RotateToTarget(lastNavDir);
@@ -513,7 +514,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
         switch (state)
         {
             case State.Engage:
-                UpdateEngage(distance, toTarget, playerGuardBroken, withinAttackDistance3D);
+                UpdateEngage(distance, toTarget, playerGuardBroken);
                 break;
             case State.Block:
                 UpdateBlock(distance);
@@ -594,7 +595,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
         return Random.value > sprintAttackUseBChance;
     }
 
-    void UpdateChase(float distance, Vector3 toTarget, bool withinAttackDistance3D)
+    void UpdateChase(float distance, Vector3 toTarget)
     {
         bool playerAttacking = (targetFighter != null) && targetFighter.IsInAttackLock;
 
@@ -614,14 +615,14 @@ public class Combat : MonoBehaviour, IEnemyCombat
         move.SetMoveDirection(dir);
         move.SetMoveSpeedLevel(Mathf.RoundToInt(currentSpeedLevel));
 
-        TryTriggerSprintAttack(distance, setRangeModeEngage: true, withinAttackDistance3D);
+        TryTriggerSprintAttack(distance, setRangeModeEngage: true);
     }
 
-    void UpdateEngage(float distance, Vector3 toTarget, bool playerGuardBroken, bool withinAttackDistance3D)
+    void UpdateEngage(float distance, Vector3 toTarget, bool playerGuardBroken)
     {
         UpdateSprintAttackBand(distance);
 
-        if (TryTriggerSprintAttack(distance, setRangeModeEngage: false, withinAttackDistance3D))
+        if (TryTriggerSprintAttack(distance, setRangeModeEngage: false))
             return;
 
         if (runAttackArming)
@@ -639,7 +640,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
          }
             
                         SprintApproach(toTarget);
-            TryTriggerSprintAttack(distance, setRangeModeEngage: false, withinAttackDistance3D);
+            TryTriggerSprintAttack(distance, setRangeModeEngage: false);
             return;
         }
 
@@ -653,7 +654,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
             return;
         }
 
-        if (distance > attackDecisionDistance || !withinAttackDistance3D)
+        if (distance > attackDecisionDistance)
         {
             if (!engageApproachActive)
             {
@@ -667,7 +668,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
             if (runAttackArming)
             {
                 SprintApproach(toTarget);
-                TryTriggerSprintAttack(distance, setRangeModeEngage: false, withinAttackDistance3D);
+                TryTriggerSprintAttack(distance, setRangeModeEngage: false);
                 return;
             }
 
@@ -695,9 +696,6 @@ public class Combat : MonoBehaviour, IEnemyCombat
             EnterState(State.Attack);
             return;
         }
-
-        if (!withinAttackDistance3D)
-            return;
 
         StartNormalPlan(playerGuardBroken);
         EnterState(State.Attack);
@@ -751,9 +749,9 @@ public class Combat : MonoBehaviour, IEnemyCombat
         }
     }
 
-    bool TryTriggerSprintAttack(float distance, bool setRangeModeEngage, bool withinAttackDistance3D)
+    bool TryTriggerSprintAttack(float distance, bool setRangeModeEngage)
     {
-        if (!runAttackArming || distance > sprintAttackTriggerDist || !withinAttackDistance3D)
+        if (!runAttackArming || distance > sprintAttackTriggerDist)
             return false;
 
         runAttackArming = false;
