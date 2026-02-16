@@ -74,6 +74,18 @@ public class LostTarget : MonoBehaviour
             return;
         }
 
+        if (controller != null && controller.IsInLandLock)
+        {
+            StopAllMove();
+            return;
+        }
+
+        if (controller != null && controller.IsAirborne)
+        {
+            navigator.Stop();
+            return;
+        }
+
         navigator.SyncPosition(transform.position);
 
         if (enemyState.LostTargetPhase == LostTargetPhase.Armed)
