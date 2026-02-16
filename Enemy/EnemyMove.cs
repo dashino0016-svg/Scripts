@@ -62,7 +62,6 @@ public class EnemyMove : MonoBehaviour
     static readonly int AnimMoveX = Animator.StringToHash("MoveX");
     static readonly int AnimMoveY = Animator.StringToHash("MoveY");
 
-    [SerializeField] float landRestartFade = 0.02f;
 
     /* ================= 对外接口 ================= */
 
@@ -299,13 +298,11 @@ public class EnemyMove : MonoBehaviour
 
             if (anim != null)
             {
-                string stateName = hardLand ? "HardLand" : "SoftLand";
-                int hash = Animator.StringToHash(stateName);
-
-                if (anim.HasState(0, hash))
-                    anim.CrossFadeInFixedTime(stateName, landRestartFade, 0, 0f);
+                // 按需求：落地完全使用 Trigger 触发，不使用 CrossFade。
+                if (hardLand)
+                    anim.SetTrigger("HardLand");
                 else
-                    anim.SetTrigger(stateName);
+                    anim.SetTrigger("SoftLand");
             }
 
             velocityY = groundedGravity;
