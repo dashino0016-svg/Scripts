@@ -24,6 +24,8 @@ public class EnemyNavigator : MonoBehaviour
     [Tooltip("脱离 NavMesh 时用于重挂的扩展采样半径（米）。")]
     [SerializeField] float navMeshReattachRadius = 12f;
 
+    bool wasNavLockActive;
+
     // ✅ 基准参数（未缩放）
     float baseSpeed;
     float baseAngularSpeed;
@@ -59,12 +61,35 @@ public class EnemyNavigator : MonoBehaviour
 
     void OnEnable()
     {
+        if (IsAirOrLandingLockActive())
+        {
+            wasNavLockActive = true;
+            return;
+        }
+
         EnsureAgentOnNavMesh(transform.position);
     }
 
     void Update()
     {
         if (agent == null) return;
+
+        bool navLockActive = IsAirOrLandingLockActive();
+        if (navLockActive)
+        {
+            if (!wasNavLockActive && agent.isOnNavMesh)
+                agent.ResetPath();
+
+            wasNavLockActive = true;
+            return;
+        }
+
+        if (wasNavLockActive)
+        {
+            ReattachAfterAirOrLandingLock();
+            wasNavLockActive = false;
+            return;
+        }
 
         float scale = (enemyController != null) ? enemyController.LocalTimeScale : 1f;
 
@@ -100,6 +125,9 @@ public class EnemyNavigator : MonoBehaviour
 
     public void SetTarget(Vector3 worldPos)
     {
+        if (IsAirOrLandingLockActive())
+            return;
+
         EnsureAgentOnNavMesh(transform.position);
 
         if (!IsAgentReady())
@@ -159,6 +187,9 @@ public class EnemyNavigator : MonoBehaviour
         if (agent == null)
             return;
 
+        if (IsAirOrLandingLockActive())
+            return;
+
         EnsureAgentOnNavMesh(worldPos);
 
         // ✅ 关键：即便当前 still isOnNavMesh，也可能“挂在旧楼层”。
@@ -188,6 +219,22 @@ public class EnemyNavigator : MonoBehaviour
     bool IsAgentReady()
     {
         return agent != null && agent.isOnNavMesh;
+    }
+
+    bool IsAirOrLandingLockActive()
+    {
+        return enemyController != null && (enemyController.IsAirborne || enemyController.IsInLandLock);
+    }
+
+    void ReattachAfterAirOrLandingLock()
+    {
+        ReattachAgentToClosestNavMesh(transform.position);
+
+        if (!IsAgentReady())
+            return;
+
+        agent.nextPosition = transform.position;
+        agent.ResetPath();
     }
 
     void EnsureAgentOnNavMesh(Vector3 worldPos)
