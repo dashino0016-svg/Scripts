@@ -48,10 +48,14 @@ public class EnemyMove : MonoBehaviour
 
     float velocityY;
     float lastAirVelocityY;
+    float minAirVelocityY;
+    float landingEnterVelocityY;
     float turnVelocity;
 
     bool isGrounded;
+    bool isGroundedRaw;
     bool wasGrounded;
+    bool wasGroundedRaw;
     float lastGroundedTime = -999f;
     Vector3 groundNormal = Vector3.up;
     bool rotationEnabled = true;
@@ -90,6 +94,7 @@ public class EnemyMove : MonoBehaviour
     }
 
     public bool IsGrounded => isGrounded;
+    public bool IsGroundedRaw => isGroundedRaw;
     public int DesiredSpeedLevel => desiredSpeedLevel;
     /* ================= Unity ================= */
 
@@ -107,16 +112,28 @@ public class EnemyMove : MonoBehaviour
             dt *= enemyController.LocalTimeScale;
 
         wasGrounded = isGrounded;
+        wasGroundedRaw = isGroundedRaw;
 
-        bool groundedNow = CheckGroundedRaw();
-        if (groundedNow)
+        bool groundedRawNow = CheckGroundedRaw();
+        isGroundedRaw = groundedRawNow;
+
+        if (groundedRawNow)
             lastGroundedTime = Time.time;
 
-        isGrounded = groundedNow || (Time.time - lastGroundedTime <= groundedGraceTime);
+        isGrounded = groundedRawNow || (Time.time - lastGroundedTime <= groundedGraceTime);
+
+        if (!wasGroundedRaw && isGroundedRaw)
+            landingEnterVelocityY = velocityY;
 
         // 进入离地瞬间记录朝向：坠落+落地期间锁定该朝向
-        if (wasGrounded && !isGrounded && enemyController != null)
-            enemyController.CaptureAirLandFacingLock(transform.rotation);
+        if (wasGroundedRaw && !isGroundedRaw)
+        {
+            if (enemyController != null)
+                enemyController.CaptureAirLandFacingLock(transform.rotation);
+
+            minAirVelocityY = Mathf.Min(velocityY, 0f);
+            lastAirVelocityY = velocityY;
+        }
 
         if (anim != null)
         {
@@ -223,10 +240,12 @@ public class EnemyMove : MonoBehaviour
     {
         Vector3 horizontal = dir * speed;
 
-        if (isGrounded)
+        if (isGroundedRaw)
         {
             if (velocityY < groundedGravity)
                 velocityY = groundedGravity;
+            minAirVelocityY = groundedGravity;
+            landingEnterVelocityY = groundedGravity;
 
             horizontal = Vector3.ProjectOnPlane(horizontal, groundNormal);
         }
@@ -270,17 +289,18 @@ public class EnemyMove : MonoBehaviour
 
     void ApplyGravity(float dt)
     {
-        if (!isGrounded)
+        if (!isGroundedRaw)
         {
             velocityY += gravity * dt;
             velocityY = Mathf.Max(velocityY, terminalVelocity);
             lastAirVelocityY = velocityY;
+            minAirVelocityY = Mathf.Min(minAirVelocityY, velocityY);
         }
     }
 
     void HandleLanding()
     {
-        if (!wasGrounded && isGrounded)
+        if (!wasGroundedRaw && isGroundedRaw)
         {
             var melee = GetComponent<MeleeFighter>();
             if (melee != null)
@@ -290,7 +310,8 @@ public class EnemyMove : MonoBehaviour
             if (range != null)
                 range.InterruptShoot();
 
-            bool hardLand = (lastAirVelocityY <= hardLandVelocity);
+            float impactVelocityY = Mathf.Min(lastAirVelocityY, minAirVelocityY, landingEnterVelocityY, velocityY);
+            bool hardLand = (impactVelocityY <= hardLandVelocity);
 
             // 预先进入落地锁，防止 AI 在动画事件触发前抢回攻击逻辑导致落地状态被打断。
             if (enemyController != null)
@@ -306,6 +327,8 @@ public class EnemyMove : MonoBehaviour
             }
 
             velocityY = groundedGravity;
+            minAirVelocityY = groundedGravity;
+            landingEnterVelocityY = groundedGravity;
         }
     }
 
