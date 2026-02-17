@@ -29,6 +29,9 @@ public class EnemyMove : MonoBehaviour
     [Header("Animation")]
     public float speedDampTime = 0.02f;
 
+    [Header("Debug")]
+    [SerializeField] bool debugLanding;
+
     [Tooltip("是否驱动 2D 方向参数 MoveX/MoveY（用于 Walk 四向）。")]
     public bool driveMoveXY = true;
 
@@ -48,6 +51,7 @@ public class EnemyMove : MonoBehaviour
 
     float velocityY;
     float lastAirVelocityY;
+    float lastImpactVelocityY;
     float turnVelocity;
 
     bool isGrounded;
@@ -94,6 +98,7 @@ public class EnemyMove : MonoBehaviour
     public bool IsGrounded => isGrounded;
     public bool IsGroundedRaw => isGroundedRaw;
     public int DesiredSpeedLevel => desiredSpeedLevel;
+    public float LastImpactVelocityY => lastImpactVelocityY;
     /* ================= Unity ================= */
 
     void Awake()
@@ -311,6 +316,7 @@ public class EnemyMove : MonoBehaviour
                 range.InterruptShoot();
 
             bool hardLand = (lastAirVelocityY <= hardLandVelocity);
+            lastImpactVelocityY = lastAirVelocityY;
 
             // 预先进入落地锁，防止 AI 在动画事件触发前抢回攻击逻辑导致落地状态被打断。
             if (enemyController != null)
@@ -318,11 +324,22 @@ public class EnemyMove : MonoBehaviour
 
             if (anim != null)
             {
+                // 防止旧 Trigger 残留导致同帧或下一帧被错误消费。
+                anim.ResetTrigger("HardLand");
+                anim.ResetTrigger("SoftLand");
+
                 // 按需求：落地完全使用 Trigger 触发，不使用 CrossFade。
                 if (hardLand)
                     anim.SetTrigger("HardLand");
                 else
                     anim.SetTrigger("SoftLand");
+            }
+
+            if (debugLanding)
+            {
+                Debug.Log(
+                    $"[EnemyMove] Landing on {name} | hard={hardLand} | lastImpactY={lastImpactVelocityY:F3} | hardLandVelocity={hardLandVelocity:F3} | raw={isGroundedRaw} | grounded={isGrounded}",
+                    this);
             }
 
             velocityY = groundedGravity;
