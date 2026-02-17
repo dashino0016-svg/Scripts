@@ -49,10 +49,6 @@ public class PlayerMove : MonoBehaviour
     [Header("Animation")]
     public float speedDampTime = 0.02f;
 
-    [Header("Landing")]
-    [Tooltip("落地动画触发后的短时间内，禁止再次触发 Land（用于防止斜坡短暂离地导致二次 SoftLand 插入）。")]
-    [SerializeField, Min(0f)] float landRetriggerBlockTime = 0.35f;
-
     [Header("Root Motion (Player)")]
     [Tooltip("开启后：空中阶段不吃任何 Root Motion 位移，避免与跳跃物理叠加导致跳高飘移。")]
     [SerializeField] bool disableRootMotionTranslationWhenAirborne = true;
@@ -126,7 +122,6 @@ public class PlayerMove : MonoBehaviour
 
     float velocityY;
     float lastAirVelocityY;
-    float lastLandTriggerTime = -999f;
     float turnVelocity;
 
     bool isGrounded;
@@ -578,17 +573,6 @@ public class PlayerMove : MonoBehaviour
     {
         if (!wasGrounded && isGrounded)
         {
-            bool landingAnimationPlaying = IsLandingAnimationPlaying();
-            bool landingTriggerBlocked = (Time.time - lastLandTriggerTime) <= landRetriggerBlockTime;
-
-            // 关键：防止 HardLand 在下坡短暂离地后，马上被二次 SoftLand 打断。
-            if (landingAnimationPlaying || landingTriggerBlocked)
-            {
-                velocityY = groundedGravity;
-                airHorizontalVelocity = Vector3.zero;
-                return;
-            }
-
             // 空中攻击未播完时，落地按“强打断”处理（与受击打断同思路）
             if (fighter != null && fighter.IsInAirAttack)
                 fighter.InterruptAttack();
@@ -602,8 +586,6 @@ public class PlayerMove : MonoBehaviour
             else
                 anim.SetTrigger("SoftLand");
 
-            lastLandTriggerTime = Time.time;
-
             if (combatStats != null && !combatStats.IsDead)
             {
                 int fallDamage = CalculateFallDamage(-lastAirVelocityY);
@@ -614,35 +596,6 @@ public class PlayerMove : MonoBehaviour
             velocityY = groundedGravity;
             airHorizontalVelocity = Vector3.zero;
         }
-    }
-
-    bool IsLandingAnimationPlaying()
-    {
-        if (anim == null) return false;
-
-        AnimatorStateInfo st = anim.GetCurrentAnimatorStateInfo(0);
-        if (IsLandingState(st)) return true;
-
-        if (anim.IsInTransition(0))
-        {
-            AnimatorStateInfo next = anim.GetNextAnimatorStateInfo(0);
-            if (IsLandingState(next)) return true;
-        }
-
-        return false;
-    }
-
-    bool IsLandingState(AnimatorStateInfo st)
-    {
-        int hard = Animator.StringToHash("HardLand");
-        int soft = Animator.StringToHash("SoftLand");
-
-        if (st.shortNameHash == hard || st.shortNameHash == soft)
-            return true;
-
-        return st.IsName("HardLand") || st.IsName("SoftLand") ||
-               st.IsName("Base Layer.HardLand") || st.IsName("Base Layer.SoftLand") ||
-               st.IsTag("HardLand") || st.IsTag("SoftLand") || st.IsTag("Land");
     }
 
 #if UNITY_EDITOR
