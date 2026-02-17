@@ -131,7 +131,7 @@ public class EnemyController : MonoBehaviour
     bool hasAirLandLockedYaw;
 
     public bool IsInLandLock => isLanding;
-    public bool IsAirborne => cachedMove != null && !cachedMove.IsGroundedRaw;
+    public bool IsAirborne => cachedMove != null && !cachedMove.IsGrounded;
     public bool IsInWeaponTransition { get; private set; }
 
     enum WeaponTransitionType { None, Draw, Sheath }

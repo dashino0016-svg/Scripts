@@ -548,6 +548,10 @@ public class PlayerMove : MonoBehaviour
             if (fighter != null && fighter.IsInAirAttack)
                 fighter.InterruptAttack();
 
+            // 防止旧 Trigger 残留导致同帧或下一帧被错误消费。
+            anim.ResetTrigger("HardLand");
+            anim.ResetTrigger("SoftLand");
+
             if (lastAirVelocityY <= hardLandVelocity)
                 anim.SetTrigger("HardLand");
             else
