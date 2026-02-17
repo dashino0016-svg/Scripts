@@ -48,7 +48,6 @@ public class EnemyMove : MonoBehaviour
 
     float velocityY;
     float lastAirVelocityY;
-    float minAirVelocityY;
     float turnVelocity;
 
     bool isGrounded;
@@ -122,12 +121,11 @@ public class EnemyMove : MonoBehaviour
         isGrounded = groundedRawNow || (Time.time - lastGroundedTime <= groundedGraceTime);
 
         // 进入离地瞬间记录朝向：坠落+落地期间锁定该朝向
-        if (wasGroundedRaw && !isGroundedRaw)
+        if (wasGrounded && !isGrounded)
         {
             if (enemyController != null)
                 enemyController.CaptureAirLandFacingLock(transform.rotation);
 
-            minAirVelocityY = Mathf.Min(velocityY, 0f);
             lastAirVelocityY = velocityY;
         }
 
@@ -173,27 +171,35 @@ public class EnemyMove : MonoBehaviour
 
     /* ================= Ground ================= */
 
+    Vector3 GetCapsuleBottomWorld(CharacterController cc)
+    {
+        if (cc == null) return transform.position;
+
+        Vector3 centerWorld = transform.TransformPoint(cc.center);
+        float halfHeight = Mathf.Max(cc.height * 0.5f, cc.radius);
+        float bottomOffset = halfHeight - cc.radius;
+        return centerWorld - transform.up * bottomOffset;
+    }
+
     Vector3 GetCapsuleBottomWorld()
     {
-        Vector3 centerWorld = transform.TransformPoint(controller.center);
-        float halfHeight = Mathf.Max(controller.height * 0.5f, controller.radius);
-        float bottomOffset = halfHeight - controller.radius;
-        return centerWorld - transform.up * bottomOffset;
+        return GetCapsuleBottomWorld(controller);
+    }
+
+    void GetGroundCheckCast(out Vector3 castOrigin, out float radius, out float castDistance)
+    {
+        radius = Mathf.Max(0.01f, groundCheckRadius);
+        castDistance = Mathf.Max(0.01f, groundCheckDistance);
+
+        CharacterController cc = controller != null ? controller : GetComponent<CharacterController>();
+        Vector3 bottom = GetCapsuleBottomWorld(cc);
+        float centerUp = Mathf.Max(0.01f, radius + groundCheckOffset);
+        castOrigin = bottom + transform.up * centerUp;
     }
 
     bool CheckGroundedRaw()
     {
-        if (controller != null && controller.isGrounded)
-        {
-            groundNormal = transform.up;
-            return true;
-        }
-
-        float radius = Mathf.Max(0.01f, groundCheckRadius);
-        float castDistance = Mathf.Max(0.01f, groundCheckDistance + Mathf.Max(0f, -groundCheckOffset));
-
-        Vector3 bottom = GetCapsuleBottomWorld();
-        Vector3 castOrigin = bottom + transform.up * radius;
+        GetGroundCheckCast(out Vector3 castOrigin, out float radius, out float castDistance);
 
         if (Physics.SphereCast(
                 castOrigin,
@@ -208,8 +214,9 @@ public class EnemyMove : MonoBehaviour
             return true;
         }
 
+        bool ccGrounded = controller != null && controller.isGrounded;
         groundNormal = transform.up;
-        return false;
+        return ccGrounded;
     }
 
     /* ================= Movement ================= */
@@ -236,11 +243,10 @@ public class EnemyMove : MonoBehaviour
     {
         Vector3 horizontal = dir * speed;
 
-        if (isGroundedRaw)
+        if (isGrounded)
         {
             if (velocityY < groundedGravity)
                 velocityY = groundedGravity;
-            minAirVelocityY = groundedGravity;
 
             horizontal = Vector3.ProjectOnPlane(horizontal, groundNormal);
         }
@@ -284,18 +290,17 @@ public class EnemyMove : MonoBehaviour
 
     void ApplyGravity(float dt)
     {
-        if (!isGroundedRaw)
+        if (!isGrounded)
         {
             velocityY += gravity * dt;
             velocityY = Mathf.Max(velocityY, terminalVelocity);
             lastAirVelocityY = velocityY;
-            minAirVelocityY = Mathf.Min(minAirVelocityY, velocityY);
         }
     }
 
     void HandleLanding()
     {
-        if (!wasGroundedRaw && isGroundedRaw)
+        if (!wasGrounded && isGrounded)
         {
             var melee = GetComponent<MeleeFighter>();
             if (melee != null)
@@ -305,8 +310,7 @@ public class EnemyMove : MonoBehaviour
             if (range != null)
                 range.InterruptShoot();
 
-            float impactVelocityY = Mathf.Min(lastAirVelocityY, minAirVelocityY, velocityY);
-            bool hardLand = (impactVelocityY <= hardLandVelocity);
+            bool hardLand = (lastAirVelocityY <= hardLandVelocity);
 
             // 预先进入落地锁，防止 AI 在动画事件触发前抢回攻击逻辑导致落地状态被打断。
             if (enemyController != null)
@@ -322,7 +326,6 @@ public class EnemyMove : MonoBehaviour
             }
 
             velocityY = groundedGravity;
-            minAirVelocityY = groundedGravity;
         }
     }
 
@@ -333,15 +336,7 @@ public class EnemyMove : MonoBehaviour
         CharacterController cc = controller != null ? controller : GetComponent<CharacterController>();
         if (cc == null) return;
 
-        float radius = Mathf.Max(0.01f, groundCheckRadius);
-        float castDistance = Mathf.Max(0.01f, groundCheckDistance + Mathf.Max(0f, -groundCheckOffset));
-
-        Vector3 centerWorld = transform.TransformPoint(cc.center);
-        float halfHeight = Mathf.Max(cc.height * 0.5f, cc.radius);
-        float bottomOffset = halfHeight - cc.radius;
-        Vector3 bottom = centerWorld - transform.up * bottomOffset;
-
-        Vector3 castOrigin = bottom + transform.up * radius;
+        GetGroundCheckCast(out Vector3 castOrigin, out float radius, out float castDistance);
         Vector3 castEnd = castOrigin - transform.up * castDistance;
 
         Gizmos.DrawWireSphere(castOrigin, radius);
