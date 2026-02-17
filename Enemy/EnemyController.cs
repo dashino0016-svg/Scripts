@@ -131,7 +131,7 @@ public class EnemyController : MonoBehaviour
     bool hasAirLandLockedYaw;
 
     public bool IsInLandLock => isLanding;
-    public bool IsAirborne => cachedMove != null && !cachedMove.IsGroundedRaw;
+    public bool IsAirborne => cachedMove != null && !cachedMove.IsGrounded;
     public bool IsInWeaponTransition { get; private set; }
 
     enum WeaponTransitionType { None, Draw, Sheath }
@@ -445,6 +445,7 @@ public class EnemyController : MonoBehaviour
 
             // Clear triggers that could keep us in death/transition states.
             anim.ResetTrigger("Dead");
+            anim.ResetTrigger("FallDead");
             anim.ResetTrigger("DrawSword");
             anim.ResetTrigger("SheathSword");
 
@@ -1125,6 +1126,7 @@ public class EnemyController : MonoBehaviour
             anim.Update(0f);
             anim.SetBool("IsArmed", false);
             anim.ResetTrigger("Dead");
+            anim.ResetTrigger("FallDead");
             anim.ResetTrigger("DrawSword");
             anim.ResetTrigger("SheathSword");
             if (deathLayerIndex >= 0)
@@ -1326,7 +1328,10 @@ public class EnemyController : MonoBehaviour
                 anim.SetLayerWeight(deathLayerIndex, 1f);
 
             if (!deathByAssassination)
-                anim.SetTrigger("Dead");
+            {
+                bool fallDeath = combatStats != null && combatStats.LastDeathCause == DeathCause.Fall;
+                anim.SetTrigger(fallDeath ? "FallDead" : "Dead");
+            }
 
             if (deathByAssassination || IsInAssassinationLock || solidCollisionDisabledPermanently)
             {

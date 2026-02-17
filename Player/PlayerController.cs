@@ -45,6 +45,7 @@ public class PlayerController : MonoBehaviour
     PlayerAbilitySystem abilitySystem;
     PlayerDroneSummoner droneSummoner;
     CombatReceiver receiver; // ✅ 受击锁来源
+    CombatStats combatStats;
 
     bool isBusy;
     bool isAttacking;
@@ -146,6 +147,7 @@ public class PlayerController : MonoBehaviour
         abilitySystem = GetComponent<PlayerAbilitySystem>();
         droneSummoner = GetComponent<PlayerDroneSummoner>();
         receiver = GetComponent<CombatReceiver>();
+        combatStats = GetComponent<CombatStats>();
         assassination = GetComponent<AssassinationSystem>();
 
         if (miniDrone == null)
@@ -1166,7 +1168,8 @@ public class PlayerController : MonoBehaviour
 
         if (anim != null)
         {
-            anim.SetTrigger("Dead");
+            bool fallDeath = combatStats != null && combatStats.LastDeathCause == DeathCause.Fall;
+            anim.SetTrigger(fallDeath ? "FallDead" : "Dead");
         }
     }
 }
