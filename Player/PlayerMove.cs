@@ -37,8 +37,21 @@ public class PlayerMove : MonoBehaviour
     [Min(0f)] public float groundedGraceTime = 0.08f;
     public LayerMask groundMask;
 
+    [Header("Fall Damage")]
+    public bool enableFallDamage = true;
+    [Tooltip("落地伤害起算速度阈值（向下速度绝对值）")]
+    public float fallDamageThresholdSpeed = 12f;
+    [Tooltip("超过阈值后的伤害换算系数")]
+    public float fallDamageScale = 2f;
+    [Tooltip("单次落地伤害上限（<=0 表示不上限）")]
+    public int fallDamageMax = 9999;
+
     [Header("Animation")]
     public float speedDampTime = 0.02f;
+
+    [Header("Landing")]
+    [Tooltip("落地动画触发后的短时间内，禁止再次触发 Land（用于防止斜坡短暂离地导致二次 SoftLand 插入）。")]
+    [SerializeField, Min(0f)] float landRetriggerBlockTime = 0.35f;
 
     [Header("Root Motion (Player)")]
     [Tooltip("开启后：空中阶段不吃任何 Root Motion 位移，避免与跳跃物理叠加导致跳高飘移。")]
@@ -77,6 +90,7 @@ public class PlayerMove : MonoBehaviour
 
     // ✅ 跳跃扣体力（起跳真相点）
     PlayerStaminaActions staminaActions;
+    CombatStats combatStats;
 
     // =========================
     // ✅ 输入由 PlayerController 注入（PlayerMove 不再读 Input / KeyCode）
@@ -112,6 +126,7 @@ public class PlayerMove : MonoBehaviour
 
     float velocityY;
     float lastAirVelocityY;
+    float lastLandTriggerTime = -999f;
     float turnVelocity;
 
     bool isGrounded;
@@ -142,6 +157,7 @@ public class PlayerMove : MonoBehaviour
         fighter = GetComponent<MeleeFighter>();
 
         staminaActions = GetComponent<PlayerStaminaActions>();
+        combatStats = GetComponent<CombatStats>();
 
         // ✅ 自动把当前 CC 参数当作“站立胶囊”
         standHeight = controller.height;
@@ -530,6 +546,24 @@ public class PlayerMove : MonoBehaviour
             controller.Move(delta);
     }
 
+    int CalculateFallDamage(float downwardSpeed)
+    {
+        if (!enableFallDamage)
+            return 0;
+
+        float speed = Mathf.Max(0f, downwardSpeed);
+        if (speed <= fallDamageThresholdSpeed)
+            return 0;
+
+        float excess = speed - fallDamageThresholdSpeed;
+        int damage = Mathf.CeilToInt(excess * Mathf.Max(0f, fallDamageScale));
+
+        if (fallDamageMax > 0)
+            damage = Mathf.Min(damage, fallDamageMax);
+
+        return Mathf.Max(0, damage);
+    }
+
     void ApplyGravity()
     {
         if (!isGrounded)
@@ -544,18 +578,71 @@ public class PlayerMove : MonoBehaviour
     {
         if (!wasGrounded && isGrounded)
         {
+            bool landingAnimationPlaying = IsLandingAnimationPlaying();
+            bool landingTriggerBlocked = (Time.time - lastLandTriggerTime) <= landRetriggerBlockTime;
+
+            // 关键：防止 HardLand 在下坡短暂离地后，马上被二次 SoftLand 打断。
+            if (landingAnimationPlaying || landingTriggerBlocked)
+            {
+                velocityY = groundedGravity;
+                airHorizontalVelocity = Vector3.zero;
+                return;
+            }
+
             // 空中攻击未播完时，落地按“强打断”处理（与受击打断同思路）
             if (fighter != null && fighter.IsInAirAttack)
                 fighter.InterruptAttack();
+
+            // 防止旧 Trigger 残留导致同帧或下一帧被错误消费。
+            anim.ResetTrigger("HardLand");
+            anim.ResetTrigger("SoftLand");
 
             if (lastAirVelocityY <= hardLandVelocity)
                 anim.SetTrigger("HardLand");
             else
                 anim.SetTrigger("SoftLand");
 
+            lastLandTriggerTime = Time.time;
+
+            if (combatStats != null && !combatStats.IsDead)
+            {
+                int fallDamage = CalculateFallDamage(-lastAirVelocityY);
+                if (fallDamage > 0)
+                    combatStats.TakeHPDamage(fallDamage, DeathCause.Fall);
+            }
+
             velocityY = groundedGravity;
             airHorizontalVelocity = Vector3.zero;
         }
+    }
+
+    bool IsLandingAnimationPlaying()
+    {
+        if (anim == null) return false;
+
+        AnimatorStateInfo st = anim.GetCurrentAnimatorStateInfo(0);
+        if (IsLandingState(st)) return true;
+
+        if (anim.IsInTransition(0))
+        {
+            AnimatorStateInfo next = anim.GetNextAnimatorStateInfo(0);
+            if (IsLandingState(next)) return true;
+        }
+
+        return false;
+    }
+
+    bool IsLandingState(AnimatorStateInfo st)
+    {
+        int hard = Animator.StringToHash("HardLand");
+        int soft = Animator.StringToHash("SoftLand");
+
+        if (st.shortNameHash == hard || st.shortNameHash == soft)
+            return true;
+
+        return st.IsName("HardLand") || st.IsName("SoftLand") ||
+               st.IsName("Base Layer.HardLand") || st.IsName("Base Layer.SoftLand") ||
+               st.IsTag("HardLand") || st.IsTag("SoftLand") || st.IsTag("Land");
     }
 
 #if UNITY_EDITOR
