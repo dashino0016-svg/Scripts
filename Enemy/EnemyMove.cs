@@ -26,6 +26,15 @@ public class EnemyMove : MonoBehaviour
     [Min(0f)] public float groundedGraceTime = 0.08f;
     public LayerMask groundMask;
 
+    [Header("Fall Damage")]
+    public bool enableFallDamage = true;
+    [Tooltip("落地伤害起算速度阈值（向下速度绝对值）")]
+    public float fallDamageThresholdSpeed = 12f;
+    [Tooltip("超过阈值后的伤害换算系数")]
+    public float fallDamageScale = 2f;
+    [Tooltip("单次落地伤害上限（<=0 表示不上限）")]
+    public int fallDamageMax = 9999;
+
     [Header("Animation")]
     public float speedDampTime = 0.02f;
 
@@ -44,6 +53,7 @@ public class EnemyMove : MonoBehaviour
     CharacterController controller;
     Animator anim;
     EnemyController enemyController;
+    CombatStats combatStats;
 
     Vector3 desiredMoveDir;   // AI 给的期望移动方向（世界空间）
     float desiredSpeed;       // ✅ 真实速度值（0/1/2/4）
@@ -106,6 +116,7 @@ public class EnemyMove : MonoBehaviour
         controller = GetComponent<CharacterController>();
         anim = GetComponent<Animator>();
         enemyController = GetComponent<EnemyController>();
+        combatStats = GetComponent<CombatStats>();
     }
 
     void Update()
@@ -293,6 +304,24 @@ public class EnemyMove : MonoBehaviour
 
     /* ================= Gravity ================= */
 
+    int CalculateFallDamage(float downwardSpeed)
+    {
+        if (!enableFallDamage)
+            return 0;
+
+        float speed = Mathf.Max(0f, downwardSpeed);
+        if (speed <= fallDamageThresholdSpeed)
+            return 0;
+
+        float excess = speed - fallDamageThresholdSpeed;
+        int damage = Mathf.CeilToInt(excess * Mathf.Max(0f, fallDamageScale));
+
+        if (fallDamageMax > 0)
+            damage = Mathf.Min(damage, fallDamageMax);
+
+        return Mathf.Max(0, damage);
+    }
+
     void ApplyGravity(float dt)
     {
         if (!isGrounded)
@@ -333,6 +362,13 @@ public class EnemyMove : MonoBehaviour
                     anim.SetTrigger("HardLand");
                 else
                     anim.SetTrigger("SoftLand");
+            }
+
+            if (combatStats != null && !combatStats.IsDead)
+            {
+                int fallDamage = CalculateFallDamage(-lastAirVelocityY);
+                if (fallDamage > 0)
+                    combatStats.TakeHPDamage(fallDamage, DeathCause.Fall);
             }
 
             if (debugLanding)

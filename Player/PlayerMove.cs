@@ -37,6 +37,15 @@ public class PlayerMove : MonoBehaviour
     [Min(0f)] public float groundedGraceTime = 0.08f;
     public LayerMask groundMask;
 
+    [Header("Fall Damage")]
+    public bool enableFallDamage = true;
+    [Tooltip("落地伤害起算速度阈值（向下速度绝对值）")]
+    public float fallDamageThresholdSpeed = 12f;
+    [Tooltip("超过阈值后的伤害换算系数")]
+    public float fallDamageScale = 2f;
+    [Tooltip("单次落地伤害上限（<=0 表示不上限）")]
+    public int fallDamageMax = 9999;
+
     [Header("Animation")]
     public float speedDampTime = 0.02f;
 
@@ -77,6 +86,7 @@ public class PlayerMove : MonoBehaviour
 
     // ✅ 跳跃扣体力（起跳真相点）
     PlayerStaminaActions staminaActions;
+    CombatStats combatStats;
 
     // =========================
     // ✅ 输入由 PlayerController 注入（PlayerMove 不再读 Input / KeyCode）
@@ -142,6 +152,7 @@ public class PlayerMove : MonoBehaviour
         fighter = GetComponent<MeleeFighter>();
 
         staminaActions = GetComponent<PlayerStaminaActions>();
+        combatStats = GetComponent<CombatStats>();
 
         // ✅ 自动把当前 CC 参数当作“站立胶囊”
         standHeight = controller.height;
@@ -530,6 +541,24 @@ public class PlayerMove : MonoBehaviour
             controller.Move(delta);
     }
 
+    int CalculateFallDamage(float downwardSpeed)
+    {
+        if (!enableFallDamage)
+            return 0;
+
+        float speed = Mathf.Max(0f, downwardSpeed);
+        if (speed <= fallDamageThresholdSpeed)
+            return 0;
+
+        float excess = speed - fallDamageThresholdSpeed;
+        int damage = Mathf.CeilToInt(excess * Mathf.Max(0f, fallDamageScale));
+
+        if (fallDamageMax > 0)
+            damage = Mathf.Min(damage, fallDamageMax);
+
+        return Mathf.Max(0, damage);
+    }
+
     void ApplyGravity()
     {
         if (!isGrounded)
@@ -556,6 +585,13 @@ public class PlayerMove : MonoBehaviour
                 anim.SetTrigger("HardLand");
             else
                 anim.SetTrigger("SoftLand");
+
+            if (combatStats != null && !combatStats.IsDead)
+            {
+                int fallDamage = CalculateFallDamage(-lastAirVelocityY);
+                if (fallDamage > 0)
+                    combatStats.TakeHPDamage(fallDamage, DeathCause.Fall);
+            }
 
             velocityY = groundedGravity;
             airHorizontalVelocity = Vector3.zero;

@@ -1,5 +1,12 @@
 using UnityEngine;
 
+public enum DeathCause
+{
+    Unknown = 0,
+    Combat = 1,
+    Fall = 2,
+}
+
 public class CombatStats : MonoBehaviour
 {
     [Header("HP")]
@@ -29,6 +36,7 @@ public class CombatStats : MonoBehaviour
     public int CurrentSpecial { get; private set; }
 
     public bool IsDead { get; private set; }
+    public DeathCause LastDeathCause { get; private set; } = DeathCause.Unknown;
     public event System.Action OnDead;
 
     bool isBlocking;
@@ -64,6 +72,7 @@ public class CombatStats : MonoBehaviour
         staminaF = CurrentStamina;
 
         CurrentSpecial = 0;
+        LastDeathCause = DeathCause.Unknown;
     }
 
     void Update()
@@ -75,13 +84,18 @@ public class CombatStats : MonoBehaviour
 
     public void TakeHPDamage(int value)
     {
+        TakeHPDamage(value, DeathCause.Combat);
+    }
+
+    public void TakeHPDamage(int value, DeathCause cause)
+    {
         if (value <= 0 || IsDead) return;
 
         CurrentHP -= value;
         if (CurrentHP <= 0)
         {
             CurrentHP = 0;
-            Die();
+            Die(cause);
         }
     }
 
@@ -241,13 +255,15 @@ public class CombatStats : MonoBehaviour
     public void ReviveFullHP()
     {
         IsDead = false;
+        LastDeathCause = DeathCause.Unknown;
         CurrentHP = maxHP;
     }
 
-    void Die()
+    void Die(DeathCause cause)
     {
         if (IsDead) return;
         IsDead = true;
+        LastDeathCause = cause;
         OnDead?.Invoke();
     }
 }
