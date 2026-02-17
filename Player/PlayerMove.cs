@@ -10,7 +10,7 @@ public class PlayerMove : MonoBehaviour
 
     [Header("Jump")]
     public float jumpForce = 5f;
-    public float hardLandVelocity = -10f;
+    public float hardLandVelocity = -12f;
 
     [Header("Jump (Lock-On Tuning)")]
     [Range(0.1f, 1f)]
@@ -40,9 +40,9 @@ public class PlayerMove : MonoBehaviour
     [Header("Fall Damage")]
     public bool enableFallDamage = true;
     [Tooltip("落地伤害起算速度阈值（向下速度绝对值）")]
-    public float fallDamageThresholdSpeed = 12f;
+    public float fallDamageThresholdSpeed = 15f;
     [Tooltip("超过阈值后的伤害换算系数")]
-    public float fallDamageScale = 2f;
+    public float fallDamageScale = 5f;
     [Tooltip("单次落地伤害上限（<=0 表示不上限）")]
     public int fallDamageMax = 9999;
 

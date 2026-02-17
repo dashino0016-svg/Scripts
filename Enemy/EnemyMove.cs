@@ -9,7 +9,7 @@ public class EnemyMove : MonoBehaviour
     public float sprintSpeed = 4f;   // 对应 BlendTree 阈值 4
 
     [Header("Jump")]
-    public float hardLandVelocity = -10f;
+    public float hardLandVelocity = -12f;
 
     [Header("Rotation")]
     public float rotationSmoothTime = 0.08f;
@@ -31,7 +31,7 @@ public class EnemyMove : MonoBehaviour
     [Tooltip("落地伤害起算速度阈值（向下速度绝对值）")]
     public float fallDamageThresholdSpeed = 12f;
     [Tooltip("超过阈值后的伤害换算系数")]
-    public float fallDamageScale = 2f;
+    public float fallDamageScale = 10f;
     [Tooltip("单次落地伤害上限（<=0 表示不上限）")]
     public int fallDamageMax = 9999;
 
