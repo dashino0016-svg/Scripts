@@ -18,6 +18,8 @@ public class LockMarkerFollower : MonoBehaviour
 
     [Header("Billboard")]
     public bool faceCamera = true;
+
+    [Tooltip("为 true 时仅保持竖直（只Yaw）；为 false 时完全对齐相机（Yaw+Pitch）。\n你要“面向摄像头”，建议设为 false。")]
     public bool lockUpright = true;
 
     [Header("Size")]
@@ -70,8 +72,10 @@ public class LockMarkerFollower : MonoBehaviour
 
         _target = (stats != null) ? stats.transform : null;
         ApplyVisible(_target != null);
+
         // ✅ 新增：目标切换/清锁时默认关闭红点，避免残留
         SetAssassinationReady(false);
+
         // 锁定瞬间缓存一次渲染器中心偏移（可选）
         if (_target != null && useRendererCenterOnce)
         {
@@ -106,14 +110,22 @@ public class LockMarkerFollower : MonoBehaviour
             transform.position = Vector3.SmoothDamp(transform.position, targetPos, ref _vel, smoothTime);
         }
 
-        // 面向相机（Billboard）
+        // ✅ 面向相机（Billboard）：完全复用相机朝向
         if (faceCamera && cam != null)
         {
-            Vector3 forward = (transform.position - cam.transform.position);
-            if (lockUpright) forward.y = 0f;
-
-            if (forward.sqrMagnitude > 0.0001f)
-                transform.rotation = Quaternion.LookRotation(forward.normalized, Vector3.up);
+            if (lockUpright)
+            {
+                // 只Yaw：相机前向投影到XZ
+                Vector3 fwd = cam.transform.forward;
+                fwd.y = 0f;
+                if (fwd.sqrMagnitude > 0.0001f)
+                    transform.rotation = Quaternion.LookRotation(fwd.normalized, Vector3.up);
+            }
+            else
+            {
+                // 全对齐：Yaw+Pitch（满足你“高处锁定也正对相机”）
+                transform.rotation = Quaternion.LookRotation(cam.transform.forward, cam.transform.up);
+            }
         }
 
         // 恒定屏幕尺寸（解决远小近大）
@@ -139,16 +151,12 @@ public class LockMarkerFollower : MonoBehaviour
         for (int i = 1; i < rends.Length; i++)
             b.Encapsulate(rends[i].bounds);
 
-        // 我们想要的是：中心点相对 root 的偏移（世界空间）
-        // 注意：bounds.center 在世界空间
         _cachedCenterOffset = (b.center - t.position);
         _hasCachedOffset = true;
     }
 
     float GetWorldSizeFromScreenPx(float px, float distance, Camera camera)
     {
-        // 透视：屏幕高度对应的世界高度 = 2 * d * tan(fov/2)
-        // px 占比乘一下即可
         float frustumHeight = 2f * distance * Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad);
         float ratio = px / Mathf.Max(1f, (float)Screen.height);
         return frustumHeight * ratio;

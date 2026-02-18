@@ -1,4 +1,4 @@
-﻿﻿using UnityEngine;
+﻿using UnityEngine;
 
 public class ThirdPersonShoulderCamera : MonoBehaviour
 {
@@ -35,8 +35,8 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
     public float minDistance = 0.6f;
 
     [Header("Lock On Pitch")]
+    [Tooltip("锁定时：由目标驱动 Pitch，使目标保持在屏幕中央（动态随高度变化）。")]
     public bool lockPitchWhenLocked = true;
-    float lockedPitch;
 
     public float CurrentYaw => currentYaw;
 
@@ -56,13 +56,7 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
 
     public void SetLockTarget(Transform newTarget)
     {
-        if (lockPitchWhenLocked && lockTarget == null && newTarget != null)
-            lockedPitch = targetPitch;
-
         lockTarget = newTarget;
-
-        if (lockPitchWhenLocked && lockTarget == null)
-            targetPitch = currentPitch;
     }
 
     void Start()
@@ -77,11 +71,9 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
     {
         if (!target) return;
 
-        // ✅ 关键修复：暂停时不更新相机，避免 SmoothDamp 在 deltaTime=0 时产生 NaN
         if (IsGamePaused())
             return;
 
-        // ✅ 若曾经变成 NaN，自动恢复
         if (!IsFinite(currentYaw) || !IsFinite(currentPitch) ||
             !IsFinite(targetYaw) || !IsFinite(targetPitch) ||
             !IsFinite(transform.position) || !IsFinite(transform.rotation))
@@ -96,11 +88,9 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
 
     bool IsGamePaused()
     {
-        // 兼容你项目的 TimeController 暂停
         if (TimeController.Instance != null && TimeController.Instance.IsPaused)
             return true;
 
-        // 兜底：timeScale==0 也视为暂停
         return Time.timeScale <= 0f;
     }
 
@@ -109,36 +99,47 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
         float mx = Input.GetAxis("Mouse X");
         float my = Input.GetAxis("Mouse Y");
 
+        // 1) Pitch：非锁定（或锁定但允许鼠标） => 鼠标控制
         if (lockTarget == null || !lockPitchWhenLocked)
         {
             targetPitch += (invertY ? my : -my) * mouseSensitivityY;
             targetPitch = Mathf.Clamp(targetPitch, minPitch, maxPitch);
         }
-        else
-        {
-            targetPitch = Mathf.Clamp(lockedPitch, minPitch, maxPitch);
-        }
 
+        // 2) Yaw/Pitch：锁定 => 由目标驱动（核心修复：考虑Y，并动态更新Pitch以居中）
         if (lockTarget != null)
         {
-            Vector3 dir = lockTarget.position - target.position;
-            dir.y = 0f;
+            Vector3 pivot = target.position + pivotOffset;
 
+            // 用胶囊中心做锁定点（与 LockOnSystem 距离判定一致）
+            Vector3 lockPoint = LockTargetPointUtility.GetCapsuleCenter(lockTarget);
+
+            Vector3 dir = lockPoint - pivot;
             if (dir.sqrMagnitude > 0.0001f)
             {
+                // Yaw：绕Y轴
                 float desiredYaw = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg;
 
-                // rotationSmoothTime<=0 时，直接瞬间对齐（避免 SmoothDamp/插值异常）
-                float lerpT = Time.deltaTime * lockRotateSpeed;
-                targetYaw = Mathf.LerpAngle(targetYaw, desiredYaw, lerpT);
+                // Pitch：绕X轴（Unity约定：pitch 正值表示向下看，所以是 -dir.y）
+                float planar = Mathf.Sqrt(dir.x * dir.x + dir.z * dir.z);
+                float desiredPitch = Mathf.Atan2(-dir.y, Mathf.Max(0.0001f, planar)) * Mathf.Rad2Deg;
+                desiredPitch = Mathf.Clamp(desiredPitch, minPitch, maxPitch);
+
+                float t = Time.deltaTime * lockRotateSpeed;
+
+                targetYaw = Mathf.LerpAngle(targetYaw, desiredYaw, t);
+
+                if (lockPitchWhenLocked)
+                    targetPitch = Mathf.Lerp(targetPitch, desiredPitch, t);
             }
         }
         else
         {
+            // 非锁定：Yaw 由鼠标控制
             targetYaw += mx * mouseSensitivityX;
         }
 
-        // ✅ smoothTime 为 0 时，直接赋值，避免 SmoothDampAngle 内部除 0/Inf*0
+        // 3) 平滑到 currentYaw/currentPitch
         if (rotationSmoothTime <= 0f)
         {
             currentYaw = targetYaw;
@@ -210,12 +211,13 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
             transform.position = Vector3.SmoothDamp(transform.position, finalPos, ref posVelocity, positionSmoothTime);
         }
 
+        // 仍保持 orbitRot：因为我们让 yaw+pitch 对齐 pivot->lockPoint 方向，
+        // 所以“相机视线（穿过pivot）”会自动穿过 lockPoint，实现目标居中。
         transform.rotation = orbitRot;
     }
 
     void ResetStateSafe(bool forceSnapTransform)
     {
-        // 用 target 的朝向作为 yaw 基准，避免 transform 已经 NaN 时取 eulerAngles 继续 NaN
         float yawBase = target != null ? target.eulerAngles.y : 0f;
 
         targetYaw = currentYaw = yawBase;
@@ -240,9 +242,7 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
     }
 
     static bool IsFinite(float v) => !float.IsNaN(v) && !float.IsInfinity(v);
-
     static bool IsFinite(Vector3 v) => IsFinite(v.x) && IsFinite(v.y) && IsFinite(v.z);
-
     static bool IsFinite(Quaternion q) => IsFinite(q.x) && IsFinite(q.y) && IsFinite(q.z) && IsFinite(q.w);
 
     void OnEnable()
