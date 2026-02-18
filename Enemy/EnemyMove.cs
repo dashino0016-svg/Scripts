@@ -19,6 +19,7 @@ public class EnemyMove : MonoBehaviour
     public float groundedGravity = -0.5f;
     public float terminalVelocity = -50f;
 
+
     [Header("Ground Check")]
     public float groundCheckRadius = 0.15f;
     public float groundCheckOffset = -0.1f;
@@ -73,6 +74,7 @@ public class EnemyMove : MonoBehaviour
     bool rotationEnabled = true;
 
     static readonly int AnimIsGrounded = Animator.StringToHash("IsGrounded");
+    static readonly int AnimEnterFall = Animator.StringToHash("EnterFall");
     static readonly int AnimVerticalVelocity = Animator.StringToHash("VerticalVelocity");
     static readonly int AnimSpeed = Animator.StringToHash("Speed");
     static readonly int AnimMoveX = Animator.StringToHash("MoveX");
@@ -142,6 +144,9 @@ public class EnemyMove : MonoBehaviour
             if (enemyController != null)
                 enemyController.CaptureAirLandFacingLock(transform.rotation);
 
+            if (anim != null)
+                anim.SetTrigger(AnimEnterFall);
+
             lastAirVelocityY = velocityY;
         }
 
@@ -149,6 +154,9 @@ public class EnemyMove : MonoBehaviour
         {
             anim.SetBool(AnimIsGrounded, isGrounded);
             anim.SetFloat(AnimVerticalVelocity, velocityY);
+
+            if (isGrounded)
+                anim.ResetTrigger(AnimEnterFall);
         }
 
         bool landLock = enemyController != null && enemyController.IsInLandLock;
