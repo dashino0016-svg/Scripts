@@ -39,6 +39,10 @@ public class EnemyMove : MonoBehaviour
     [Header("Animation")]
     public float speedDampTime = 0.02f;
 
+    [Header("Fall Trigger Tuning")]
+    [Tooltip("触发 EnterFall 的最小下落速度（负值）。速度不够下落时，不进入坠落 Trigger")]
+    public float enterFallMinDownwardVelocity = -1f;
+
     [Header("Debug")]
     [SerializeField] bool debugLanding;
 
@@ -64,6 +68,7 @@ public class EnemyMove : MonoBehaviour
     float lastAirVelocityY;
     float lastImpactVelocityY;
     float turnVelocity;
+    Vector3 airHorizontalVelocity;
 
     bool isGrounded;
     bool isGroundedRaw;
@@ -144,7 +149,8 @@ public class EnemyMove : MonoBehaviour
             if (enemyController != null)
                 enemyController.CaptureAirLandFacingLock(transform.rotation);
 
-            if (anim != null)
+            // 不再使用最小离地时长门槛：离地后仅在下落速度达到阈值时触发 EnterFall。
+            if (anim != null && velocityY <= enterFallMinDownwardVelocity)
                 anim.SetTrigger(AnimEnterFall);
 
             lastAirVelocityY = velocityY;
@@ -265,18 +271,29 @@ public class EnemyMove : MonoBehaviour
 
     void Move(Vector3 dir, float speed, float dt)
     {
-        Vector3 horizontal = dir * speed;
+        Vector3 horizontal;
 
         if (isGrounded)
         {
             if (velocityY < groundedGravity)
                 velocityY = groundedGravity;
 
-            horizontal = Vector3.ProjectOnPlane(horizontal, groundNormal);
+            // ✅ 与玩家一致：地面移动先做坡面投影，保留贴坡分量
+            horizontal = Vector3.ProjectOnPlane(dir * speed, groundNormal);
+
+            // ✅ 与玩家一致：非跳跃离地时保留上一帧水平速度，降低下坡短暂离地抖动
+            if (velocityY <= groundedGravity + 0.001f)
+                airHorizontalVelocity = dir * speed;
+        }
+        else
+        {
+            // 敌人无主动空中机动：离地后仅保持离地瞬间的水平惯性，避免下坡边缘抖动。
+            horizontal = airHorizontalVelocity;
         }
 
         Vector3 motion = horizontal;
-        motion.y = velocityY;
+        // ✅ 不覆盖 horizontal 的 Y（贴坡分量），而是叠加重力/竖直速度
+        motion += Vector3.up * velocityY;
 
         controller.Move(motion * dt);
     }
@@ -342,7 +359,9 @@ public class EnemyMove : MonoBehaviour
 
     void HandleLanding()
     {
-        if (!wasGrounded && isGrounded)
+        // 仅在“原始地面检测”真正从离地 -> 着地时触发落地，
+        // 避免 groundedGraceTime / isGrounded 兜底导致半空误触发 SoftLand。
+        if (!wasGroundedRaw && isGroundedRaw)
         {
             var melee = GetComponent<MeleeFighter>();
             if (melee != null)
@@ -387,6 +406,7 @@ public class EnemyMove : MonoBehaviour
             }
 
             velocityY = groundedGravity;
+            airHorizontalVelocity = Vector3.zero;
         }
     }
 
