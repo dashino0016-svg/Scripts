@@ -156,6 +156,27 @@ public class EnemyMove : MonoBehaviour
             lastAirVelocityY = velocityY;
         }
 
+        if (isGrounded)
+        {
+            airborneElapsed = 0f;
+            pendingEnterFall = false;
+        }
+        else
+        {
+            airborneElapsed += dt;
+        }
+
+        if (pendingEnterFall && !isGrounded)
+        {
+            if (airborneElapsed >= enterFallMinAirTime && velocityY <= enterFallMinDownwardVelocity)
+            {
+                if (anim != null)
+                    anim.SetTrigger(AnimEnterFall);
+
+                pendingEnterFall = false;
+            }
+        }
+
         if (anim != null)
         {
             anim.SetBool(AnimIsGrounded, isGrounded);
