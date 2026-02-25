@@ -23,8 +23,17 @@ public class CombatReceiver : MonoBehaviour, IHittable
     int reactLayer = -1;
     [SerializeField] float reactRestartFade = 0.02f;
 
+    [Header("Hit Reaction Direction")]
+    [Tooltip("0=Front, 1=Back。用于 LightHit/MidHit/HeavyHit 内部 BlendTree 选择正面/背面受击动画。")]
+    [SerializeField] string hitDirParam = "HitDir";
+    [Tooltip("前方受击有效角度（度），像有效防御角度一样：填 180 表示前方 180° 都算 Front，其余算 Back。范围 0~360。")]
+    [SerializeField, Range(0f, 360f)] float hitFrontAngleDeg = 180f;
+
+    bool animHasHitDirParam;
+    bool lastHitFromBack;
+
     [Header("Hit Stop")]
-  
+
     [SerializeField, Range(0f, 1f)] float hitStopHitScale = 0.06f;
     [SerializeField] float hitStopHitDuration = 0.06f;
 
@@ -87,6 +96,38 @@ public class CombatReceiver : MonoBehaviour, IHittable
         return dot >= threshold;
     }
 
+    bool ComputeHitFromBack(Transform attacker, Transform projectile)
+    {
+        Transform src = projectile != null ? projectile : attacker;
+        if (src == null) return false;
+
+        Vector3 dir = src.position - transform.position;
+        dir.y = 0f;
+        if (dir.sqrMagnitude < 0.0001f) return false;
+        dir.Normalize();
+
+        // 特判：360° 代表永远算 Front；0° 代表永远算 Back
+        float a = Mathf.Clamp(hitFrontAngleDeg, 0f, 360f);
+        if (a >= 359.999f) return false;
+        if (a <= 0.001f) return true;
+
+        float dot = Vector3.Dot(transform.forward, dir);
+        float cosHalf = Mathf.Cos((a * 0.5f) * Mathf.Deg2Rad);
+
+        bool isFront = dot >= cosHalf;
+        return !isFront; // Back
+    }
+
+    static bool HasAnimParam(Animator animator, string paramName, AnimatorControllerParameterType type)
+    {
+        if (animator == null || string.IsNullOrEmpty(paramName)) return false;
+        foreach (var p in animator.parameters)
+        {
+            if (p.name == paramName && p.type == type) return true;
+        }
+        return false;
+    }
+
     // =========================
     // ✅ PerfectBlock -> Counter rule
     // =========================
@@ -146,6 +187,9 @@ public class CombatReceiver : MonoBehaviour, IHittable
 
         stats.OnDead += OnDead;
         selfIsPlayer = (GetComponentInParent<PlayerController>() != null);
+
+        // ✅ 可选：若 Animator 没有 HitDir 参数，后续不 SetFloat，避免控制台刷参数不存在的警告。
+        animHasHitDirParam = HasAnimParam(anim, hitDirParam, AnimatorControllerParameterType.Float);
     }
 
     /// <summary>
@@ -180,6 +224,18 @@ public class CombatReceiver : MonoBehaviour, IHittable
             return new HitResult(HitResultType.Hit);
 
         lastAttacker = attackData.attacker;
+
+        // ✅ 受击方向（Front/Back）：不改变原有 Light/Mid/Heavy 的逻辑，仅提供 Animator 内部分流。
+        // ✅ 只有当 Animator 已配置 HitDir(float) 时才启用（否则保持旧行为）。
+        if (animHasHitDirParam)
+        {
+            lastHitFromBack = ComputeHitFromBack(attackData.attacker, projectile);
+            anim.SetFloat(hitDirParam, lastHitFromBack ? 1f : 0f);
+        }
+        else
+        {
+            lastHitFromBack = false;
+        }
 
         // 每次处理新命中前清空本次 PerfectBlock 的 Counter 标记
         lastPerfectBlockTriggeredCounter = false;
@@ -543,8 +599,8 @@ public class CombatReceiver : MonoBehaviour, IHittable
         }
         else if (result.resultType == HitResultType.Hit)
         {
-        // ✅ 统一策略：命中卡肉只用基线（hitStopHitScale/duration），轻重完全交给 AttackConfig.hitStopWeight。
-        // 例如：0=无卡肉，0.3=很轻，1=默认，2=更重（更强减速+更长停顿）
+            // ✅ 统一策略：命中卡肉只用基线（hitStopHitScale/duration），轻重完全交给 AttackConfig.hitStopWeight。
+            // 例如：0=无卡肉，0.3=很轻，1=默认，2=更重（更强减速+更长停顿）
             scale = hitStopHitScale;
             duration = hitStopHitDuration;
         }
@@ -603,6 +659,10 @@ public class CombatReceiver : MonoBehaviour, IHittable
     void FaceAttacker()
     {
         if (lastAttacker == null) return;
+
+        // ✅ 背后受击：不强制转身面对攻击者，否则会破坏“背后受击动画”的视觉方向感。
+        // ✅ 仅在启用 HitDir 分流时生效（否则保持旧行为）。
+        if (animHasHitDirParam && lastHitFromBack) return;
 
         Vector3 dir = lastAttacker.position - transform.position;
         dir.y = 0f;
