@@ -209,6 +209,10 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
             int mask = collisionMask;
             mask &= ~(1 << target.gameObject.layer);
 
+            // 锁定目标不应参与镜头避障，否则近距离锁定时会把相机误判“撞到目标”而突然前推。
+            if (lockTarget != null)
+                mask &= ~(1 << lockTarget.gameObject.layer);
+
             if (Physics.SphereCast(
                     pivot,
                     collisionRadius,

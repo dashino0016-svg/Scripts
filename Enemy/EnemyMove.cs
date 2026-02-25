@@ -40,10 +40,6 @@ public class EnemyMove : MonoBehaviour
     public float speedDampTime = 0.02f;
 
     [Header("Fall Trigger Tuning")]
-    [Tooltip("离地后至少持续该时长才触发 EnterFall，避免下坡接缝/台阶边缘的瞬时误触发")]
-    [Min(0f)]
-    public float enterFallMinAirTime = 0.08f;
-
     [Tooltip("触发 EnterFall 的最小下落速度（负值）。速度不够下落时，不进入坠落 Trigger")]
     public float enterFallMinDownwardVelocity = -1f;
 
@@ -73,7 +69,6 @@ public class EnemyMove : MonoBehaviour
     float lastImpactVelocityY;
     float turnVelocity;
     Vector3 airHorizontalVelocity;
-    float airborneElapsed;
     bool pendingEnterFall;
 
     bool isGrounded;
@@ -155,33 +150,20 @@ public class EnemyMove : MonoBehaviour
             if (enemyController != null)
                 enemyController.CaptureAirLandFacingLock(transform.rotation);
 
-            // 先标记“待触发坠落”，由后续条件（离地时长+下落速度）决定是否真正触发
-            airborneElapsed = 0f;
+            // 进入离地后开始等待 EnterFall 触发：
+            // 只要仍在空中，就持续检测速度阈值，避免“离地首帧速度不够”导致整段坠落都不进 Fall。
             pendingEnterFall = true;
-
             lastAirVelocityY = velocityY;
         }
 
-        if (isGrounded)
+        if (!isGrounded && pendingEnterFall && anim != null && velocityY <= enterFallMinDownwardVelocity)
         {
-            airborneElapsed = 0f;
+            anim.SetTrigger(AnimEnterFall);
             pendingEnterFall = false;
         }
-        else
-        {
-            airborneElapsed += dt;
-        }
 
-        if (pendingEnterFall && !isGrounded)
-        {
-            if (airborneElapsed >= enterFallMinAirTime && velocityY <= enterFallMinDownwardVelocity)
-            {
-                if (anim != null)
-                    anim.SetTrigger(AnimEnterFall);
-
-                pendingEnterFall = false;
-            }
-        }
+        if (isGrounded)
+            pendingEnterFall = false;
 
         if (anim != null)
         {
@@ -386,7 +368,9 @@ public class EnemyMove : MonoBehaviour
 
     void HandleLanding()
     {
-        if (!wasGrounded && isGrounded)
+        // 仅在“原始地面检测”真正从离地 -> 着地时触发落地，
+        // 避免 groundedGraceTime / isGrounded 兜底导致半空误触发 SoftLand。
+        if (!wasGroundedRaw && isGroundedRaw)
         {
             var melee = GetComponent<MeleeFighter>();
             if (melee != null)
