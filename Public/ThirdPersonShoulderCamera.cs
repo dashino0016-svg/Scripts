@@ -18,7 +18,10 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
 
     [Header("Lock On")]
     public float lockRotateSpeed = 12f;
-
+    [Tooltip("锁定刚建立时的过渡时长，避免镜头俯仰硬切。")]
+    [Min(0f)] public float lockAcquireBlendTime = 0.22f;
+    [Tooltip("解除锁定时回到自由镜头范围的过渡时长。")]
+    [Min(0f)] public float lockReleaseBlendTime = 0.14f;
     [Header("LockOn Source")]
     [SerializeField] LockOnSystem lockOn;
 
@@ -59,10 +62,14 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
     float distanceVel;
 
     Transform lockTarget;
+    float lockBlend01;
 
     public void SetLockTarget(Transform newTarget)
     {
         lockTarget = newTarget;
+        // 切到锁定目标时，先从 0 开始过渡，避免俯仰角硬钳制导致瞬切。
+        if (lockTarget != null)
+            lockBlend01 = 0f;
     }
 
     void Start()
@@ -107,6 +114,10 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
         float mx = Input.GetAxis("Mouse X");
         float my = Input.GetAxis("Mouse Y");
 
+        bool locking = lockTarget != null;
+        float blendDuration = locking ? lockAcquireBlendTime : lockReleaseBlendTime;
+        float blendStep = blendDuration <= 0f ? 1f : Time.deltaTime / blendDuration;
+        lockBlend01 = Mathf.MoveTowards(lockBlend01, locking ? 1f : 0f, blendStep);
         // 1) Pitch：非锁定（或锁定但允许鼠标） => 鼠标控制
         if (lockTarget == null || !lockPitchWhenLocked)
         {
@@ -135,7 +146,8 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
                 float activeMaxPitch = (lockTarget != null && lockPitchWhenLocked) ? lockMaxPitch : maxPitch;
                 desiredPitch = Mathf.Clamp(desiredPitch, activeMinPitch, activeMaxPitch);
 
-                float t = Time.deltaTime * lockRotateSpeed;
+                float followWeight = Mathf.Lerp(0.2f, 1f, lockBlend01);
+                float t = Time.deltaTime * lockRotateSpeed * followWeight;
 
                 targetYaw = Mathf.LerpAngle(targetYaw, desiredYaw, t);
 
@@ -163,16 +175,11 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
             currentPitch = Mathf.SmoothDampAngle(currentPitch, targetPitch, ref pitchVel, rotationSmoothTime);
         }
 
-        if (lockTarget != null && lockPitchWhenLocked)
-        {
-            currentPitch = Mathf.Clamp(currentPitch, lockMinPitch, lockMaxPitch);
-            targetPitch = Mathf.Clamp(targetPitch, lockMinPitch, lockMaxPitch);
-        }
-        else
-        {
-            currentPitch = Mathf.Clamp(currentPitch, minPitch, maxPitch);
-            targetPitch = Mathf.Clamp(targetPitch, minPitch, maxPitch);
-        }
+        float pitchMin = Mathf.Lerp(minPitch, lockMinPitch, (lockTarget != null && lockPitchWhenLocked) ? lockBlend01 : 0f);
+        float pitchMax = Mathf.Lerp(maxPitch, lockMaxPitch, (lockTarget != null && lockPitchWhenLocked) ? lockBlend01 : 0f);
+
+        currentPitch = Mathf.Clamp(currentPitch, pitchMin, pitchMax);
+        targetPitch = Mathf.Clamp(targetPitch, pitchMin, pitchMax);
     }
 
     void ClampLockPitchRange()
@@ -267,7 +274,7 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
         posVelocity = Vector3.zero;
 
         currentDistance = Mathf.Max(minDistance, distance);
-
+        lockBlend01 = lockTarget != null ? 1f : 0f;
         if (forceSnapTransform && target != null)
         {
             Quaternion rot = Quaternion.Euler(currentPitch, currentYaw, 0f);
