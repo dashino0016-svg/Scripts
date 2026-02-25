@@ -69,6 +69,7 @@ public class EnemyMove : MonoBehaviour
     float lastImpactVelocityY;
     float turnVelocity;
     Vector3 airHorizontalVelocity;
+    bool pendingEnterFall;
 
     bool isGrounded;
     bool isGroundedRaw;
@@ -149,12 +150,20 @@ public class EnemyMove : MonoBehaviour
             if (enemyController != null)
                 enemyController.CaptureAirLandFacingLock(transform.rotation);
 
-            // 不再使用最小离地时长门槛：离地后仅在下落速度达到阈值时触发 EnterFall。
-            if (anim != null && velocityY <= enterFallMinDownwardVelocity)
-                anim.SetTrigger(AnimEnterFall);
-
+            // 进入离地后开始等待 EnterFall 触发：
+            // 只要仍在空中，就持续检测速度阈值，避免“离地首帧速度不够”导致整段坠落都不进 Fall。
+            pendingEnterFall = true;
             lastAirVelocityY = velocityY;
         }
+
+        if (!isGrounded && pendingEnterFall && anim != null && velocityY <= enterFallMinDownwardVelocity)
+        {
+            anim.SetTrigger(AnimEnterFall);
+            pendingEnterFall = false;
+        }
+
+        if (isGrounded)
+            pendingEnterFall = false;
 
         if (anim != null)
         {

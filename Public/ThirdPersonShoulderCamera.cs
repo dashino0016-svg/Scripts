@@ -35,7 +35,7 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
     public float minDistance = 0.6f;
 
     [Header("Lock On Pitch")]
-    [Tooltip("锁定时：由目标驱动 Pitch，使目标保持在屏幕中央（动态随高度变化）。")]
+    [Tooltip("锁定时：由目标驱动 Pitch，使标保持在屏幕中央（动态随高度变化）。")]
     public bool lockPitchWhenLocked = true;
 
     [Tooltip("锁定时允许的最小俯仰角（限制过度俯视）。")]
@@ -208,6 +208,10 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
         {
             int mask = collisionMask;
             mask &= ~(1 << target.gameObject.layer);
+
+            // 锁定目标不应参与镜头避障，否则近距离锁定时会把相机误判“撞到目标”而突然前推。
+            if (lockTarget != null)
+                mask &= ~(1 << lockTarget.gameObject.layer);
 
             if (Physics.SphereCast(
                     pivot,
