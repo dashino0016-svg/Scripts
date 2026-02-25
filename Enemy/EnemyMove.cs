@@ -39,6 +39,7 @@ public class EnemyMove : MonoBehaviour
     [Header("Animation")]
     public float speedDampTime = 0.02f;
 
+
     [Header("Debug")]
     [SerializeField] bool debugLanding;
 
@@ -68,13 +69,11 @@ public class EnemyMove : MonoBehaviour
     bool isGrounded;
     bool isGroundedRaw;
     bool wasGrounded;
-    bool wasGroundedRaw;
     float lastGroundedTime = -999f;
     Vector3 groundNormal = Vector3.up;
     bool rotationEnabled = true;
 
     static readonly int AnimIsGrounded = Animator.StringToHash("IsGrounded");
-    static readonly int AnimEnterFall = Animator.StringToHash("EnterFall");
     static readonly int AnimVerticalVelocity = Animator.StringToHash("VerticalVelocity");
     static readonly int AnimSpeed = Animator.StringToHash("Speed");
     static readonly int AnimMoveX = Animator.StringToHash("MoveX");
@@ -128,7 +127,6 @@ public class EnemyMove : MonoBehaviour
             dt *= enemyController.LocalTimeScale;
 
         wasGrounded = isGrounded;
-        wasGroundedRaw = isGroundedRaw;
 
         bool groundedRawNow = CheckGroundedRaw();
         isGroundedRaw = groundedRawNow;
@@ -144,9 +142,6 @@ public class EnemyMove : MonoBehaviour
             if (enemyController != null)
                 enemyController.CaptureAirLandFacingLock(transform.rotation);
 
-            if (anim != null)
-                anim.SetTrigger(AnimEnterFall);
-
             lastAirVelocityY = velocityY;
         }
 
@@ -155,8 +150,6 @@ public class EnemyMove : MonoBehaviour
             anim.SetBool(AnimIsGrounded, isGrounded);
             anim.SetFloat(AnimVerticalVelocity, velocityY);
 
-            if (isGrounded)
-                anim.ResetTrigger(AnimEnterFall);
         }
 
         bool landLock = enemyController != null && enemyController.IsInLandLock;
@@ -276,7 +269,7 @@ public class EnemyMove : MonoBehaviour
         }
 
         Vector3 motion = horizontal;
-        motion.y = velocityY;
+        motion += Vector3.up * velocityY;
 
         controller.Move(motion * dt);
     }
