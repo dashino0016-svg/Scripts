@@ -39,6 +39,14 @@ public class EnemyMove : MonoBehaviour
     [Header("Animation")]
     public float speedDampTime = 0.02f;
 
+    [Header("Fall Trigger Tuning")]
+    [Tooltip("离地后至少持续该时长才触发 EnterFall，避免下坡接缝/台阶边缘的瞬时误触发")]
+    [Min(0f)]
+    public float enterFallMinAirTime = 0.08f;
+
+    [Tooltip("触发 EnterFall 的最小下落速度（负值）。速度不够下落时，不进入坠落 Trigger")]
+    public float enterFallMinDownwardVelocity = -1f;
+
     [Header("Debug")]
     [SerializeField] bool debugLanding;
 
@@ -64,6 +72,9 @@ public class EnemyMove : MonoBehaviour
     float lastAirVelocityY;
     float lastImpactVelocityY;
     float turnVelocity;
+    Vector3 airHorizontalVelocity;
+    float airborneElapsed;
+    bool pendingEnterFall;
 
     bool isGrounded;
     bool isGroundedRaw;
@@ -144,10 +155,32 @@ public class EnemyMove : MonoBehaviour
             if (enemyController != null)
                 enemyController.CaptureAirLandFacingLock(transform.rotation);
 
-            if (anim != null)
-                anim.SetTrigger(AnimEnterFall);
+            // 先标记“待触发坠落”，由后续条件（离地时长+下落速度）决定是否真正触发
+            airborneElapsed = 0f;
+            pendingEnterFall = true;
 
             lastAirVelocityY = velocityY;
+        }
+
+        if (isGrounded)
+        {
+            airborneElapsed = 0f;
+            pendingEnterFall = false;
+        }
+        else
+        {
+            airborneElapsed += dt;
+        }
+
+        if (pendingEnterFall && !isGrounded)
+        {
+            if (airborneElapsed >= enterFallMinAirTime && velocityY <= enterFallMinDownwardVelocity)
+            {
+                if (anim != null)
+                    anim.SetTrigger(AnimEnterFall);
+
+                pendingEnterFall = false;
+            }
         }
 
         if (anim != null)
@@ -265,18 +298,29 @@ public class EnemyMove : MonoBehaviour
 
     void Move(Vector3 dir, float speed, float dt)
     {
-        Vector3 horizontal = dir * speed;
+        Vector3 horizontal;
 
         if (isGrounded)
         {
             if (velocityY < groundedGravity)
                 velocityY = groundedGravity;
 
-            horizontal = Vector3.ProjectOnPlane(horizontal, groundNormal);
+            // ✅ 与玩家一致：地面移动先做坡面投影，保留贴坡分量
+            horizontal = Vector3.ProjectOnPlane(dir * speed, groundNormal);
+
+            // ✅ 与玩家一致：非跳跃离地时保留上一帧水平速度，降低下坡短暂离地抖动
+            if (velocityY <= groundedGravity + 0.001f)
+                airHorizontalVelocity = dir * speed;
+        }
+        else
+        {
+            // 敌人无主动空中机动：离地后仅保持离地瞬间的水平惯性，避免下坡边缘抖动。
+            horizontal = airHorizontalVelocity;
         }
 
         Vector3 motion = horizontal;
-        motion.y = velocityY;
+        // ✅ 不覆盖 horizontal 的 Y（贴坡分量），而是叠加重力/竖直速度
+        motion += Vector3.up * velocityY;
 
         controller.Move(motion * dt);
     }
@@ -387,6 +431,7 @@ public class EnemyMove : MonoBehaviour
             }
 
             velocityY = groundedGravity;
+            airHorizontalVelocity = Vector3.zero;
         }
     }
 
