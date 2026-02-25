@@ -600,7 +600,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
         bool doShoot = (rangeFighter != null && rangeFighter.enabled) && (Random.value <= shootChance);
 
-        if (doShoot && withinAttackDistance3D)
+        if (doShoot)
         {
             Vector3 aim3D = GetAimDir3D(); // ✅ 不抹 y：从枪口指向目标胶囊中心
             if (rangeFighter.TryShoot(aim3D, target))
