@@ -35,14 +35,8 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
     public float minDistance = 0.6f;
 
     [Header("Lock On Pitch")]
-    [Tooltip("锁定时：由目标驱动 Pitch，使标保持在屏幕中央（动态随高度变化）。")]
+    [Tooltip("锁定时：由目标驱动 Pitch，使目标保持在屏幕中央（动态随高度变化）。")]
     public bool lockPitchWhenLocked = true;
-
-    [Tooltip("锁定时允许的最小俯仰角（限制过度俯视）。")]
-    public float lockMinPitch = -20f;
-
-    [Tooltip("锁定时允许的最大俯仰角（限制过度仰视）。")]
-    public float lockMaxPitch = 35f;
 
     public float CurrentYaw => currentYaw;
 
@@ -102,8 +96,6 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
 
     void UpdateRotation()
     {
-        ClampLockPitchRange();
-
         float mx = Input.GetAxis("Mouse X");
         float my = Input.GetAxis("Mouse Y");
 
@@ -131,9 +123,7 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
                 // Pitch：绕X轴（Unity约定：pitch 正值表示向下看，所以是 -dir.y）
                 float planar = Mathf.Sqrt(dir.x * dir.x + dir.z * dir.z);
                 float desiredPitch = Mathf.Atan2(-dir.y, Mathf.Max(0.0001f, planar)) * Mathf.Rad2Deg;
-                float activeMinPitch = (lockTarget != null && lockPitchWhenLocked) ? lockMinPitch : minPitch;
-                float activeMaxPitch = (lockTarget != null && lockPitchWhenLocked) ? lockMaxPitch : maxPitch;
-                desiredPitch = Mathf.Clamp(desiredPitch, activeMinPitch, activeMaxPitch);
+                desiredPitch = Mathf.Clamp(desiredPitch, minPitch, maxPitch);
 
                 float t = Time.deltaTime * lockRotateSpeed;
 
@@ -162,30 +152,6 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
             currentYaw = Mathf.SmoothDampAngle(currentYaw, targetYaw, ref yawVel, rotationSmoothTime);
             currentPitch = Mathf.SmoothDampAngle(currentPitch, targetPitch, ref pitchVel, rotationSmoothTime);
         }
-
-        if (lockTarget != null && lockPitchWhenLocked)
-        {
-            currentPitch = Mathf.Clamp(currentPitch, lockMinPitch, lockMaxPitch);
-            targetPitch = Mathf.Clamp(targetPitch, lockMinPitch, lockMaxPitch);
-        }
-        else
-        {
-            currentPitch = Mathf.Clamp(currentPitch, minPitch, maxPitch);
-            targetPitch = Mathf.Clamp(targetPitch, minPitch, maxPitch);
-        }
-    }
-
-    void ClampLockPitchRange()
-    {
-        if (lockMinPitch > lockMaxPitch)
-        {
-            float t = lockMinPitch;
-            lockMinPitch = lockMaxPitch;
-            lockMaxPitch = t;
-        }
-
-        lockMinPitch = Mathf.Clamp(lockMinPitch, minPitch, maxPitch);
-        lockMaxPitch = Mathf.Clamp(lockMaxPitch, minPitch, maxPitch);
     }
 
     void UpdatePositionAndRotation()
@@ -208,10 +174,6 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
         {
             int mask = collisionMask;
             mask &= ~(1 << target.gameObject.layer);
-
-            // 锁定目标不应参与镜头避障，否则近距离锁定时会把相机误判“撞到目标”而突然前推。
-            if (lockTarget != null)
-                mask &= ~(1 << lockTarget.gameObject.layer);
 
             if (Physics.SphereCast(
                     pivot,

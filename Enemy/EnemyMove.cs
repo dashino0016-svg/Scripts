@@ -39,12 +39,6 @@ public class EnemyMove : MonoBehaviour
     [Header("Animation")]
     public float speedDampTime = 0.02f;
 
-    [Header("Fall Animation Gate")]
-    [Tooltip("离地后至少持续这么久才允许触发 EnterFall，避免台阶/边缘抖动误触发。")]
-    [Min(0f)] public float enterFallMinUngroundedTime = 0.05f;
-    [Tooltip("触发 EnterFall 的最小下落速度（向下为负值）。")]
-    public float enterFallMinDownwardSpeed = -1f;
-
     [Header("Debug")]
     [SerializeField] bool debugLanding;
 
@@ -70,8 +64,6 @@ public class EnemyMove : MonoBehaviour
     float lastAirVelocityY;
     float lastImpactVelocityY;
     float turnVelocity;
-    float airborneStartTime = -999f;
-    bool hasEnteredFallThisAirborne;
 
     bool isGrounded;
     bool isGroundedRaw;
@@ -149,27 +141,13 @@ public class EnemyMove : MonoBehaviour
         // 进入离地瞬间记录朝向：坠落+落地期间锁定该朝向
         if (wasGrounded && !isGrounded)
         {
-            airborneStartTime = Time.time;
-            hasEnteredFallThisAirborne = false;
-
             if (enemyController != null)
                 enemyController.CaptureAirLandFacingLock(transform.rotation);
 
+            if (anim != null)
+                anim.SetTrigger(AnimEnterFall);
+
             lastAirVelocityY = velocityY;
-        }
-
-        if (!isGrounded && !hasEnteredFallThisAirborne)
-        {
-            bool airborneLongEnough = Time.time - airborneStartTime >= enterFallMinUngroundedTime;
-            bool fallingFastEnough = velocityY <= enterFallMinDownwardSpeed;
-
-            if (airborneLongEnough && fallingFastEnough)
-            {
-                if (anim != null)
-                    anim.SetTrigger(AnimEnterFall);
-
-                hasEnteredFallThisAirborne = true;
-            }
         }
 
         if (anim != null)
@@ -180,9 +158,6 @@ public class EnemyMove : MonoBehaviour
             if (isGrounded)
                 anim.ResetTrigger(AnimEnterFall);
         }
-
-        if (isGrounded)
-            hasEnteredFallThisAirborne = false;
 
         bool landLock = enemyController != null && enemyController.IsInLandLock;
         Vector3 moveDir = landLock ? Vector3.zero : desiredMoveDir;
@@ -301,7 +276,7 @@ public class EnemyMove : MonoBehaviour
         }
 
         Vector3 motion = horizontal;
-        motion += Vector3.up * velocityY;
+        motion.y = velocityY;
 
         controller.Move(motion * dt);
     }
@@ -367,7 +342,7 @@ public class EnemyMove : MonoBehaviour
 
     void HandleLanding()
     {
-        if (!wasGroundedRaw && isGroundedRaw)
+        if (!wasGrounded && isGrounded)
         {
             var melee = GetComponent<MeleeFighter>();
             if (melee != null)
