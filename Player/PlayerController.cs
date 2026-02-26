@@ -105,7 +105,7 @@ public class PlayerController : MonoBehaviour
     [Header("React Layer Interrupt")]
     [SerializeField] string reactLayerName = "ReactLayer";
     [SerializeField] string reactEmptyStateName = "Empty";
-    [SerializeField] float reactEmptyCrossFade = 0.05f;
+    [SerializeField] float reactEmptyCrossFade = 0f;
     int reactLayerIndex = -1;
     bool pendingReactLayerExitToEmptyAfterHit;
 
