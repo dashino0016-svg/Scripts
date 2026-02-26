@@ -15,6 +15,8 @@ public class EnemyFloatState : MonoBehaviour
     [SerializeField] string floatStateName = "Float";
     [SerializeField] float floatCrossFade = 0.05f;
     [SerializeField] string floatBoolParam = "IsFloating";
+    [SerializeField] string floatLayerName = "ReactLayer";
+    int floatLayerIndex = -1;
 
     [Header("Fall")]
     [SerializeField] bool debugLog;
@@ -74,6 +76,13 @@ public class EnemyFloatState : MonoBehaviour
 
         if (anim != null && !string.IsNullOrWhiteSpace(floatBoolParam))
             animHasFloatBool = HasAnimBool(anim, floatBoolParam);
+
+        if (anim != null)
+        {
+            floatLayerIndex = anim.GetLayerIndex(floatLayerName);
+            if (floatLayerIndex < 0)
+                floatLayerIndex = anim.GetLayerIndex("React Layer");
+        }
     }
 
     void Update()
@@ -359,7 +368,10 @@ public class EnemyFloatState : MonoBehaviour
         if (anim == null)
             return;
 
-        anim.CrossFadeInFixedTime(floatStateName, floatCrossFade, 0, 0f);
+        if (floatLayerIndex < 0)
+            return;
+
+        anim.CrossFadeInFixedTime(floatStateName, floatCrossFade, floatLayerIndex, 0f);
     }
 
     void KeepFloatAnimLoop()
