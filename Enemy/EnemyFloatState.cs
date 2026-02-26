@@ -256,7 +256,7 @@ public class EnemyFloatState : MonoBehaviour
         cachedCombatEnabled = combat != null && combat.enabled;
         cachedRangeCombatEnabled = rangeCombat != null && rangeCombat.enabled;
         cachedEnemyMoveEnabled = enemyMove != null && enemyMove.enabled;
-        cachedEnemyMoveRotationEnabled = enemyMove != null && enemyMove.rotationEnabled;
+        cachedEnemyMoveRotationEnabled = enemyMove != null && enemyMove.IsRotationEnabled;
 
         if (block != null)
             block.RequestBlock(false);
