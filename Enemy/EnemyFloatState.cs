@@ -104,11 +104,11 @@ public class EnemyFloatState : MonoBehaviour
         caster = casterTransform;
         pendingGuardBreakAfterLand = false;
 
-        ForceEnterFloatAnim();
-        DisableEnemyBehaviours();
-
         if (enemyController != null)
             enemyController.OnAttacked(casterTransform);
+
+        ForceEnterFloatAnim();
+        DisableEnemyBehaviours();
 
         Vector3 pos = transform.position;
         targetRiseY = pos.y + Mathf.Max(0f, riseHeight);
