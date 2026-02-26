@@ -40,7 +40,11 @@ public class EnemyFloatState : MonoBehaviour
 
     bool pendingFallDead;
     bool pendingGuardBreakAfterLand;
+    bool cachedCombatEnabled;
+    bool cachedRangeCombatEnabled;
+    bool cachedEnemyMoveEnabled;
     bool cachedNavigatorEnabled;
+    bool cachedEnemyMoveRotationEnabled;
     bool cachedRootMotion;
     bool cachedRootMotionValid;
     float cachedAnimSpeed = 1f;
@@ -104,6 +108,9 @@ public class EnemyFloatState : MonoBehaviour
 
         ForceEnterFloatAnim();
         DisableEnemyBehaviours();
+
+        if (enemyController != null)
+            enemyController.OnAttacked(casterTransform);
 
         Vector3 pos = transform.position;
         targetRiseY = pos.y + Mathf.Max(0f, riseHeight);
@@ -194,10 +201,18 @@ public class EnemyFloatState : MonoBehaviour
 
         phase = FloatPhase.Falling;
 
-        EnableEnemyBehavioursForNativeFall();
-
         if (enemyMove != null)
+        {
+            enemyMove.enabled = true;
+            enemyMove.SetMoveDirection(Vector3.zero);
+            enemyMove.SetMoveSpeedLevel(0);
+            enemyMove.SetRotationEnabled(false);
             enemyMove.SetVerticalVelocity(fallVelocityY);
+        }
+
+        // 下落阶段继续锁住控制，仅让 EnemyMove 的原生重力/落地系统工作。
+        if (enemyController != null)
+            enemyController.SetFloatControlLock(true);
 
         if (immediateFallDead)
             pendingFallDead = true;
@@ -238,6 +253,11 @@ public class EnemyFloatState : MonoBehaviour
             enemyNavigator.enabled = false;
         }
 
+        cachedCombatEnabled = combat != null && combat.enabled;
+        cachedRangeCombatEnabled = rangeCombat != null && rangeCombat.enabled;
+        cachedEnemyMoveEnabled = enemyMove != null && enemyMove.enabled;
+        cachedEnemyMoveRotationEnabled = enemyMove != null && enemyMove.rotationEnabled;
+
         if (block != null)
             block.RequestBlock(false);
 
@@ -261,6 +281,7 @@ public class EnemyFloatState : MonoBehaviour
             enemyMove.enabled = false;
             enemyMove.SetMoveDirection(Vector3.zero);
             enemyMove.SetMoveSpeedLevel(0);
+            enemyMove.SetRotationEnabled(false);
         }
 
         if (anim != null)
@@ -283,7 +304,7 @@ public class EnemyFloatState : MonoBehaviour
         }
     }
 
-    void EnableEnemyBehavioursForNativeFall()
+    void EnableEnemyBehavioursAfterLanding()
     {
         if (enemyController != null)
             enemyController.SetFloatControlLock(false);
@@ -297,9 +318,10 @@ public class EnemyFloatState : MonoBehaviour
 
         if (enemyMove != null)
         {
-            enemyMove.enabled = !IsDeadNow();
+            enemyMove.enabled = !IsDeadNow() && cachedEnemyMoveEnabled;
             enemyMove.SetMoveDirection(Vector3.zero);
             enemyMove.SetMoveSpeedLevel(0);
+            enemyMove.SetRotationEnabled(cachedEnemyMoveRotationEnabled);
         }
 
         if (anim != null && cachedRootMotionValid)
@@ -309,16 +331,10 @@ public class EnemyFloatState : MonoBehaviour
             anim.speed = cachedAnimSpeed;
 
         if (combat != null && !IsDeadNow())
-            combat.enabled = true;
+            combat.enabled = cachedCombatEnabled;
 
         if (rangeCombat != null && !IsDeadNow())
-            rangeCombat.enabled = true;
-    }
-
-    void EnableEnemyBehavioursAfterLanding()
-    {
-        // 这里保留接口是为了语义清晰：坠落期间行为已恢复，落地后目前不再做额外切换。
-        // 后续若要在“落地瞬间”加恢复逻辑，可集中放在这里。
+            rangeCombat.enabled = cachedRangeCombatEnabled;
     }
 
     bool IsDeadNow()
