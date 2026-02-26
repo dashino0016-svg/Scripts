@@ -1,4 +1,3 @@
-﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -15,34 +14,51 @@ public class PlayerAbilitySystem : MonoBehaviour
 
     [Header("Refs")]
     [SerializeField] CombatStats stats;
+    [SerializeField] LockOnSystem lockOn;
 
     CombatReceiver receiver;
 
     // =========================
-    // Ability1 - Force Push (Front Cone)
+    // Ability1 - Shockwave (Short / Long)
     // =========================
-    [Header("Ability1 - Force Push (Front Cone)")]
-    [SerializeField] AttackConfig ability1AttackConfig;
+    [Header("Ability1 - Shockwave (Short=Cone / Long=360)")]
+    [FormerlySerializedAs("ability1AttackConfig")]
+    [SerializeField] AttackConfig ability1ShortAttackConfig;
+    [FormerlySerializedAs("ability2AttackConfig")]
+    [SerializeField] AttackConfig ability1LongAttackConfig;
 
+    [Header("Ability1 Cost")]
+    [FormerlySerializedAs("costAbility1")]
     [SerializeField] int costAbility1 = 100;
 
-    [SerializeField] float ability1Range = 6f;
+    [SerializeField] int costAbility1Long = 150;
 
-    [SerializeField, Range(10f, 180f)] float ability1ConeAngle = 80f;
+    [FormerlySerializedAs("ability1Range")]
+    [SerializeField] float ability1ShortRange = 6f;
+    [FormerlySerializedAs("ability1ConeAngle")]
+    [SerializeField, Range(10f, 180f)] float ability1ShortConeAngle = 80f;
+
+    [SerializeField] float ability1LongRange = 6f;
 
     [SerializeField] LayerMask enemyMask;
 
     // =========================
-    // Ability2 - Force Push (360 AoE)
+    // Ability2 - Lift & Float
     // =========================
-    [Header("Ability2 - Force Push (360 AoE)")]
-    [SerializeField] AttackConfig ability2AttackConfig;
-
+    [Header("Ability2 - Lift & Float")]
+    [FormerlySerializedAs("costAbility2")]
     [SerializeField] int costAbility2 = 200;
 
-    [SerializeField] float ability2Range = 6f;
+    [SerializeField] int costAbility2Long = 300;
 
+    [SerializeField] float ability2Range = 6f;
     [SerializeField] LayerMask ability2EnemyMask;
+    [SerializeField] float ability2RiseHeight = 2.5f;
+    [SerializeField] float ability2RiseSpeed = 6f;
+    [SerializeField] float ability2FloatDuration = 1.5f;
+
+    [SerializeField, Tooltip("向下初速度（负值）。实际会在 EnemyMove.hardLandVelocity 处做安全钳制。")]
+    float ability2InitialFallVelocity = -10f;
 
     [Header("Ability Shockwave Hit Stop")]
     [SerializeField] float abilityShockwaveHitStopTime = 0.05f;
@@ -71,6 +87,7 @@ public class PlayerAbilitySystem : MonoBehaviour
 
 
     AbilityType pending;
+    bool pendingLongPress;
     bool hasPending;
     Coroutine ability3Routine;
 
@@ -78,6 +95,9 @@ public class PlayerAbilitySystem : MonoBehaviour
     {
         if (stats == null)
             stats = GetComponent<CombatStats>();
+
+        if (lockOn == null)
+            lockOn = GetComponent<LockOnSystem>();
 
         receiver = GetComponent<CombatReceiver>();
     }
@@ -116,7 +136,7 @@ public class PlayerAbilitySystem : MonoBehaviour
                type == AbilityType.Ability4;
     }
 
-    public bool TryRequest(AbilityType type)
+    public bool TryRequest(AbilityType type, bool longPress = false)
     {
         if (stats == null) return false;
         if (!IsImplemented(type)) return false;
@@ -124,22 +144,36 @@ public class PlayerAbilitySystem : MonoBehaviour
         if (IsInHitLock())
             return false;
 
-        int cost = GetCost(type);
+        if (!CanRequest(type, longPress))
+            return false;
+
+        int cost = GetCost(type, longPress);
         if (!stats.ConsumeSpecial(cost))
             return false;
 
         pending = type;
+        pendingLongPress = longPress;
         hasPending = true;
         return true;
     }
 
+    bool CanRequest(AbilityType type, bool longPress)
+    {
+        switch (type)
+        {
+            case AbilityType.Ability2:
+                return longPress ? HasAnyEnemyInAbility2Range() : HasValidLockTargetForAbility2();
+            default:
+                return true;
+        }
+    }
 
-    int GetCost(AbilityType type)
+    int GetCost(AbilityType type, bool longPress)
     {
         return type switch
         {
-            AbilityType.Ability1 => costAbility1,
-            AbilityType.Ability2 => costAbility2,
+            AbilityType.Ability1 => longPress ? costAbility1Long : costAbility1,
+            AbilityType.Ability2 => longPress ? costAbility2Long : costAbility2,
             AbilityType.Ability3 => costAbility3,
             AbilityType.Ability4 => costAbility4,
             _ => 0
@@ -163,10 +197,10 @@ public class PlayerAbilitySystem : MonoBehaviour
         switch (pending)
         {
             case AbilityType.Ability1:
-                PerformAbility1();
+                PerformAbility1(pendingLongPress);
                 break;
             case AbilityType.Ability2:
-                PerformAbility2();
+                PerformAbility2(pendingLongPress);
                 break;
             case AbilityType.Ability3:
                 PerformAbility3();
@@ -228,14 +262,22 @@ public class PlayerAbilitySystem : MonoBehaviour
         ability3Routine = null;
     }
 
-    void PerformAbility1()
+    void PerformAbility1(bool longPress)
     {
         if (TimeController.Instance != null)
             TimeController.Instance.HitStop(abilityShockwaveHitStopTime, abilityShockwaveHitStopTime);
 
-        if (ability1AttackConfig == null)
+        if (longPress)
+            PerformAbility1Long();
+        else
+            PerformAbility1Short();
+    }
+
+    void PerformAbility1Short()
+    {
+        if (ability1ShortAttackConfig == null)
         {
-            Debug.LogError("[PlayerAbilitySystem] Ability1 Attack Config 未绑定。Ability1 不执行。");
+            Debug.LogError("[PlayerAbilitySystem] Ability1Short Attack Config 未绑定。Ability1 不执行。");
             return;
         }
 
@@ -244,13 +286,13 @@ public class PlayerAbilitySystem : MonoBehaviour
 
         Collider[] hits = Physics.OverlapSphere(
             origin,
-            ability1Range,
+            ability1ShortRange,
             enemyMask,
             QueryTriggerInteraction.Collide
         );
 
         HashSet<CombatStats> unique = new HashSet<CombatStats>();
-        AttackData template = BuildAttackDataFromConfig(ability1AttackConfig);
+        AttackData template = BuildAttackDataFromConfig(ability1ShortAttackConfig);
 
         foreach (var col in hits)
         {
@@ -265,10 +307,10 @@ public class PlayerAbilitySystem : MonoBehaviour
             to.y = 0f;
 
             float dist = to.magnitude;
-            if (dist > ability1Range || dist < 0.001f) continue;
+            if (dist > ability1ShortRange || dist < 0.001f) continue;
 
             float angle = Vector3.Angle(forward, to.normalized);
-            if (angle > ability1ConeAngle * 0.5f) continue;
+            if (angle > ability1ShortConeAngle * 0.5f) continue;
 
             IHittable hittable =
                 targetStats.GetComponent<IHittable>() ??
@@ -283,29 +325,25 @@ public class PlayerAbilitySystem : MonoBehaviour
         }
     }
 
-    void PerformAbility2()
+    void PerformAbility1Long()
     {
-        if (TimeController.Instance != null)
-            TimeController.Instance.HitStop(abilityShockwaveHitStopTime, abilityShockwaveHitStopTime);
-
-        if (ability2AttackConfig == null)
+        if (ability1LongAttackConfig == null)
         {
-            Debug.LogError("[PlayerAbilitySystem] Ability2 Attack Config 未绑定。Ability2 不执行。");
+            Debug.LogError("[PlayerAbilitySystem] Ability1Long Attack Config 未绑定。Ability1 不执行。");
             return;
         }
 
         Vector3 origin = transform.position;
 
-        LayerMask mask = (ability2EnemyMask.value != 0) ? ability2EnemyMask : enemyMask;
         Collider[] hits = Physics.OverlapSphere(
             origin,
-            ability2Range,
-            mask,
+            ability1LongRange,
+            enemyMask,
             QueryTriggerInteraction.Collide
         );
 
         HashSet<CombatStats> unique = new HashSet<CombatStats>();
-        AttackData template = BuildAttackDataFromConfig(ability2AttackConfig);
+        AttackData template = BuildAttackDataFromConfig(ability1LongAttackConfig);
 
         foreach (var col in hits)
         {
@@ -329,9 +367,121 @@ public class PlayerAbilitySystem : MonoBehaviour
         }
     }
 
+    void PerformAbility2(bool longPress)
+    {
+        if (TimeController.Instance != null)
+            TimeController.Instance.HitStop(abilityShockwaveHitStopTime, abilityShockwaveHitStopTime);
+
+        if (longPress)
+            PerformAbility2Long();
+        else
+            PerformAbility2Short();
+    }
+
+    void PerformAbility2Short()
+    {
+        if (!HasValidLockTargetForAbility2())
+            return;
+
+        Transform lockTarget = lockOn.CurrentTarget;
+        if (lockTarget == null)
+            return;
+
+        EnemyFloatState floatState = lockTarget.GetComponentInParent<EnemyFloatState>();
+        if (floatState == null)
+            return;
+
+        floatState.TryStartFloat(
+            ability2RiseHeight,
+            ability2RiseSpeed,
+            ability2FloatDuration,
+            ability2InitialFallVelocity,
+            transform
+        );
+    }
+
+    void PerformAbility2Long()
+    {
+        Vector3 origin = transform.position;
+
+        LayerMask mask = (ability2EnemyMask.value != 0) ? ability2EnemyMask : enemyMask;
+        Collider[] hits = Physics.OverlapSphere(
+            origin,
+            ability2Range,
+            mask,
+            QueryTriggerInteraction.Collide
+        );
+
+        HashSet<EnemyFloatState> unique = new HashSet<EnemyFloatState>();
+
+        foreach (var col in hits)
+        {
+            EnemyFloatState floatState = col.GetComponentInParent<EnemyFloatState>();
+            if (floatState == null) continue;
+
+            if (!unique.Add(floatState))
+                continue;
+
+            floatState.TryStartFloat(
+                ability2RiseHeight,
+                ability2RiseSpeed,
+                ability2FloatDuration,
+                ability2InitialFallVelocity,
+                transform
+            );
+        }
+    }
+
+    bool HasValidLockTargetForAbility2()
+    {
+        if (lockOn == null || !lockOn.IsLocked)
+            return false;
+
+        Transform lockTarget = lockOn.CurrentTarget;
+        if (lockTarget == null)
+            return false;
+
+        EnemyFloatState floatState = lockTarget.GetComponentInParent<EnemyFloatState>();
+        if (floatState == null || floatState.IsFloating)
+            return false;
+
+        CombatStats targetStats = floatState.GetComponent<CombatStats>();
+        if (targetStats == null || targetStats == stats || targetStats.IsDead)
+            return false;
+
+        float sqrRange = ability2Range * ability2Range;
+        Vector3 to = LockTargetPointUtility.GetCapsuleCenter(floatState.transform) - transform.position;
+        to.y = 0f;
+        return to.sqrMagnitude <= sqrRange;
+    }
+
+    bool HasAnyEnemyInAbility2Range()
+    {
+        LayerMask mask = (ability2EnemyMask.value != 0) ? ability2EnemyMask : enemyMask;
+        Collider[] hits = Physics.OverlapSphere(
+            transform.position,
+            ability2Range,
+            mask,
+            QueryTriggerInteraction.Collide
+        );
+
+        foreach (var col in hits)
+        {
+            EnemyFloatState floatState = col.GetComponentInParent<EnemyFloatState>();
+            if (floatState == null) continue;
+            if (floatState.IsFloating) continue;
+
+            CombatStats targetStats = floatState.GetComponent<CombatStats>();
+            if (targetStats == null || targetStats == stats || targetStats.IsDead) continue;
+            return true;
+        }
+
+        return false;
+    }
+
     AttackData BuildAttackDataFromConfig(AttackConfig cfg)
     {
-        AttackSourceType sourceType = AttackSourceType.Ability1;
+        AttackSourceType sourceType = AttackSourceType.Ability1Short;
         if (cfg != null)
             sourceType = cfg.sourceType;
 
