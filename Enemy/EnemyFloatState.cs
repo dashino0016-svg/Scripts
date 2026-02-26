@@ -18,9 +18,6 @@ public class EnemyFloatState : MonoBehaviour
     [SerializeField] string floatLayerName = "ReactLayer";
     int floatLayerIndex = -1;
 
-    [Header("Fall")]
-    [SerializeField] bool debugLog;
-
     CharacterController cc;
     Animator anim;
     EnemyController enemyController;
@@ -132,9 +129,6 @@ public class EnemyFloatState : MonoBehaviour
 
         phase = FloatPhase.Rising;
         SetFloatAnimatorFlag(true);
-
-        if (debugLog)
-            Debug.Log($"[EnemyFloatState] Start float {name} riseH={riseHeight} duration={duration} fallV={fallVelocityY}", this);
 
         return true;
     }
@@ -339,7 +333,9 @@ public class EnemyFloatState : MonoBehaviour
 
         if (enemyMove != null)
         {
-            enemyMove.enabled = !IsDeadNow() && cachedEnemyMoveEnabled;
+            // 浮空流程结束后应恢复移动控制；
+            // 不能盲信缓存值（进入 float 前可能恰好处于拔刀过渡，缓存为 false 会导致落地后永久不可移动）。
+            enemyMove.enabled = !IsDeadNow();
             enemyMove.SetMoveDirection(Vector3.zero);
             enemyMove.SetMoveSpeedLevel(0);
             enemyMove.SetRotationEnabled(cachedEnemyMoveRotationEnabled);
