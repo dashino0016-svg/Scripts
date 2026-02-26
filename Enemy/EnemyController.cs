@@ -146,6 +146,7 @@ public class EnemyController : MonoBehaviour
 
     bool weaponLockRootMotionCached;
     bool weaponLockRootMotionValid;
+    bool weaponTransitionAllowHitRootMotion;
 
     public bool IsTargetingPlayer
     {
@@ -207,6 +208,8 @@ public class EnemyController : MonoBehaviour
             }
             anim.applyRootMotion = false;
         }
+
+        weaponTransitionAllowHitRootMotion = false;
     }
 
     void ExitWeaponTransitionLock()
@@ -228,6 +231,7 @@ public class EnemyController : MonoBehaviour
             anim.applyRootMotion = weaponLockRootMotionCached;
 
         weaponLockRootMotionValid = false;
+        weaponTransitionAllowHitRootMotion = false;
 
         IsInWeaponTransition = false;
         weaponTransitionType = WeaponTransitionType.None;
@@ -580,6 +584,8 @@ public class EnemyController : MonoBehaviour
             OnEnterHitLockInterruptLanding();
         wasInHitLock = hitNow;
 
+        UpdateWeaponTransitionHitRootMotion(hitNow);
+
         if (isLanding && Time.time - landingLockStartTime > landingLockTimeout)
         {
             if (!IsLandingAnimationPlaying())
@@ -602,6 +608,28 @@ public class EnemyController : MonoBehaviour
         {
             combatBrain?.Tick();
             UpdateCombatLoseTimer();
+        }
+    }
+
+    void UpdateWeaponTransitionHitRootMotion(bool hitNow)
+    {
+        if (!IsInWeaponTransition || anim == null)
+            return;
+
+        if (hitNow)
+        {
+            if (!weaponTransitionAllowHitRootMotion)
+            {
+                anim.applyRootMotion = true;
+                weaponTransitionAllowHitRootMotion = true;
+            }
+            return;
+        }
+
+        if (weaponTransitionAllowHitRootMotion)
+        {
+            anim.applyRootMotion = false;
+            weaponTransitionAllowHitRootMotion = false;
         }
     }
 
