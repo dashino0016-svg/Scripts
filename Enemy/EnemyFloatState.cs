@@ -14,6 +14,7 @@ public class EnemyFloatState : MonoBehaviour
     [Header("Animator")]
     [SerializeField] string floatStateName = "Float";
     [SerializeField] float floatCrossFade = 0.05f;
+    [SerializeField] string floatBoolParam = "IsFloating";
 
     [Header("Fall")]
     [SerializeField] bool debugLog;
@@ -40,6 +41,16 @@ public class EnemyFloatState : MonoBehaviour
     bool pendingFallDead;
     bool pendingGuardBreakAfterLand;
     bool cachedEnemyMoveEnabled;
+    bool cachedRootMotion;
+    bool cachedRootMotionValid;
+    float cachedAnimSpeed = 1f;
+    bool cachedAnimSpeedValid;
+    bool animHasFloatBool;
+    float groundedConfirmTimer;
+
+    [Header("Landing Stability")]
+    [SerializeField, Tooltip("Falling 阶段检测到 grounded 后，持续该时间才视为真正落地，避免边缘抖动反复落地/起跳。")]
+    float groundedConfirmDuration = 0.06f;
 
     public bool IsFloating => phase != FloatPhase.None;
     public bool IsInFloatOrFalling => phase == FloatPhase.Rising || phase == FloatPhase.Floating || phase == FloatPhase.Falling;
@@ -60,6 +71,9 @@ public class EnemyFloatState : MonoBehaviour
         range = GetComponent<RangeFighter>();
         block = GetComponent<BlockController>();
         stats = GetComponent<CombatStats>();
+
+        if (anim != null && !string.IsNullOrWhiteSpace(floatBoolParam))
+            animHasFloatBool = HasAnimBool(anim, floatBoolParam);
     }
 
     void Update()
@@ -108,6 +122,9 @@ public class EnemyFloatState : MonoBehaviour
         fallVelocityY = configuredFall;
 
         phase = FloatPhase.Rising;
+        groundedConfirmTimer = 0f;
+
+        SetFloatAnimatorFlag(true);
 
         if (debugLog)
             Debug.Log($"[EnemyFloatState] Start float {name} riseH={riseHeight} duration={duration} fallV={fallVelocityY}", this);
@@ -170,10 +187,18 @@ public class EnemyFloatState : MonoBehaviour
     {
         KeepFloatAnimLoop();
 
-        if (cc.isGrounded)
+        if (cc.isGrounded && fallVelocityY <= 0f)
         {
-            FinishFloatingOnLand();
-            return;
+            groundedConfirmTimer += Time.deltaTime;
+            if (groundedConfirmTimer >= Mathf.Max(0f, groundedConfirmDuration))
+            {
+                FinishFloatingOnLand();
+                return;
+            }
+        }
+        else
+        {
+            groundedConfirmTimer = 0f;
         }
 
         float gravity = (enemyMove != null) ? enemyMove.gravity : -15f;
@@ -191,6 +216,7 @@ public class EnemyFloatState : MonoBehaviour
             return;
 
         phase = FloatPhase.Falling;
+        groundedConfirmTimer = 0f;
 
         if (enemyMove != null)
             enemyMove.SetVerticalVelocity(fallVelocityY);
@@ -240,6 +266,9 @@ public class EnemyFloatState : MonoBehaviour
 
         phase = FloatPhase.None;
         pendingGuardBreakAfterLand = false;
+        groundedConfirmTimer = 0f;
+
+        SetFloatAnimatorFlag(false);
 
         if (deadOnLand && enemyController != null)
             enemyController.OnCharacterDead();
@@ -275,6 +304,25 @@ public class EnemyFloatState : MonoBehaviour
             enemyMove.SetMoveDirection(Vector3.zero);
             enemyMove.SetMoveSpeedLevel(0);
         }
+
+        if (anim != null)
+        {
+            if (!cachedRootMotionValid)
+            {
+                cachedRootMotion = anim.applyRootMotion;
+                cachedRootMotionValid = true;
+            }
+
+            if (!cachedAnimSpeedValid)
+            {
+                cachedAnimSpeed = anim.speed;
+                cachedAnimSpeedValid = true;
+            }
+
+            anim.applyRootMotion = false;
+            // 浮空期间固定动画速率，避免受本地时间缩放影响导致看起来“卡在首帧”。
+            anim.speed = 1f;
+        }
     }
 
     void EnableEnemyBehaviours()
@@ -284,6 +332,12 @@ public class EnemyFloatState : MonoBehaviour
 
         if (enemyMove != null)
             enemyMove.enabled = cachedEnemyMoveEnabled;
+
+        if (anim != null && cachedRootMotionValid)
+            anim.applyRootMotion = cachedRootMotion;
+
+        if (anim != null && cachedAnimSpeedValid)
+            anim.speed = cachedAnimSpeed;
 
         if (combat != null && !IsDeadNow())
             combat.enabled = true;
@@ -310,13 +364,28 @@ public class EnemyFloatState : MonoBehaviour
         if (anim == null)
             return;
 
-        int stateHash = Animator.StringToHash(floatStateName);
-        if (!anim.HasState(0, stateHash))
+        // 仅维持播放速率，不在每帧强制 CrossFade，避免一直回到 Float 首帧导致“静止”。
+        if (!Mathf.Approximately(anim.speed, 1f))
+            anim.speed = 1f;
+    }
+
+    void SetFloatAnimatorFlag(bool floating)
+    {
+        if (anim == null || !animHasFloatBool)
             return;
 
-        AnimatorStateInfo st = anim.GetCurrentAnimatorStateInfo(0);
-        if (!st.IsName(floatStateName) && !st.IsName($"Base Layer.{floatStateName}"))
-            anim.CrossFadeInFixedTime(floatStateName, floatCrossFade, 0, 0f);
+        anim.SetBool(floatBoolParam, floating);
+    }
+
+    static bool HasAnimBool(Animator animator, string paramName)
+    {
+        foreach (var p in animator.parameters)
+        {
+            if (p.type == AnimatorControllerParameterType.Bool && p.name == paramName)
+                return true;
+        }
+
+        return false;
     }
 
     int CalculateFallDamage(float downwardSpeed)
