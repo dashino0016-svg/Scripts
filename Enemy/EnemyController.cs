@@ -123,6 +123,8 @@ public class EnemyController : MonoBehaviour
     [SerializeField] float landingLockTimeout = 1.2f;
     float landingLockStartTime = -999f;
     bool isLanding;
+    bool isFloatControlLocked;
+    bool forceFallDeadAnimationOnce;
 
     [Header("Air/Land Facing Lock")]
     [Tooltip("坠落与落地期间是否锁定朝向为进入坠落时的朝向。")]
@@ -131,6 +133,7 @@ public class EnemyController : MonoBehaviour
     bool hasAirLandLockedYaw;
 
     public bool IsInLandLock => isLanding;
+    public bool IsFloatControlLocked => isFloatControlLocked;
     public bool IsAirborne => cachedMove != null && !cachedMove.IsGrounded;
     public bool IsInWeaponTransition { get; private set; }
 
@@ -566,6 +569,9 @@ public class EnemyController : MonoBehaviour
             return;
 
         if (IsInAssassinationLock)
+            return;
+
+        if (isFloatControlLocked)
             return;
 
         if (isLanding && Time.time - landingLockStartTime > landingLockTimeout)
@@ -1266,6 +1272,10 @@ public class EnemyController : MonoBehaviour
 
     public void OnCharacterDead()
     {
+        var floatState = GetComponent<EnemyFloatState>();
+        if (floatState != null && floatState.IsInFloatOrFalling)
+            return;
+
         isLanding = false;
         ClearAirLandFacingLock();
 
@@ -1329,8 +1339,11 @@ public class EnemyController : MonoBehaviour
 
             if (!deathByAssassination)
             {
-                bool fallDeath = combatStats != null && combatStats.LastDeathCause == DeathCause.Fall;
+                bool fallDeath =
+                    forceFallDeadAnimationOnce ||
+                    (combatStats != null && combatStats.LastDeathCause == DeathCause.Fall);
                 anim.SetTrigger(fallDeath ? "FallDead" : "Dead");
+                forceFallDeadAnimationOnce = false;
             }
 
             if (deathByAssassination || IsInAssassinationLock || solidCollisionDisabledPermanently)
@@ -1438,6 +1451,16 @@ public class EnemyController : MonoBehaviour
     {
         isLanding = false;
         ClearAirLandFacingLock();
+    }
+
+    public void SetFloatControlLock(bool locked)
+    {
+        isFloatControlLocked = locked;
+    }
+
+    public void ForceNextDeathToFallDeadAnimation()
+    {
+        forceFallDeadAnimationOnce = true;
     }
 
 }
