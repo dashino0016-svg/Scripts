@@ -110,6 +110,12 @@ public class EnemyMove : MonoBehaviour
     public bool IsGroundedRaw => isGroundedRaw;
     public int DesiredSpeedLevel => desiredSpeedLevel;
     public float LastImpactVelocityY => lastImpactVelocityY;
+
+    public void SetVerticalVelocity(float value)
+    {
+        velocityY = value;
+        lastAirVelocityY = value;
+    }
     /* ================= Unity ================= */
 
     void Awake()
