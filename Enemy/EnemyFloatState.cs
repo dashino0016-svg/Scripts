@@ -38,7 +38,6 @@ public class EnemyFloatState : MonoBehaviour
     float fallVelocityY;
     Transform caster;
 
-    bool pendingFallDead;
     bool pendingGuardBreakAfterLand;
     bool cachedCombatEnabled;
     bool cachedRangeCombatEnabled;
@@ -103,7 +102,6 @@ public class EnemyFloatState : MonoBehaviour
             return false;
 
         caster = casterTransform;
-        pendingFallDead = false;
         pendingGuardBreakAfterLand = false;
 
         ForceEnterFloatAnim();
@@ -185,63 +183,34 @@ public class EnemyFloatState : MonoBehaviour
 
     void TickFalling()
     {
-        KeepFloatAnimLoop();
-
-        // 复用 EnemyMove 原有坠落/落地系统：
-        // - FloatState 不再额外做 grounded 判定、重力积分、落地伤害和 HardLand 触发。
-        // - Falling 阶段只维持 Float 循环动画，等待 EnemyMove 完成原流程。
-        if (enemyMove != null && enemyMove.IsGrounded)
-            FinishFloatingAfterNativeLanding();
+        // 进入 Falling 后会立刻切回原生坠落系统，正常情况下不会停留在该阶段。
     }
 
     void BeginFalling(bool immediateFallDead)
     {
-        if (phase == FloatPhase.Falling)
+        if (phase == FloatPhase.None)
             return;
 
-        phase = FloatPhase.Falling;
+        phase = FloatPhase.None;
+        SetFloatAnimatorFlag(false);
+
+        EnableEnemyBehavioursAfterLanding();
 
         if (enemyMove != null)
         {
             enemyMove.enabled = true;
             enemyMove.SetMoveDirection(Vector3.zero);
             enemyMove.SetMoveSpeedLevel(0);
-            enemyMove.SetRotationEnabled(false);
             enemyMove.SetVerticalVelocity(fallVelocityY);
         }
 
-        // 下落阶段继续锁住控制，仅让 EnemyMove 的原生重力/落地系统工作。
-        if (enemyController != null)
-            enemyController.SetFloatControlLock(true);
-
         if (immediateFallDead)
-            pendingFallDead = true;
-
-        KeepFloatAnimLoop();
-    }
-
-    void FinishFloatingAfterNativeLanding()
-    {
-        bool deadOnLand = pendingFallDead || (stats != null && stats.CurrentHP <= 0);
-
-        EnableEnemyBehavioursAfterLanding();
-
-        if (!deadOnLand && pendingGuardBreakAfterLand && anim != null)
-            anim.SetTrigger("HeavyHit");
-
-        phase = FloatPhase.None;
-        pendingGuardBreakAfterLand = false;
-
-        SetFloatAnimatorFlag(false);
-
-        if (deadOnLand)
         {
             if (enemyController != null)
                 enemyController.ForceNextDeathToFallDeadAnimation();
-
-            if (stats != null && !stats.IsDead)
-                stats.TakeHPDamage(999999, DeathCause.Fall);
         }
+
+        pendingGuardBreakAfterLand = false;
     }
 
     void DisableEnemyBehaviours()
