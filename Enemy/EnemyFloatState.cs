@@ -116,8 +116,6 @@ public class EnemyFloatState : MonoBehaviour
         floatEndTime = Time.time + Mathf.Max(0f, duration);
 
         float configuredFall = Mathf.Min(-0.01f, initialFallVelocity);
-        if (enemyMove != null)
-            configuredFall = Mathf.Max(configuredFall, enemyMove.hardLandVelocity);
 
         fallVelocityY = configuredFall;
 
