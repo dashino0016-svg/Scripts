@@ -58,7 +58,7 @@ public class PlayerAbilitySystem : MonoBehaviour
     [SerializeField] float ability2FloatDuration = 1.5f;
 
     [SerializeField, Tooltip("向下初速度（负值）。实际会在 EnemyMove.hardLandVelocity 处做安全钳制。")]
-    float ability2InitialFallVelocity = -10f;
+    float ability2InitialFallVelocity = -12f;
 
     [Header("Ability Shockwave Hit Stop")]
     [SerializeField] float abilityShockwaveHitStopTime = 0.05f;
