@@ -102,6 +102,13 @@ public class PlayerController : MonoBehaviour
     int abilityLayerIndex = -1;
     bool wasInHitLock;
 
+    [Header("React Layer Interrupt")]
+    [SerializeField] string reactLayerName = "ReactLayer";
+    [SerializeField] string reactEmptyStateName = "Empty";
+    [SerializeField] float reactEmptyCrossFade = 0.05f;
+    int reactLayerIndex = -1;
+    bool pendingReactLayerExitToEmptyAfterHit;
+
     // ✅ Roll/Land 兜底回收（防止滚出平台/打断导致事件丢失）
     [Header("Roll/Land Fallback")]
     [Tooltip("落地锁事件丢失时的兜底超时（秒）。")]
@@ -180,6 +187,16 @@ public class PlayerController : MonoBehaviour
             abilityLayerIndex = anim.GetLayerIndex("Ability Layer");
         }
 
+        reactLayerIndex = anim.GetLayerIndex(reactLayerName);
+        if (reactLayerIndex < 0)
+            reactLayerIndex = anim.GetLayerIndex("React Layer");
+
+        if (reactLayerIndex < 0)
+        {
+            Debug.LogWarning($"[PlayerController] 找不到 React Layer：{reactLayerName}（或 'React Layer'）。" +
+                             $"受击后将无法强制切回 Empty。请检查 Animator Layer 名称。");
+        }
+
         if (abilityLayerIndex < 0)
         {
             Debug.LogWarning($"[PlayerController] 找不到 Ability Layer：{abilityLayerName}（或 'Ability Layer'）。" +
@@ -236,6 +253,10 @@ public class PlayerController : MonoBehaviour
         if (hitNow && !wasInHitLock)
         {
             OnEnterHitLock();
+        }
+        else if (!hitNow && wasInHitLock)
+        {
+            TryExitReactLayerToEmptyAfterHit();
         }
         wasInHitLock = hitNow;
 
@@ -430,6 +451,8 @@ public class PlayerController : MonoBehaviour
         anim.ResetTrigger("HardLand");
         anim.ResetTrigger("SoftLand");
 
+        pendingReactLayerExitToEmptyAfterHit = true;
+
         isAbility = false;
         isAttacking = false;
         isLanding = false;
@@ -438,6 +461,19 @@ public class PlayerController : MonoBehaviour
         {
             anim.CrossFadeInFixedTime(abilityEmptyStateName, 0.05f, abilityLayerIndex);
         }
+    }
+
+    void TryExitReactLayerToEmptyAfterHit()
+    {
+        if (!pendingReactLayerExitToEmptyAfterHit)
+            return;
+
+        pendingReactLayerExitToEmptyAfterHit = false;
+
+        if (anim == null || reactLayerIndex < 0 || string.IsNullOrWhiteSpace(reactEmptyStateName))
+            return;
+
+        anim.CrossFadeInFixedTime(reactEmptyStateName, reactEmptyCrossFade, reactLayerIndex, 0f);
     }
 
     /* ================== Lock On ================== */

@@ -48,6 +48,10 @@ public class PlayerMove : MonoBehaviour
 
     [Header("Animation")]
     public float speedDampTime = 0.02f;
+    [SerializeField] string airAttackBoolParam = "IsInAirAttack";
+    [SerializeField] string reactLayerName = "ReactLayer";
+    [SerializeField] string reactEmptyStateName = "Empty";
+    [SerializeField] float reactEmptyCrossFade = 0.03f;
 
     [Header("Root Motion (Player)")]
     [Tooltip("开启后：空中阶段不吃任何 Root Motion 位移，避免与跳跃物理叠加导致跳高飘移。")]
@@ -87,6 +91,9 @@ public class PlayerMove : MonoBehaviour
     // ✅ 跳跃扣体力（起跳真相点）
     PlayerStaminaActions staminaActions;
     CombatStats combatStats;
+    bool hasAirAttackBoolParam;
+    int reactLayerIndex = -1;
+    bool wasAirborneAirAttack;
 
     // =========================
     // ✅ 输入由 PlayerController 注入（PlayerMove 不再读 Input / KeyCode）
@@ -154,6 +161,16 @@ public class PlayerMove : MonoBehaviour
         staminaActions = GetComponent<PlayerStaminaActions>();
         combatStats = GetComponent<CombatStats>();
 
+        if (anim != null && !string.IsNullOrWhiteSpace(airAttackBoolParam))
+            hasAirAttackBoolParam = HasAnimBool(anim, airAttackBoolParam);
+
+        if (anim != null)
+        {
+            reactLayerIndex = anim.GetLayerIndex(reactLayerName);
+            if (reactLayerIndex < 0)
+                reactLayerIndex = anim.GetLayerIndex("React Layer");
+        }
+
         // ✅ 自动把当前 CC 参数当作“站立胶囊”
         standHeight = controller.height;
         standRadius = controller.radius;
@@ -191,9 +208,13 @@ public class PlayerMove : MonoBehaviour
         anim.SetBool("IsGrounded", isGrounded);
         anim.SetFloat("VerticalVelocity", velocityY);
 
+        if (hasAirAttackBoolParam)
+            anim.SetBool(airAttackBoolParam, fighter != null && fighter.IsInAirAttack && !isGrounded);
+
         // ✅ 移动锁：由“攻击锁 + 控制锁”组成
         // 空中攻击例外：允许沿已有空中轨迹继续运动（仅禁止 root motion，不冻结物理位移）
         bool airborneAirAttack = fighter != null && fighter.IsInAirAttack && !isGrounded;
+        SyncReactLayerForAirAttack(airborneAirAttack);
         bool lockedByAttack = fighter != null && fighter.IsInAttackLock && !airborneAirAttack;
         bool lockedByController = controllerLogic != null && controllerLogic.IsInMoveControlLock;
         bool locked = lockedByAttack || lockedByController;
@@ -237,6 +258,29 @@ public class PlayerMove : MonoBehaviour
         runKeyDownThisFrame = false;
         jumpPressedThisFrame = false;
         forceWalkThisFrame = false;
+    }
+
+    static bool HasAnimBool(Animator animator, string paramName)
+    {
+        foreach (var p in animator.parameters)
+        {
+            if (p.type == AnimatorControllerParameterType.Bool && p.name == paramName)
+                return true;
+        }
+
+        return false;
+    }
+
+    void SyncReactLayerForAirAttack(bool airborneAirAttack)
+    {
+        if (anim == null || reactLayerIndex < 0 || string.IsNullOrWhiteSpace(reactEmptyStateName))
+            return;
+
+        bool isInHitLock = controllerLogic != null && controllerLogic.IsInHitLock;
+        if (airborneAirAttack && !wasAirborneAirAttack && !isInHitLock)
+            anim.CrossFadeInFixedTime(reactEmptyStateName, reactEmptyCrossFade, reactLayerIndex, 0f);
+
+        wasAirborneAirAttack = airborneAirAttack;
     }
 
     /* ================= Crouch Capsule ================= */
