@@ -248,6 +248,13 @@ public class CombatReceiver : MonoBehaviour, IHittable
         ApplyResultToStats(result, attackData);
         PromoteResultToGuardBreakIfNeeded(ref result);
 
+        EnemyFloatState floatState = GetComponent<EnemyFloatState>();
+        if (floatState != null)
+        {
+            floatState.NotifyHitResult(result.resultType);
+            floatState.NotifyHpAfterHit();
+        }
+
         if (result.resultType == HitResultType.PerfectBlock)
         {
             // ✅ 仅近战完美防御才惩罚攻击者体力 / 触发 Counter
@@ -264,11 +271,13 @@ public class CombatReceiver : MonoBehaviour, IHittable
             // else: 远程子弹完美防御只负责“判定为 PerfectBlock”（用于反弹），不扣攻击者体力、不触发 Counter
         }
 
+        bool suppressByFloat = floatState != null && floatState.SuppressHitReaction;
+
         bool isNoHit = (result.resultType == HitResultType.Hit &&
                 result.reactionType == HitReactionType.NoHit);
 
         // ✅ NoHit：不播受击/不打断（保持霸体/免反应表现），但仍允许卡肉提升打击感。
-        if (!isNoHit)
+        if (!isNoHit && !suppressByFloat)
         {
             PlayHitReaction(result);
             TryInterruptAttack(result);
@@ -329,8 +338,8 @@ public class CombatReceiver : MonoBehaviour, IHittable
     // ✅ 攻击型能力（Ability1/Ability2）造成的伤害不计入特殊值积累
     bool ShouldGrantSpecialFromThisAttack(AttackData attackData)
     {
-        return attackData.sourceType != AttackSourceType.Ability1 &&
-               attackData.sourceType != AttackSourceType.Ability2;
+        return attackData.sourceType != AttackSourceType.Ability1Short &&
+               attackData.sourceType != AttackSourceType.Ability1Long;
     }
 
     void ApplyResultToStats(HitResult result, AttackData attackData)
