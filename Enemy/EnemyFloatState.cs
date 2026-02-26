@@ -40,17 +40,12 @@ public class EnemyFloatState : MonoBehaviour
 
     bool pendingFallDead;
     bool pendingGuardBreakAfterLand;
-    bool cachedEnemyMoveEnabled;
+    bool cachedNavigatorEnabled;
     bool cachedRootMotion;
     bool cachedRootMotionValid;
     float cachedAnimSpeed = 1f;
     bool cachedAnimSpeedValid;
     bool animHasFloatBool;
-    float groundedConfirmTimer;
-
-    [Header("Landing Stability")]
-    [SerializeField, Tooltip("Falling 阶段检测到 grounded 后，持续该时间才视为真正落地，避免边缘抖动反复落地/起跳。")]
-    float groundedConfirmDuration = 0.06f;
 
     public bool IsFloating => phase != FloatPhase.None;
     public bool IsInFloatOrFalling => phase == FloatPhase.Rising || phase == FloatPhase.Floating || phase == FloatPhase.Falling;
@@ -122,8 +117,6 @@ public class EnemyFloatState : MonoBehaviour
         fallVelocityY = configuredFall;
 
         phase = FloatPhase.Rising;
-        groundedConfirmTimer = 0f;
-
         SetFloatAnimatorFlag(true);
 
         if (debugLog)
@@ -187,27 +180,11 @@ public class EnemyFloatState : MonoBehaviour
     {
         KeepFloatAnimLoop();
 
-        if (cc.isGrounded && fallVelocityY <= 0f)
-        {
-            groundedConfirmTimer += Time.deltaTime;
-            if (groundedConfirmTimer >= Mathf.Max(0f, groundedConfirmDuration))
-            {
-                FinishFloatingOnLand();
-                return;
-            }
-        }
-        else
-        {
-            groundedConfirmTimer = 0f;
-        }
-
-        float gravity = (enemyMove != null) ? enemyMove.gravity : -15f;
-        float terminal = (enemyMove != null) ? enemyMove.terminalVelocity : -50f;
-
-        fallVelocityY += gravity * Time.deltaTime;
-        fallVelocityY = Mathf.Max(fallVelocityY, terminal);
-
-        cc.Move(Vector3.up * (fallVelocityY * Time.deltaTime));
+        // 复用 EnemyMove 原有坠落/落地系统：
+        // - FloatState 不再额外做 grounded 判定、重力积分、落地伤害和 HardLand 触发。
+        // - Falling 阶段只维持 Float 循环动画，等待 EnemyMove 完成原流程。
+        if (enemyMove != null && enemyMove.IsGrounded)
+            FinishFloatingAfterNativeLanding();
     }
 
     void BeginFalling(bool immediateFallDead)
@@ -216,7 +193,8 @@ public class EnemyFloatState : MonoBehaviour
             return;
 
         phase = FloatPhase.Falling;
-        groundedConfirmTimer = 0f;
+
+        EnableEnemyBehavioursForNativeFall();
 
         if (enemyMove != null)
             enemyMove.SetVerticalVelocity(fallVelocityY);
@@ -227,57 +205,38 @@ public class EnemyFloatState : MonoBehaviour
         KeepFloatAnimLoop();
     }
 
-    void FinishFloatingOnLand()
+    void FinishFloatingAfterNativeLanding()
     {
-        if (enemyController != null)
-            enemyController.LandBegin();
-
-        float impactDownwardSpeed = Mathf.Abs(fallVelocityY);
-
-        if (stats != null && !stats.IsDead)
-        {
-            int fallDamage = CalculateFallDamage(impactDownwardSpeed);
-            if (fallDamage > 0)
-                stats.TakeHPDamage(fallDamage, DeathCause.Fall);
-        }
-
         bool deadOnLand = pendingFallDead || (stats != null && stats.CurrentHP <= 0);
 
-        if (deadOnLand)
-        {
-            if (stats != null && !stats.IsDead)
-                stats.TakeHPDamage(999999, DeathCause.Fall);
-
-            if (enemyController != null)
-                enemyController.ForceNextDeathToFallDeadAnimation();
-        }
-        else if (anim != null)
-        {
-            anim.SetTrigger("HardLand");
-        }
-
-        EnableEnemyBehaviours();
+        EnableEnemyBehavioursAfterLanding();
 
         if (!deadOnLand && pendingGuardBreakAfterLand && anim != null)
             anim.SetTrigger("HeavyHit");
 
-        if (enemyController != null && !deadOnLand)
-            enemyController.LandEnd();
-
         phase = FloatPhase.None;
         pendingGuardBreakAfterLand = false;
-        groundedConfirmTimer = 0f;
 
         SetFloatAnimatorFlag(false);
 
-        if (deadOnLand && enemyController != null)
-            enemyController.OnCharacterDead();
+        if (deadOnLand)
+        {
+            if (enemyController != null)
+                enemyController.ForceNextDeathToFallDeadAnimation();
+
+            if (stats != null && !stats.IsDead)
+                stats.TakeHPDamage(999999, DeathCause.Fall);
+        }
     }
 
     void DisableEnemyBehaviours()
     {
         if (enemyNavigator != null)
+        {
+            cachedNavigatorEnabled = enemyNavigator.enabled;
             enemyNavigator.Stop();
+            enemyNavigator.enabled = false;
+        }
 
         if (block != null)
             block.RequestBlock(false);
@@ -299,7 +258,6 @@ public class EnemyFloatState : MonoBehaviour
 
         if (enemyMove != null)
         {
-            cachedEnemyMoveEnabled = enemyMove.enabled;
             enemyMove.enabled = false;
             enemyMove.SetMoveDirection(Vector3.zero);
             enemyMove.SetMoveSpeedLevel(0);
@@ -325,13 +283,24 @@ public class EnemyFloatState : MonoBehaviour
         }
     }
 
-    void EnableEnemyBehaviours()
+    void EnableEnemyBehavioursForNativeFall()
     {
         if (enemyController != null)
             enemyController.SetFloatControlLock(false);
 
+        if (enemyNavigator != null && !IsDeadNow())
+        {
+            enemyNavigator.enabled = cachedNavigatorEnabled;
+            if (enemyNavigator.enabled)
+                enemyNavigator.SyncPosition(transform.position);
+        }
+
         if (enemyMove != null)
-            enemyMove.enabled = cachedEnemyMoveEnabled;
+        {
+            enemyMove.enabled = !IsDeadNow();
+            enemyMove.SetMoveDirection(Vector3.zero);
+            enemyMove.SetMoveSpeedLevel(0);
+        }
 
         if (anim != null && cachedRootMotionValid)
             anim.applyRootMotion = cachedRootMotion;
@@ -344,6 +313,12 @@ public class EnemyFloatState : MonoBehaviour
 
         if (rangeCombat != null && !IsDeadNow())
             rangeCombat.enabled = true;
+    }
+
+    void EnableEnemyBehavioursAfterLanding()
+    {
+        // 这里保留接口是为了语义清晰：坠落期间行为已恢复，落地后目前不再做额外切换。
+        // 后续若要在“落地瞬间”加恢复逻辑，可集中放在这里。
     }
 
     bool IsDeadNow()
@@ -388,21 +363,4 @@ public class EnemyFloatState : MonoBehaviour
         return false;
     }
 
-    int CalculateFallDamage(float downwardSpeed)
-    {
-        if (enemyMove == null || !enemyMove.enableFallDamage)
-            return 0;
-
-        float speed = Mathf.Max(0f, downwardSpeed);
-        if (speed <= enemyMove.fallDamageThresholdSpeed)
-            return 0;
-
-        float excess = speed - enemyMove.fallDamageThresholdSpeed;
-        int damage = Mathf.CeilToInt(excess * Mathf.Max(0f, enemyMove.fallDamageScale));
-
-        if (enemyMove.fallDamageMax > 0)
-            damage = Mathf.Min(damage, enemyMove.fallDamageMax);
-
-        return Mathf.Max(0, damage);
-    }
 }
