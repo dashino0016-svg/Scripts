@@ -15,6 +15,8 @@ public class EnemyFloatState : MonoBehaviour
     [SerializeField] string floatStateName = "Float";
     [SerializeField] float floatCrossFade = 0.05f;
     [SerializeField] string floatBoolParam = "IsFloating";
+    [SerializeField] string reactLayerName = "ReactLayer";
+
 
     [Header("Fall")]
     [SerializeField] bool debugLog;
@@ -51,6 +53,7 @@ public class EnemyFloatState : MonoBehaviour
     float cachedAnimSpeed = 1f;
     bool cachedAnimSpeedValid;
     bool animHasFloatBool;
+    int reactLayerIndex = -1;
 
     public bool IsFloating => phase != FloatPhase.None;
     public bool IsInFloatOrFalling => phase == FloatPhase.Rising || phase == FloatPhase.Floating || phase == FloatPhase.Falling;
@@ -74,6 +77,9 @@ public class EnemyFloatState : MonoBehaviour
 
         if (anim != null && !string.IsNullOrWhiteSpace(floatBoolParam))
             animHasFloatBool = HasAnimBool(anim, floatBoolParam);
+
+        if (anim != null)
+            reactLayerIndex = ResolveReactLayerIndex(anim, reactLayerName);
     }
 
     void Update()
@@ -359,7 +365,8 @@ public class EnemyFloatState : MonoBehaviour
         if (anim == null)
             return;
 
-        anim.CrossFadeInFixedTime(floatStateName, floatCrossFade, 0, 0f);
+        int layer = reactLayerIndex >= 0 ? reactLayerIndex : 0;
+        anim.CrossFadeInFixedTime(floatStateName, floatCrossFade, layer, 0f);
     }
 
     void KeepFloatAnimLoop()
@@ -389,6 +396,25 @@ public class EnemyFloatState : MonoBehaviour
         }
 
         return false;
+    }
+
+    static int ResolveReactLayerIndex(Animator animator, string preferredName)
+    {
+        if (animator == null)
+            return -1;
+
+        if (!string.IsNullOrWhiteSpace(preferredName))
+        {
+            int idx = animator.GetLayerIndex(preferredName);
+            if (idx >= 0)
+                return idx;
+        }
+
+        int fallback = animator.GetLayerIndex("React Layer");
+        if (fallback >= 0)
+            return fallback;
+
+        return animator.GetLayerIndex("React");
     }
 
 }
