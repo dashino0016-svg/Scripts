@@ -427,12 +427,9 @@ public class PlayerController : MonoBehaviour
         anim.ResetTrigger(ability2Trigger);
         anim.ResetTrigger(ability3Trigger);
         anim.ResetTrigger(ability4Trigger);
-        anim.ResetTrigger("HardLand");
-        anim.ResetTrigger("SoftLand");
 
         isAbility = false;
         isAttacking = false;
-        isLanding = false;
 
         if (abilityLayerIndex >= 0)
         {
