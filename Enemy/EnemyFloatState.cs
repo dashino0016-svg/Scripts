@@ -217,9 +217,9 @@ public class EnemyFloatState : MonoBehaviour
             enemyMove.enabled = true;
             enemyMove.SetMoveDirection(Vector3.zero);
             enemyMove.SetMoveSpeedLevel(0);
-            enemyMove.SetVerticalVelocity(fallVelocityY);
+            enemyMove.BeginExternalFall(fallVelocityY);
 
-            waitingForGroundedExitAfterFallStart = enemyMove.IsGrounded;
+            waitingForGroundedExitAfterFallStart = false;
         }
         else
         {
