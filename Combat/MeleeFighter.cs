@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -53,7 +53,7 @@ public class MeleeFighter : MonoBehaviour
 
     // ===== Ability（攻击型：Ability1/Ability2）=====
     bool isAbility;
-    AbilityType currentAbility; // ✅ 来自 CombatEnums.cs（Ability1/Ability2）
+    AbilityType currentAbility; // ✅ 来自 CombatEnums.cs（Ability1Short/Ability1Long）
     // ✅ 仅由动画事件 AttackBegin~AttackEnd 控制：命中窗口期间锁转向
     bool isHitWindow;
     public bool IsInHitWindow => isHitWindow;
@@ -533,9 +533,9 @@ public class MeleeFighter : MonoBehaviour
 
     void CreateAbilityAttackData(AbilityType type)
     {
-        AttackSourceType source = type == AbilityType.Ability1
-            ? AttackSourceType.Ability1
-            : AttackSourceType.Ability2;
+        AttackSourceType source = type == AbilityType.Ability1Short
+            ? AttackSourceType.Ability1Short
+            : AttackSourceType.Ability1Long;
 
         CreateFromConfig(source, 1);
     }
@@ -632,7 +632,7 @@ public class MeleeFighter : MonoBehaviour
 
     void PlayAbilityAttack(AbilityType type)
     {
-        string name = type == AbilityType.Ability1 ? "Ability1" : "Ability2";
+        string name = type == AbilityType.Ability1Short ? "Ability1" : "Ability2";
         anim.CrossFadeInFixedTime(name, attackCrossFadeTime, ATTACK_LAYER);
     }
 
