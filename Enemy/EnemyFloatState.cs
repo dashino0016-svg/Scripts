@@ -240,7 +240,20 @@ public class EnemyFloatState : MonoBehaviour
 
         phase = FloatPhase.None;
         waitingForGroundedExitAfterFallStart = false;
+
+        if (IsDeadNow())
+        {
+            pendingGuardBreakAfterLand = false;
+
+            if (enemyController != null)
+                enemyController.OnCharacterDead();
+
+            return;
+        }
+
         EnableEnemyBehavioursAfterLanding();
+
+        pendingGuardBreakAfterLand = false;
     }
 
     void DisableEnemyBehaviours()
