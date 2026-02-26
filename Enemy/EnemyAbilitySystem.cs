@@ -3,84 +3,62 @@ using UnityEngine.Serialization;
 
 public class EnemyAbilitySystem : MonoBehaviour
 {
-    
     public enum AbilityType
     {
-        Ability1,
-        Ability2,
+        Ability1Short,
+        Ability1Long,
     }
 
     const string TriggerAbility1 = "Ability1";
-    const string TriggerAbility2 = "Ability2";
+    const string AbilityBlendParam = "AbilityBlendParam";
 
     [Header("Refs")]
     [SerializeField] CombatStats stats;
     [SerializeField] Animator animator;
 
     [Header("Interrupt (Hit)")]
-    [Tooltip("能力被受击打断时，强制切回的 Base Layer 状态（空=不强制切状态，仅清触发）。")]
     [SerializeField] string interruptFallbackStateName = "Idle";
-
-    [Tooltip("能力被受击打断时，强制切状态的过渡时长。")]
     [SerializeField, Range(0f, 0.2f)] float interruptCrossFade = 0f;
 
     CombatReceiver receiver;
 
-    // =========================
-    // Shockwave (Ability1 / Ability2)
-    // =========================
-    [Header("Shockwave (Ability1 = Cone / Ability2 = AoE)")]
+    [Header("Shockwave (Ability1Short=Cone / Ability1Long=AoE)")]
     [SerializeField] bool enableShockwave = true;
-
-    [Tooltip("Ability1: 扇形冲击波（需要角度判定）")]
     [FormerlySerializedAs("shockwaveUseCone")]
-    [SerializeField] bool shockwaveUseCone = true;
-
-    [Tooltip("Ability2: 360°范围冲击波（只看距离）")]
+    [SerializeField] bool shockwaveUseShort = true;
     [FormerlySerializedAs("shockwaveUseAoe")]
-    [SerializeField] bool shockwaveUseAoe = false;
+    [SerializeField] bool shockwaveUseLong = false;
 
     [FormerlySerializedAs("shockwaveConeAttackConfig")]
-    [SerializeField] AttackConfig shockwaveConeAttackConfig;
-
+    [SerializeField] AttackConfig shockwaveShortAttackConfig;
     [FormerlySerializedAs("shockwaveAoeAttackConfig")]
-    [SerializeField] AttackConfig shockwaveAoeAttackConfig;
+    [SerializeField] AttackConfig shockwaveLongAttackConfig;
 
-    [FormerlySerializedAs("shockwaveCooldown")]
     [SerializeField] float shockwaveCooldown = 20f;
-
     [FormerlySerializedAs("shockwaveConeRange")]
-    [SerializeField] float shockwaveConeRange = 6f;
-
+    [SerializeField] float shockwaveShortRange = 6f;
     [FormerlySerializedAs("shockwaveConeAngle")]
-    [SerializeField, Range(10f, 180f)] float shockwaveConeAngle = 80f;
-
+    [SerializeField, Range(10f, 180f)] float shockwaveShortAngle = 80f;
     [FormerlySerializedAs("shockwaveAoeRange")]
-    [SerializeField] float shockwaveAoeRange = 6f;
+    [SerializeField] float shockwaveLongRange = 6f;
 
-    // =========================
-    // runtime
-    // =========================
     AbilityType pending;
     bool hasPending;
     Transform pendingTarget;
 
     bool isInAbilityLock;
-
     float nextShockwaveAllowedTime;
 
     public bool IsInAbilityLock => isInAbilityLock;
 
-    /// <summary>用于 Combat / RangeCombat 的粗判定（最大距离）。</summary>
     public float ShockwaveDecisionRange
     {
         get
         {
             if (!enableShockwave) return 0f;
-
             float range = 0f;
-            if (shockwaveUseCone) range = Mathf.Max(range, shockwaveConeRange);
-            if (shockwaveUseAoe) range = Mathf.Max(range, shockwaveAoeRange);
+            if (shockwaveUseShort) range = Mathf.Max(range, shockwaveShortRange);
+            if (shockwaveUseLong) range = Mathf.Max(range, shockwaveLongRange);
             return range;
         }
     }
@@ -100,7 +78,6 @@ public class EnemyAbilitySystem : MonoBehaviour
     {
         if (!IsInHitLock()) return;
 
-        // 受击打断：中止能力并从“被打断时刻”重新计冷却。
         if (hasPending || isInAbilityLock)
             InterruptAbilityByHit();
     }
@@ -117,21 +94,18 @@ public class EnemyAbilitySystem : MonoBehaviour
 
         if (!IsAbilityEnabled(type)) return false;
         if (!IsCooldownReady(type)) return false;
-
-        // 不消耗特殊槽：这里只做引用兜底
         if (stats == null) return false;
 
-        // Shockwave 没绑 config 就不允许出（避免空放动画）
-        if (type == AbilityType.Ability1 && shockwaveConeAttackConfig == null) return false;
-        if (type == AbilityType.Ability2 && shockwaveAoeAttackConfig == null) return false;
+        if (type == AbilityType.Ability1Short && shockwaveShortAttackConfig == null) return false;
+        if (type == AbilityType.Ability1Long && shockwaveLongAttackConfig == null) return false;
 
         return true;
     }
 
-    public bool CanAbility1Target(Transform target)
+    public bool CanAbility1ShortTarget(Transform target)
     {
-        if (!enableShockwave || !shockwaveUseCone) return false;
-        if (shockwaveConeAttackConfig == null) return false;
+        if (!enableShockwave || !shockwaveUseShort) return false;
+        if (shockwaveShortAttackConfig == null) return false;
         if (target == null) return false;
 
         Vector3 origin = transform.position;
@@ -140,7 +114,7 @@ public class EnemyAbilitySystem : MonoBehaviour
         to.y = 0f;
 
         float dist = to.magnitude;
-        if (dist > shockwaveConeRange) return false;
+        if (dist > shockwaveShortRange) return false;
         if (dist <= 0.001f) return true;
 
         Vector3 forward = transform.forward;
@@ -149,36 +123,28 @@ public class EnemyAbilitySystem : MonoBehaviour
             forward = transform.forward;
 
         float angle = Vector3.Angle(forward.normalized, to.normalized);
-        return angle <= shockwaveConeAngle * 0.5f;
+        return angle <= shockwaveShortAngle * 0.5f;
     }
 
-    public bool CanAbility2Target(Transform target)
+    public bool CanAbility1LongTarget(Transform target)
     {
-        if (!enableShockwave || !shockwaveUseAoe) return false;
-        if (shockwaveAoeAttackConfig == null) return false;
+        if (!enableShockwave || !shockwaveUseLong) return false;
+        if (shockwaveLongAttackConfig == null) return false;
         if (target == null) return false;
 
         Vector3 origin = transform.position;
         Vector3 targetPoint = LockTargetPointUtility.GetCapsuleCenter(target);
         Vector3 to = targetPoint - origin;
         to.y = 0f;
-
-        float dist = to.magnitude;
-        return dist <= shockwaveAoeRange;
-    }
-
-    public bool CanShockwaveTarget(Transform target)
-    {
-        return CanAbility1Target(target) || CanAbility2Target(target);
+        return to.magnitude <= shockwaveLongRange;
     }
 
     public bool TryCast(AbilityType type, Transform target)
     {
         if (!CanTryCast(type)) return false;
 
-        // 距离/角度门禁
-        if (type == AbilityType.Ability1 && !CanAbility1Target(target)) return false;
-        if (type == AbilityType.Ability2 && !CanAbility2Target(target)) return false;
+        if (type == AbilityType.Ability1Short && !CanAbility1ShortTarget(target)) return false;
+        if (type == AbilityType.Ability1Long && !CanAbility1LongTarget(target)) return false;
 
         pending = type;
         hasPending = true;
@@ -194,8 +160,8 @@ public class EnemyAbilitySystem : MonoBehaviour
     {
         return type switch
         {
-            AbilityType.Ability1 => enableShockwave && shockwaveUseCone,
-            AbilityType.Ability2 => enableShockwave && shockwaveUseAoe,
+            AbilityType.Ability1Short => enableShockwave && shockwaveUseShort,
+            AbilityType.Ability1Long => enableShockwave && shockwaveUseLong,
             _ => false
         };
     }
@@ -204,8 +170,8 @@ public class EnemyAbilitySystem : MonoBehaviour
     {
         return type switch
         {
-            AbilityType.Ability1 => Time.time >= nextShockwaveAllowedTime,
-            AbilityType.Ability2 => Time.time >= nextShockwaveAllowedTime,
+            AbilityType.Ability1Short => Time.time >= nextShockwaveAllowedTime,
+            AbilityType.Ability1Long => Time.time >= nextShockwaveAllowedTime,
             _ => false
         };
     }
@@ -214,8 +180,8 @@ public class EnemyAbilitySystem : MonoBehaviour
     {
         switch (type)
         {
-            case AbilityType.Ability1:
-            case AbilityType.Ability2:
+            case AbilityType.Ability1Short:
+            case AbilityType.Ability1Long:
                 nextShockwaveAllowedTime = Time.time + Mathf.Max(0f, shockwaveCooldown);
                 break;
         }
@@ -225,15 +191,8 @@ public class EnemyAbilitySystem : MonoBehaviour
     {
         if (animator == null) return;
 
-        string trigger = type switch
-        {
-            AbilityType.Ability1 => TriggerAbility1,
-            AbilityType.Ability2 => TriggerAbility2,
-            _ => string.Empty
-        };
-
-        if (!string.IsNullOrWhiteSpace(trigger))
-            animator.SetTrigger(trigger);
+        animator.SetFloat(AbilityBlendParam, type == AbilityType.Ability1Long ? 1f : 0f);
+        animator.SetTrigger(TriggerAbility1);
     }
 
     public void CancelPending()
@@ -261,9 +220,7 @@ public class EnemyAbilitySystem : MonoBehaviour
     {
         if (animator == null) return;
 
-        // 先清触发，避免被打断后 Trigger 残留再次拉回能力状态
         animator.ResetTrigger(TriggerAbility1);
-        animator.ResetTrigger(TriggerAbility2);
 
         if (string.IsNullOrWhiteSpace(interruptFallbackStateName))
             return;
@@ -276,17 +233,11 @@ public class EnemyAbilitySystem : MonoBehaviour
         animator.CrossFadeInFixedTime(interruptFallbackStateName, interruptCrossFade, layer, 0f);
     }
 
-    // =========================
-    // Animation Events (Authority)
-    // =========================
-
-    // 动画事件：AbilityBegin
     public void AbilityBegin()
     {
         isInAbilityLock = true;
     }
 
-    // 动画事件：AbilityImpact
     public void AbilityImpact()
     {
         if (!hasPending) return;
@@ -299,30 +250,25 @@ public class EnemyAbilitySystem : MonoBehaviour
 
         switch (pending)
         {
-            case AbilityType.Ability1:
-                PerformShockwaveCone(pendingTarget);
+            case AbilityType.Ability1Short:
+                PerformShockwaveShort(pendingTarget);
                 break;
-            case AbilityType.Ability2:
-                PerformShockwaveAoe(pendingTarget);
+            case AbilityType.Ability1Long:
+                PerformShockwaveLong(pendingTarget);
                 break;
         }
 
         hasPending = false;
     }
 
-    // 动画事件：AbilityEnd
     public void AbilityEnd()
     {
         isInAbilityLock = false;
     }
 
-    // =========================
-    // Ability execution
-    // =========================
-
-    void PerformShockwaveCone(Transform target)
+    void PerformShockwaveShort(Transform target)
     {
-        if (!CanAbility1Target(target)) return;
+        if (!CanAbility1ShortTarget(target)) return;
 
         IHittable hittable =
             target.GetComponentInParent<IHittable>() ??
@@ -330,15 +276,15 @@ public class EnemyAbilitySystem : MonoBehaviour
 
         if (hittable == null) return;
 
-        AttackData data = BuildAttackDataFromConfig(shockwaveConeAttackConfig);
+        AttackData data = BuildAttackDataFromConfig(shockwaveShortAttackConfig);
         data.attacker = transform;
 
         hittable.OnHit(data);
     }
 
-    void PerformShockwaveAoe(Transform target)
+    void PerformShockwaveLong(Transform target)
     {
-        if (!CanAbility2Target(target)) return;
+        if (!CanAbility1LongTarget(target)) return;
 
         IHittable hittable =
             target.GetComponentInParent<IHittable>() ??
@@ -346,7 +292,7 @@ public class EnemyAbilitySystem : MonoBehaviour
 
         if (hittable == null) return;
 
-        AttackData data = BuildAttackDataFromConfig(shockwaveAoeAttackConfig);
+        AttackData data = BuildAttackDataFromConfig(shockwaveLongAttackConfig);
         data.attacker = transform;
 
         hittable.OnHit(data);
@@ -354,7 +300,7 @@ public class EnemyAbilitySystem : MonoBehaviour
 
     AttackData BuildAttackDataFromConfig(AttackConfig cfg)
     {
-        AttackSourceType sourceType = AttackSourceType.Ability1;
+        AttackSourceType sourceType = AttackSourceType.Ability1Short;
         if (cfg != null)
             sourceType = cfg.sourceType;
 

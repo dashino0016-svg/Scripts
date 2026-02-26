@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
@@ -29,6 +29,8 @@ public class PlayerController : MonoBehaviour
     [SerializeField] string ability2Trigger = "Ability2";
     [SerializeField] string ability3Trigger = "Ability3";
     [SerializeField] string ability4Trigger = "Ability4";
+    [SerializeField] string abilityBlendParam = "AbilityBlendParam";
+    [SerializeField] float abilityHoldThreshold = 0.35f;
 
     [Header("Mini Drone Fire")]
     public KeyCode miniDroneFireKey = KeyCode.Q;
@@ -77,6 +79,11 @@ public class PlayerController : MonoBehaviour
     float holdTimer;
     const float HEAVY_THRESHOLD = 0.35f;
 
+    bool ability1Holding;
+    bool ability2Holding;
+    float ability1HoldStartTime;
+    float ability2HoldStartTime;
+
     Vector3 rollDirection;
 
     // Animator Hash
@@ -86,6 +93,7 @@ public class PlayerController : MonoBehaviour
 
     // ✅ crouch hash
     int hashIsCrouching;
+    int hashAbilityBlendParam;
 
     // ✅ AbilityLayer 强制打断相关
     [Header("Ability Layer Interrupt")]
@@ -162,6 +170,7 @@ public class PlayerController : MonoBehaviour
 
         // ✅ crouch
         hashIsCrouching = Animator.StringToHash("IsCrouching");
+        hashAbilityBlendParam = Animator.StringToHash(abilityBlendParam);
 
         // ✅ 找到 AbilityLayer index（用于被打断时强制切 Empty）
         abilityLayerIndex = anim.GetLayerIndex(abilityLayerName);
@@ -418,9 +427,12 @@ public class PlayerController : MonoBehaviour
         anim.ResetTrigger(ability2Trigger);
         anim.ResetTrigger(ability3Trigger);
         anim.ResetTrigger(ability4Trigger);
+        anim.ResetTrigger("HardLand");
+        anim.ResetTrigger("SoftLand");
 
         isAbility = false;
         isAttacking = false;
+        isLanding = false;
 
         if (abilityLayerIndex >= 0)
         {
@@ -993,6 +1005,12 @@ public class PlayerController : MonoBehaviour
 
     void HandleAbilityInput()
     {
+        if (IsInHitLock || isAbility || isBusy || isRolling || isDodging || isLanding)
+        {
+            ability1Holding = false;
+            ability2Holding = false;
+        }
+
         if (isCrouching) return;
 
         if (!sword.IsArmed || isAbility) return;
@@ -1003,23 +1021,41 @@ public class PlayerController : MonoBehaviour
 
         if (Input.GetKeyDown(ability1Key))
         {
-            if (abilitySystem != null && abilitySystem.TryRequest(PlayerAbilitySystem.AbilityType.Ability1))
+            ability1Holding = true;
+            ability1HoldStartTime = Time.time;
+        }
+
+        if (Input.GetKeyUp(ability1Key) && ability1Holding)
+        {
+            ability1Holding = false;
+            bool longPress = Time.time - ability1HoldStartTime >= abilityHoldThreshold;
+            if (abilitySystem != null && abilitySystem.TryRequest(PlayerAbilitySystem.AbilityType.Ability1, longPress))
             {
+                anim.SetFloat(hashAbilityBlendParam, longPress ? 1f : 0f);
                 anim.SetTrigger(ability1Trigger);
             }
         }
 
         if (Input.GetKeyDown(ability2Key))
         {
-            if (abilitySystem != null && abilitySystem.TryRequest(PlayerAbilitySystem.AbilityType.Ability2))
+            ability2Holding = true;
+            ability2HoldStartTime = Time.time;
+        }
+
+        if (Input.GetKeyUp(ability2Key) && ability2Holding)
+        {
+            ability2Holding = false;
+            bool longPress = Time.time - ability2HoldStartTime >= abilityHoldThreshold;
+            if (abilitySystem != null && abilitySystem.TryRequest(PlayerAbilitySystem.AbilityType.Ability2, longPress))
             {
+                anim.SetFloat(hashAbilityBlendParam, longPress ? 1f : 0f);
                 anim.SetTrigger(ability2Trigger);
             }
         }
 
         if (Input.GetKeyDown(ability3Key))
         {
-            if (abilitySystem != null && abilitySystem.TryRequest(PlayerAbilitySystem.AbilityType.Ability3))
+            if (abilitySystem != null && abilitySystem.TryRequest(PlayerAbilitySystem.AbilityType.Ability3, false))
             {
                 anim.SetTrigger(ability3Trigger);
             }
@@ -1027,7 +1063,7 @@ public class PlayerController : MonoBehaviour
 
         if (Input.GetKeyDown(ability4Key))
         {
-            if (abilitySystem != null && abilitySystem.TryRequest(PlayerAbilitySystem.AbilityType.Ability4))
+            if (abilitySystem != null && abilitySystem.TryRequest(PlayerAbilitySystem.AbilityType.Ability4, false))
             {
                 anim.SetTrigger(ability4Trigger);
             }
