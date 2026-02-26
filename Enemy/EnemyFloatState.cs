@@ -38,6 +38,8 @@ public class EnemyFloatState : MonoBehaviour
     float fallVelocityY;
     Transform caster;
 
+    bool waitingForGroundedExitAfterFallStart;
+
     bool pendingGuardBreakAfterLand;
     bool cachedCombatEnabled;
     bool cachedRangeCombatEnabled;
@@ -181,7 +183,22 @@ public class EnemyFloatState : MonoBehaviour
 
     void TickFalling()
     {
-        // 进入 Falling 后会立刻切回原生坠落系统，正常情况下不会停留在该阶段。
+        if (enemyMove == null)
+        {
+            EndFloatControl();
+            return;
+        }
+
+        if (waitingForGroundedExitAfterFallStart)
+        {
+            if (!enemyMove.IsGrounded)
+                waitingForGroundedExitAfterFallStart = false;
+
+            return;
+        }
+
+        if (enemyMove.IsGrounded)
+            EndFloatControl();
     }
 
     void BeginFalling(bool immediateFallDead)
@@ -189,10 +206,8 @@ public class EnemyFloatState : MonoBehaviour
         if (phase == FloatPhase.None)
             return;
 
-        phase = FloatPhase.None;
+        phase = FloatPhase.Falling;
         SetFloatAnimatorFlag(false);
-
-        EnableEnemyBehavioursAfterLanding();
 
         if (enemyMove != null)
         {
@@ -200,6 +215,12 @@ public class EnemyFloatState : MonoBehaviour
             enemyMove.SetMoveDirection(Vector3.zero);
             enemyMove.SetMoveSpeedLevel(0);
             enemyMove.SetVerticalVelocity(fallVelocityY);
+
+            waitingForGroundedExitAfterFallStart = enemyMove.IsGrounded;
+        }
+        else
+        {
+            waitingForGroundedExitAfterFallStart = false;
         }
 
         if (immediateFallDead)
@@ -209,6 +230,17 @@ public class EnemyFloatState : MonoBehaviour
         }
 
         pendingGuardBreakAfterLand = false;
+    }
+
+
+    void EndFloatControl()
+    {
+        if (phase == FloatPhase.None)
+            return;
+
+        phase = FloatPhase.None;
+        waitingForGroundedExitAfterFallStart = false;
+        EnableEnemyBehavioursAfterLanding();
     }
 
     void DisableEnemyBehaviours()
