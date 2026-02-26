@@ -84,14 +84,6 @@ public class NotCombat : MonoBehaviour
             return;
         }
 
-        if (controller != null && controller.IsFloatControlLocked)
-        {
-            navigator.Stop();
-            move.SetMoveDirection(Vector3.zero);
-            move.SetMoveSpeedLevel(0);
-            return;
-        }
-
         if (controller != null && controller.IsInLandLock)
         {
             navigator.Stop();
