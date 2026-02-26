@@ -162,10 +162,10 @@ public class Combat : MonoBehaviour, IEnemyCombat
     public float abilityDecisionMinInterval = 10f;
     public float abilityDecisionMaxInterval = 20f;
 
-    [Header("Ability - Shockwave (Ability1 = Cone / Ability2 = AoE)")]
+    [Header("Ability - Shockwave (Ability1Short = Cone / Ability1Long = AoE)")]
     public bool enableAbilityShockwave = false;
-    [Range(0f, 1f)] public float abilityShockwaveConeChance = 0.35f;
-    [Range(0f, 1f)] public float abilityShockwaveAoeChance = 0.35f;
+    [Range(0f, 1f)] public float abilityShockwaveShortChance = 0.35f;
+    [Range(0f, 1f)] public float abilityShockwaveLongChance = 0.35f;
 
     EnemyMove move;
     EnemyNavigator navigator;
@@ -783,7 +783,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
         nextAbilityDecisionTime = Time.time + Random.Range(minI, maxI);
 
         // =========================
-        // Ability1/2：Shockwave（Cone / AoE）
+        // Ability1 short/long：Shockwave（Cone / AoE）
         // =========================
         if (!enableAbilityShockwave)
             return false;
@@ -792,10 +792,10 @@ public class Combat : MonoBehaviour, IEnemyCombat
         if (maxShockRange > 0f && distance > maxShockRange)
             return false;
 
-        // 近距离优先 AoE（Ability2）
-        if (ShouldStartShockwaveAoe() && Random.value <= abilityShockwaveAoeChance)
+        // 近距离优先 Long（AoE）
+        if (ShouldStartShockwaveLong() && Random.value <= abilityShockwaveLongChance)
         {
-            if (ability.TryCast(EnemyAbilitySystem.AbilityType.Ability2, target))
+            if (ability.TryCast(EnemyAbilitySystem.AbilityType.Ability1Long, target))
             {
                 if (block != null) block.RequestBlock(false);
                 ResetPlan();
@@ -805,10 +805,10 @@ public class Combat : MonoBehaviour, IEnemyCombat
             }
         }
 
-        // 扇形（Ability1）
-        if (ShouldStartShockwaveCone() && Random.value <= abilityShockwaveConeChance)
+        // 扇形（Ability1 short）
+        if (ShouldStartShockwaveShort() && Random.value <= abilityShockwaveShortChance)
         {
-            if (ability.TryCast(EnemyAbilitySystem.AbilityType.Ability1, target))
+            if (ability.TryCast(EnemyAbilitySystem.AbilityType.Ability1Short, target))
             {
                 if (block != null) block.RequestBlock(false);
                 ResetPlan();
@@ -821,16 +821,16 @@ public class Combat : MonoBehaviour, IEnemyCombat
         return false;
     }
 
-    bool ShouldStartShockwaveCone()
+    bool ShouldStartShockwaveShort()
     {
-        if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.Ability1)) return false;
-        return ability.CanAbility1Target(target);
+        if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.Ability1Short)) return false;
+        return ability.CanAbility1ShortTarget(target);
     }
 
-    bool ShouldStartShockwaveAoe()
+    bool ShouldStartShockwaveLong()
     {
-        if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.Ability2)) return false;
-        return ability.CanAbility2Target(target);
+        if (!ability.CanTryCast(EnemyAbilitySystem.AbilityType.Ability1Long)) return false;
+        return ability.CanAbility1LongTarget(target);
     }
 
     void HandleHitLanded(AttackData data)
