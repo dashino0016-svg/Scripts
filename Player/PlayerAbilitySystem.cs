@@ -27,11 +27,7 @@ public class PlayerAbilitySystem : MonoBehaviour
     [FormerlySerializedAs("ability2AttackConfig")]
     [SerializeField] AttackConfig ability1LongAttackConfig;
 
-    [Header("Ability1 Cost")]
-    [FormerlySerializedAs("costAbility1")]
     [SerializeField] int costAbility1 = 100;
-
-    [SerializeField] int costAbility1Long = 150;
 
     [FormerlySerializedAs("ability1Range")]
     [SerializeField] float ability1ShortRange = 6f;
@@ -46,10 +42,7 @@ public class PlayerAbilitySystem : MonoBehaviour
     // Ability2 - Lift & Float
     // =========================
     [Header("Ability2 - Lift & Float")]
-    [FormerlySerializedAs("costAbility2")]
     [SerializeField] int costAbility2 = 200;
-
-    [SerializeField] int costAbility2Long = 300;
 
     [SerializeField] float ability2Range = 6f;
     [SerializeField] LayerMask ability2EnemyMask;
@@ -147,7 +140,7 @@ public class PlayerAbilitySystem : MonoBehaviour
         if (!CanRequest(type, longPress))
             return false;
 
-        int cost = GetCost(type, longPress);
+        int cost = GetCost(type);
         if (!stats.ConsumeSpecial(cost))
             return false;
 
@@ -168,12 +161,12 @@ public class PlayerAbilitySystem : MonoBehaviour
         }
     }
 
-    int GetCost(AbilityType type, bool longPress)
+    int GetCost(AbilityType type)
     {
         return type switch
         {
-            AbilityType.Ability1 => longPress ? costAbility1Long : costAbility1,
-            AbilityType.Ability2 => longPress ? costAbility2Long : costAbility2,
+            AbilityType.Ability1 => costAbility1,
+            AbilityType.Ability2 => costAbility2,
             AbilityType.Ability3 => costAbility3,
             AbilityType.Ability4 => costAbility4,
             _ => 0

@@ -125,7 +125,6 @@ public class EnemyController : MonoBehaviour
     bool isLanding;
     bool isFloatControlLocked;
     bool forceFallDeadAnimationOnce;
-    bool wasInHitLock;
 
     [Header("Air/Land Facing Lock")]
     [Tooltip("坠落与落地期间是否锁定朝向为进入坠落时的朝向。")]
@@ -574,11 +573,6 @@ public class EnemyController : MonoBehaviour
 
         if (isFloatControlLocked)
             return;
-
-        bool hitNow = receiver != null && receiver.IsInHitLock;
-        if (hitNow && !wasInHitLock)
-            OnEnterHitLockInterruptLanding();
-        wasInHitLock = hitNow;
 
         if (isLanding && Time.time - landingLockStartTime > landingLockTimeout)
         {
@@ -1436,23 +1430,6 @@ public class EnemyController : MonoBehaviour
         var block = GetComponent<BlockController>();
         if (block != null)
             block.RequestBlock(false);
-    }
-
-    void OnEnterHitLockInterruptLanding()
-    {
-        if (!isLanding)
-            return;
-
-        isLanding = false;
-        landingLockStartTime = -999f;
-
-        if (anim != null)
-        {
-            anim.ResetTrigger("HardLand");
-            anim.ResetTrigger("SoftLand");
-        }
-
-        ClearAirLandFacingLock();
     }
 
     // ================= Landing Event Lock =================
