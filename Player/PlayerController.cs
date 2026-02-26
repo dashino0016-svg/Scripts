@@ -106,8 +106,6 @@ public class PlayerController : MonoBehaviour
     [Header("Roll/Land Fallback")]
     [Tooltip("落地锁事件丢失时的兜底超时（秒）。")]
     [SerializeField] float landingLockTimeout = 1.2f;
-    [SerializeField] string[] landingCancelFallbackStatesCombat = { "ArmedLocomotion", "ArmedIdle", "Idle" };
-    [SerializeField] string[] landingCancelFallbackStatesNotCombat = { "UnarmedLocomotion", "UnarmedIdle", "Idle" };
     float landingLockStartTime = -999f;
 
     [Header("Roll / Dodge Input")]
@@ -431,7 +429,6 @@ public class PlayerController : MonoBehaviour
         anim.ResetTrigger(ability4Trigger);
         anim.ResetTrigger("HardLand");
         anim.ResetTrigger("SoftLand");
-        TryForceExitLandingAnimation();
 
         isAbility = false;
         isAttacking = false;
@@ -441,41 +438,6 @@ public class PlayerController : MonoBehaviour
         {
             anim.CrossFadeInFixedTime(abilityEmptyStateName, 0.05f, abilityLayerIndex);
         }
-    }
-
-    void TryForceExitLandingAnimation()
-    {
-        if (anim == null)
-            return;
-
-        string[] preferredStates = GetLandingCancelFallbackStates();
-        for (int i = 0; i < preferredStates.Length; i++)
-        {
-            string stateName = preferredStates[i];
-            if (string.IsNullOrWhiteSpace(stateName))
-                continue;
-
-            int hash = Animator.StringToHash(stateName);
-            if (!anim.HasState(0, hash))
-                continue;
-
-            anim.CrossFadeInFixedTime(stateName, 0.05f, 0, 0f);
-            return;
-        }
-    }
-
-    string[] GetLandingCancelFallbackStates()
-    {
-        bool preferCombatSet = false;
-
-        if (sword != null)
-            preferCombatSet = sword.IsArmed;
-        else if (anim != null)
-            preferCombatSet = anim.GetBool("IsArmed");
-
-        return preferCombatSet
-            ? landingCancelFallbackStatesCombat
-            : landingCancelFallbackStatesNotCombat;
     }
 
     /* ================== Lock On ================== */
