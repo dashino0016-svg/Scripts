@@ -1420,13 +1420,16 @@ public class EnemyController : MonoBehaviour
     {
         if (anim == null) return false;
 
-        AnimatorStateInfo st = anim.GetCurrentAnimatorStateInfo(0);
-        if (IsLandingState(st)) return true;
-
-        if (anim.IsInTransition(0))
+        for (int layer = 0; layer < anim.layerCount; layer++)
         {
-            AnimatorStateInfo next = anim.GetNextAnimatorStateInfo(0);
-            if (IsLandingState(next)) return true;
+            AnimatorStateInfo st = anim.GetCurrentAnimatorStateInfo(layer);
+            if (IsLandingState(st)) return true;
+
+            if (anim.IsInTransition(layer))
+            {
+                AnimatorStateInfo next = anim.GetNextAnimatorStateInfo(layer);
+                if (IsLandingState(next)) return true;
+            }
         }
 
         return false;
@@ -1442,6 +1445,8 @@ public class EnemyController : MonoBehaviour
 
         return st.IsName("HardLand") || st.IsName("SoftLand") ||
                st.IsName("Base Layer.HardLand") || st.IsName("Base Layer.SoftLand") ||
+               st.IsName("ReactLayer.HardLand") || st.IsName("ReactLayer.SoftLand") ||
+               st.IsName("React Layer.HardLand") || st.IsName("React Layer.SoftLand") ||
                st.IsTag("HardLand") || st.IsTag("SoftLand") || st.IsTag("Land");
     }
 
