@@ -15,9 +15,8 @@ public class EnemyFloatState : MonoBehaviour
     [SerializeField] string floatStateName = "Float";
     [SerializeField] float floatCrossFade = 0.05f;
     [SerializeField] string floatBoolParam = "IsFloating";
-
-    [Header("Fall")]
-    [SerializeField] bool debugLog;
+    [SerializeField] string floatLayerName = "ReactLayer";
+    int floatLayerIndex = -1;
 
     CharacterController cc;
     Animator anim;
@@ -74,6 +73,13 @@ public class EnemyFloatState : MonoBehaviour
 
         if (anim != null && !string.IsNullOrWhiteSpace(floatBoolParam))
             animHasFloatBool = HasAnimBool(anim, floatBoolParam);
+
+        if (anim != null)
+        {
+            floatLayerIndex = anim.GetLayerIndex(floatLayerName);
+            if (floatLayerIndex < 0)
+                floatLayerIndex = anim.GetLayerIndex("React Layer");
+        }
     }
 
     void Update()
@@ -123,9 +129,6 @@ public class EnemyFloatState : MonoBehaviour
 
         phase = FloatPhase.Rising;
         SetFloatAnimatorFlag(true);
-
-        if (debugLog)
-            Debug.Log($"[EnemyFloatState] Start float {name} riseH={riseHeight} duration={duration} fallV={fallVelocityY}", this);
 
         return true;
     }
@@ -214,9 +217,9 @@ public class EnemyFloatState : MonoBehaviour
             enemyMove.enabled = true;
             enemyMove.SetMoveDirection(Vector3.zero);
             enemyMove.SetMoveSpeedLevel(0);
-            enemyMove.SetVerticalVelocity(fallVelocityY);
+            enemyMove.BeginExternalFall(fallVelocityY);
 
-            waitingForGroundedExitAfterFallStart = enemyMove.IsGrounded;
+            waitingForGroundedExitAfterFallStart = false;
         }
         else
         {
@@ -330,7 +333,9 @@ public class EnemyFloatState : MonoBehaviour
 
         if (enemyMove != null)
         {
-            enemyMove.enabled = !IsDeadNow() && cachedEnemyMoveEnabled;
+            // 浮空流程结束后应恢复移动控制；
+            // 不能盲信缓存值（进入 float 前可能恰好处于拔刀过渡，缓存为 false 会导致落地后永久不可移动）。
+            enemyMove.enabled = !IsDeadNow();
             enemyMove.SetMoveDirection(Vector3.zero);
             enemyMove.SetMoveSpeedLevel(0);
             enemyMove.SetRotationEnabled(cachedEnemyMoveRotationEnabled);
@@ -359,7 +364,10 @@ public class EnemyFloatState : MonoBehaviour
         if (anim == null)
             return;
 
-        anim.CrossFadeInFixedTime(floatStateName, floatCrossFade, 0, 0f);
+        if (floatLayerIndex < 0)
+            return;
+
+        anim.CrossFadeInFixedTime(floatStateName, floatCrossFade, floatLayerIndex, 0f);
     }
 
     void KeepFloatAnimLoop()

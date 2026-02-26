@@ -117,6 +117,19 @@ public class EnemyMove : MonoBehaviour
         velocityY = value;
         lastAirVelocityY = value;
     }
+
+    // 外部（如浮空系统）在“离地起始帧”写入初始下落速度时调用，
+    // 同步清除 grounded/grace，避免被 Move() 的 grounded 分支钳回 groundedGravity。
+    public void BeginExternalFall(float initialVelocity)
+    {
+        velocityY = initialVelocity;
+        lastAirVelocityY = initialVelocity;
+
+        isGrounded = false;
+        isGroundedRaw = false;
+        wasGrounded = false;
+        lastGroundedTime = -999f;
+    }
     /* ================= Unity ================= */
 
     void Awake()
