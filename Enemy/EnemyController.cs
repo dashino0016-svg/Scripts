@@ -126,6 +126,13 @@ public class EnemyController : MonoBehaviour
     bool isFloatControlLocked;
     bool forceFallDeadAnimationOnce;
     bool wasInHitLock;
+    bool pendingReactLayerExitToEmptyAfterHit;
+
+    [Header("React Layer")]
+    [SerializeField] string reactLayerName = "ReactLayer";
+    [SerializeField] string reactEmptyStateName = "Empty";
+    [SerializeField] float reactEmptyCrossFade = 0.05f;
+    int reactLayerIndex = -1;
 
     [Header("Air/Land Facing Lock")]
     [Tooltip("坠落与落地期间是否锁定朝向为进入坠落时的朝向。")]
@@ -246,6 +253,7 @@ public class EnemyController : MonoBehaviour
         sword = GetComponentInChildren<SwordController>();
 
         CacheDeathLayerIndex();
+        CacheReactLayerIndex();
 
         cachedMove = GetComponent<EnemyMove>();
         cachedNavigator = GetComponent<EnemyNavigator>();
@@ -275,6 +283,19 @@ public class EnemyController : MonoBehaviour
                 return;
             }
         }
+    }
+
+    void CacheReactLayerIndex()
+    {
+        reactLayerIndex = -1;
+        if (anim == null) return;
+
+        reactLayerIndex = anim.GetLayerIndex(reactLayerName);
+        if (reactLayerIndex >= 0) return;
+
+        reactLayerIndex = anim.GetLayerIndex("React Layer");
+        if (reactLayerIndex < 0)
+            Debug.LogWarning($"[EnemyController] 找不到 React Layer：{reactLayerName}（或 'React Layer'）。", this);
     }
 
     void ResolveCombatBrain()
@@ -582,6 +603,8 @@ public class EnemyController : MonoBehaviour
         bool hitNow = receiver != null && receiver.IsInHitLock;
         if (hitNow && !wasInHitLock)
             OnEnterHitLockInterruptLanding();
+        else if (!hitNow && wasInHitLock)
+            TryExitReactLayerToEmptyAfterHit();
         wasInHitLock = hitNow;
 
         UpdateWeaponTransitionHitRootMotion(hitNow);
@@ -1419,13 +1442,14 @@ public class EnemyController : MonoBehaviour
     bool IsLandingAnimationPlaying()
     {
         if (anim == null) return false;
+        if (reactLayerIndex < 0) return false;
 
-        AnimatorStateInfo st = anim.GetCurrentAnimatorStateInfo(0);
+        AnimatorStateInfo st = anim.GetCurrentAnimatorStateInfo(reactLayerIndex);
         if (IsLandingState(st)) return true;
 
-        if (anim.IsInTransition(0))
+        if (anim.IsInTransition(reactLayerIndex))
         {
-            AnimatorStateInfo next = anim.GetNextAnimatorStateInfo(0);
+            AnimatorStateInfo next = anim.GetNextAnimatorStateInfo(reactLayerIndex);
             if (IsLandingState(next)) return true;
         }
 
@@ -1480,7 +1504,22 @@ public class EnemyController : MonoBehaviour
             anim.ResetTrigger("SoftLand");
         }
 
+        pendingReactLayerExitToEmptyAfterHit = true;
+
         ClearAirLandFacingLock();
+    }
+
+    void TryExitReactLayerToEmptyAfterHit()
+    {
+        if (!pendingReactLayerExitToEmptyAfterHit)
+            return;
+
+        pendingReactLayerExitToEmptyAfterHit = false;
+
+        if (anim == null || reactLayerIndex < 0 || string.IsNullOrWhiteSpace(reactEmptyStateName))
+            return;
+
+        anim.CrossFadeInFixedTime(reactEmptyStateName, reactEmptyCrossFade, reactLayerIndex, 0f);
     }
 
     // ================= Landing Event Lock =================
