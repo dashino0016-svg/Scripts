@@ -130,7 +130,6 @@ public class EnemyController : MonoBehaviour
     [Header("Air/Land Facing Lock")]
     [Tooltip("坠落与落地期间是否锁定朝向为进入坠落时的朝向。")]
     [SerializeField] bool lockFacingDuringAirAndLand = true;
-    [SerializeField] string[] landingCancelFallbackStates = { "ArmedLocomotion", "UnarmedLocomotion", "Idle" };
     float airLandLockedYaw;
     bool hasAirLandLockedYaw;
 
@@ -1479,33 +1478,9 @@ public class EnemyController : MonoBehaviour
         {
             anim.ResetTrigger("HardLand");
             anim.ResetTrigger("SoftLand");
-            TryForceExitLandingAnimation();
         }
 
         ClearAirLandFacingLock();
-    }
-
-    void TryForceExitLandingAnimation()
-    {
-        if (anim == null)
-            return;
-
-        if (!IsLandingAnimationPlaying())
-            return;
-
-        for (int i = 0; i < landingCancelFallbackStates.Length; i++)
-        {
-            string stateName = landingCancelFallbackStates[i];
-            if (string.IsNullOrWhiteSpace(stateName))
-                continue;
-
-            int hash = Animator.StringToHash(stateName);
-            if (!anim.HasState(0, hash))
-                continue;
-
-            anim.CrossFadeInFixedTime(stateName, 0.05f, 0, 0f);
-            return;
-        }
     }
 
     // ================= Landing Event Lock =================
