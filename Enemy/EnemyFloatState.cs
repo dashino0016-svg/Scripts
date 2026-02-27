@@ -12,11 +12,7 @@ public class EnemyFloatState : MonoBehaviour
     }
 
     [Header("Animator")]
-    [SerializeField] string floatStateName = "Float";
-    [SerializeField] float floatCrossFade = 0.05f;
     [SerializeField] string floatBoolParam = "IsFloating";
-    [SerializeField] string floatLayerName = "ReactLayer";
-    int floatLayerIndex = -1;
 
     CharacterController cc;
     Animator anim;
@@ -74,12 +70,6 @@ public class EnemyFloatState : MonoBehaviour
         if (anim != null && !string.IsNullOrWhiteSpace(floatBoolParam))
             animHasFloatBool = HasAnimBool(anim, floatBoolParam);
 
-        if (anim != null)
-        {
-            floatLayerIndex = anim.GetLayerIndex(floatLayerName);
-            if (floatLayerIndex < 0)
-                floatLayerIndex = anim.GetLayerIndex("React Layer");
-        }
     }
 
     void Update()
@@ -115,7 +105,7 @@ public class EnemyFloatState : MonoBehaviour
         if (enemyController != null)
             enemyController.OnAttacked(casterTransform);
 
-        ForceEnterFloatAnim();
+        SetFloatAnimatorFlag(true);
         DisableEnemyBehaviours();
 
         Vector3 pos = transform.position;
@@ -128,7 +118,6 @@ public class EnemyFloatState : MonoBehaviour
         fallVelocityY = configuredFall;
 
         phase = FloatPhase.Rising;
-        SetFloatAnimatorFlag(true);
 
         return true;
     }
@@ -357,17 +346,6 @@ public class EnemyFloatState : MonoBehaviour
     bool IsDeadNow()
     {
         return stats != null && stats.IsDead;
-    }
-
-    void ForceEnterFloatAnim()
-    {
-        if (anim == null)
-            return;
-
-        if (floatLayerIndex < 0)
-            return;
-
-        anim.CrossFadeInFixedTime(floatStateName, floatCrossFade, floatLayerIndex, 0f);
     }
 
     void KeepFloatAnimLoop()
