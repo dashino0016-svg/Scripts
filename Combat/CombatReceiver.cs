@@ -292,7 +292,7 @@ public class CombatReceiver : MonoBehaviour, IHittable
         }
 
         bool attackerIsPlayer = IsPlayerAttacker(attackData.attacker);
-        CombatSfxSignals.RaiseHitResolved(attackData, result.resultType, attackerIsPlayer, selfIsPlayer);
+        CombatSfxSignals.RaiseHitResolved(attackData, result.resultType, attackerIsPlayer, selfIsPlayer, attackData.attacker, transform);
 
         return result;
     }

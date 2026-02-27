@@ -351,7 +351,7 @@ public class MeleeFighter : MonoBehaviour
             return;
 
         if (CombatSfxKeyUtility.TryGetAttackKey(currentAttackData, out var sfxKey))
-            CombatSfxSignals.RaiseAttackWhoosh(sfxKey);
+            CombatSfxSignals.RaiseAttackWhoosh(sfxKey, transform);
     }
 
     public void AttackBegin()
