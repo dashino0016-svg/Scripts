@@ -126,6 +126,13 @@ public class EnemyController : MonoBehaviour
     bool isFloatControlLocked;
     bool forceFallDeadAnimationOnce;
     bool wasInHitLock;
+    bool pendingReactLayerExitToEmptyAfterHit;
+
+    [Header("React Layer")]
+    [SerializeField] string reactLayerName = "ReactLayer";
+    [SerializeField] string reactEmptyStateName = "Empty";
+    [SerializeField] float reactEmptyCrossFade = 0.05f;
+    int reactLayerIndex = -1;
 
     [Header("Air/Land Facing Lock")]
     [Tooltip("坠落与落地期间是否锁定朝向为进入坠落时的朝向。")]
@@ -246,6 +253,7 @@ public class EnemyController : MonoBehaviour
         sword = GetComponentInChildren<SwordController>();
 
         CacheDeathLayerIndex();
+        CacheReactLayerIndex();
 
         cachedMove = GetComponent<EnemyMove>();
         cachedNavigator = GetComponent<EnemyNavigator>();
@@ -275,6 +283,19 @@ public class EnemyController : MonoBehaviour
                 return;
             }
         }
+    }
+
+    void CacheReactLayerIndex()
+    {
+        reactLayerIndex = -1;
+        if (anim == null) return;
+
+        reactLayerIndex = anim.GetLayerIndex(reactLayerName);
+        if (reactLayerIndex >= 0) return;
+
+        reactLayerIndex = anim.GetLayerIndex("React Layer");
+        if (reactLayerIndex < 0)
+            Debug.LogWarning($"[EnemyController] 找不到 React Layer：{reactLayerName}（或 'React Layer'）。", this);
     }
 
     void ResolveCombatBrain()
@@ -582,6 +603,8 @@ public class EnemyController : MonoBehaviour
         bool hitNow = receiver != null && receiver.IsInHitLock;
         if (hitNow && !wasInHitLock)
             OnEnterHitLockInterruptLanding();
+        else if (!hitNow && wasInHitLock)
+            TryExitReactLayerToEmptyAfterHit();
         wasInHitLock = hitNow;
 
         UpdateWeaponTransitionHitRootMotion(hitNow);
@@ -1080,6 +1103,34 @@ public class EnemyController : MonoBehaviour
         RetargetIfNeeded(true);
     }
 
+    // 浮空技能强制开战并持剑：
+    // - 无论当前是否在 Draw/Sheath 过渡，立即终止过渡锁
+    // - 立即把剑挂手并标记 IsArmed=true
+    // - 若尚未进入 Combat，强制切入 Combat
+    public void ForceEnterCombatArmedForFloat()
+    {
+        if (enemyState != null && enemyState.Current != EnemyStateType.Dead)
+            enemyState.ForceEnterCombat();
+
+        if (IsInWeaponTransition)
+            ExitWeaponTransitionLock();
+
+        if (anim != null)
+        {
+            anim.ResetTrigger("DrawSword");
+            anim.ResetTrigger("SheathSword");
+        }
+
+        if (sword != null)
+        {
+            sword.AttachToHand();
+            sword.SetArmed(true);
+        }
+
+        if (anim != null)
+            anim.SetBool("IsArmed", sword != null ? sword.IsArmed : true);
+    }
+
     public void ResetToHomeForCheckpoint(Transform homePoint)
     {
         if (enemyState == null)
@@ -1419,13 +1470,14 @@ public class EnemyController : MonoBehaviour
     bool IsLandingAnimationPlaying()
     {
         if (anim == null) return false;
+        if (reactLayerIndex < 0) return false;
 
-        AnimatorStateInfo st = anim.GetCurrentAnimatorStateInfo(0);
+        AnimatorStateInfo st = anim.GetCurrentAnimatorStateInfo(reactLayerIndex);
         if (IsLandingState(st)) return true;
 
-        if (anim.IsInTransition(0))
+        if (anim.IsInTransition(reactLayerIndex))
         {
-            AnimatorStateInfo next = anim.GetNextAnimatorStateInfo(0);
+            AnimatorStateInfo next = anim.GetNextAnimatorStateInfo(reactLayerIndex);
             if (IsLandingState(next)) return true;
         }
 
@@ -1480,7 +1532,22 @@ public class EnemyController : MonoBehaviour
             anim.ResetTrigger("SoftLand");
         }
 
+        pendingReactLayerExitToEmptyAfterHit = true;
+
         ClearAirLandFacingLock();
+    }
+
+    void TryExitReactLayerToEmptyAfterHit()
+    {
+        if (!pendingReactLayerExitToEmptyAfterHit)
+            return;
+
+        pendingReactLayerExitToEmptyAfterHit = false;
+
+        if (anim == null || reactLayerIndex < 0 || string.IsNullOrWhiteSpace(reactEmptyStateName))
+            return;
+
+        anim.CrossFadeInFixedTime(reactEmptyStateName, reactEmptyCrossFade, reactLayerIndex, 0f);
     }
 
     // ================= Landing Event Lock =================
