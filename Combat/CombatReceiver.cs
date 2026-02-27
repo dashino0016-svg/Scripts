@@ -267,12 +267,13 @@ public class CombatReceiver : MonoBehaviour, IHittable
         lastPerfectBlockTriggeredCounter = false;
 
         HitResult result = ResolveHit(attackData);
+        bool wasGuardBrokenBeforeApply = stats != null && stats.IsGuardBroken;
 
         // ✅ 记录本次是否为“防御命中”
         lastHitWasBlocked = (result.resultType == HitResultType.Blocked);
 
         ApplyResultToStats(result, attackData);
-        PromoteResultToGuardBreakIfNeeded(ref result);
+        PromoteResultToGuardBreakIfNeeded(ref result, wasGuardBrokenBeforeApply);
 
         EnemyFloatState floatState = GetComponent<EnemyFloatState>();
         if (floatState != null)
@@ -351,12 +352,14 @@ public class CombatReceiver : MonoBehaviour, IHittable
 
     }
 
-    void PromoteResultToGuardBreakIfNeeded(ref HitResult result)
+    void PromoteResultToGuardBreakIfNeeded(ref HitResult result, bool wasGuardBrokenBeforeApply)
     {
         if (stats == null) return;
+        if (wasGuardBrokenBeforeApply) return;
         if (!stats.IsGuardBroken) return;
 
-        // ✅ 只要本次结算后体力已归零并进入破防，就统一走 GuardBreak 表现链路（HeavyHit）。
+        // ✅ 仅当“本次命中新触发破防”时，才统一走 GuardBreak 表现链路（HeavyHit）。
+        // ✅ 若目标本来就处于破防恢复阶段，则保持本次命中的原始结果（Hit/Blocked）。
         if (result.resultType == HitResultType.Hit || result.resultType == HitResultType.Blocked)
             result = new HitResult(HitResultType.GuardBreak);
     }
