@@ -17,6 +17,12 @@ public class CombatReceiver : MonoBehaviour, IHittable
     Transform lastAttacker;
     bool isInHitLock;
 
+    [Header("Hit Lock Fallback")]
+    [Tooltip("受击动画事件丢失时的受击锁超时兜底（秒）。")]
+    [SerializeField] bool enableHitLockTimeout = true;
+    [SerializeField] float hitLockTimeout = 1.0f;
+    float hitLockStartTime = -999f;
+
     // ✅ 记录上一次受击结果是否为 Blocked（用于在 HitRecover 时精确触发反击窗口）
     bool lastHitWasBlocked;
 
@@ -173,7 +179,27 @@ public class CombatReceiver : MonoBehaviour, IHittable
     public void ForceClearIFrame() => isInvincible = false;
 
     // 兜底：外部需要时清掉受击锁（例如死亡回溯后的强制恢复）
-    public void ForceClearHitLock() => isInHitLock = false;
+    public void ForceClearHitLock()
+    {
+        isInHitLock = false;
+        hitLockStartTime = -999f;
+        lastHitWasBlocked = false;
+    }
+
+    void Update()
+    {
+        if (!enableHitLockTimeout)
+            return;
+
+        if (!isInHitLock)
+            return;
+
+        if (stats != null && stats.IsDead)
+            return;
+
+        if (Time.time - hitLockStartTime >= Mathf.Max(0.05f, hitLockTimeout))
+            ForceClearHitLock();
+    }
 
     void Awake()
     {
@@ -645,11 +671,17 @@ public class CombatReceiver : MonoBehaviour, IHittable
             controller.OnAttacked(attacker);
     }
 
-    public void HitBegin() { isInHitLock = true; FaceAttacker(); }
+    public void HitBegin()
+    {
+        isInHitLock = true;
+        hitLockStartTime = Time.time;
+        FaceAttacker();
+    }
 
     public void HitRecover()
     {
         isInHitLock = false;
+        hitLockStartTime = -999f;
 
         // ✅ 只有“BlockHit”的那次 HitRecover 才触发反击窗口
         if (lastHitWasBlocked)
@@ -662,6 +694,7 @@ public class CombatReceiver : MonoBehaviour, IHittable
     public void HitEnd()
     {
         isInHitLock = false;
+        hitLockStartTime = -999f;
         lastHitWasBlocked = false;
     }
 

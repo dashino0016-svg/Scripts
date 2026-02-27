@@ -91,6 +91,7 @@ public class PlayerMove : MonoBehaviour
     // ✅ 跳跃扣体力（起跳真相点）
     PlayerStaminaActions staminaActions;
     CombatStats combatStats;
+    CombatReceiver receiver;
     bool hasAirAttackBoolParam;
     int reactLayerIndex = -1;
     bool wasAirborneAirAttack;
@@ -160,6 +161,7 @@ public class PlayerMove : MonoBehaviour
 
         staminaActions = GetComponent<PlayerStaminaActions>();
         combatStats = GetComponent<CombatStats>();
+        receiver = GetComponent<CombatReceiver>();
 
         if (anim != null && !string.IsNullOrWhiteSpace(airAttackBoolParam))
             hasAirAttackBoolParam = HasAnimBool(anim, airAttackBoolParam);
@@ -636,6 +638,11 @@ public class PlayerMove : MonoBehaviour
                 if (fallDamage > 0)
                     combatStats.TakeHPDamage(fallDamage, DeathCause.Fall);
             }
+
+            // ✅ React Layer 混放 Fall/Hit 时，HitRecover/HitEnd 事件可能被抢断；
+            // 落地时若仍在受击锁，做一次兜底回收，避免“落地后永久不可操作”。
+            if (receiver != null && controllerLogic != null && controllerLogic.IsInHitLock)
+                receiver.ForceClearHitLock();
 
             velocityY = groundedGravity;
             airHorizontalVelocity = Vector3.zero;

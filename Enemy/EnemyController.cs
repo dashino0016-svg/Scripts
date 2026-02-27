@@ -1290,6 +1290,44 @@ public class EnemyController : MonoBehaviour
         anim.SetTrigger("SheathSword");
     }
 
+    // ✅ 浮空系统打断拔/收刀时的安全收敛：
+    // 统一回收武器过渡锁，避免因动画事件丢失导致 IsInWeaponTransition 永久悬挂。
+    public void ForceAbortWeaponTransitionForFloat()
+    {
+        if (!IsInWeaponTransition)
+            return;
+
+        if (anim != null)
+        {
+            anim.ResetTrigger("DrawSword");
+            anim.ResetTrigger("SheathSword");
+        }
+
+        // 先记录本次过渡类型，收锁后按状态决定武装真相。
+        WeaponTransitionType abortedType = weaponTransitionType;
+
+        ExitWeaponTransitionLock();
+
+        if (sword == null || anim == null)
+            return;
+
+        bool shouldArmed;
+
+        // Combat 下优先保证武装，避免“战斗中浮空后空手”。
+        if (enemyState != null && enemyState.Current == EnemyStateType.Combat)
+        {
+            shouldArmed = true;
+        }
+        else
+        {
+            // 非 Combat：若原本在收刀流程，保持未武装；其余场景按当前武器真相保持。
+            shouldArmed = (abortedType == WeaponTransitionType.Sheath) ? false : sword.IsArmed;
+        }
+
+        sword.SetArmed(shouldArmed);
+        anim.SetBool("IsArmed", sword.IsArmed);
+    }
+
     public void AttachSwordToHand()
     {
         if (sword != null) sword.AttachToHand();
