@@ -9,7 +9,6 @@ public class CombatSfxController : MonoBehaviour
     [Header("Playback")]
     [SerializeField] AudioSource sfxSource;
     [SerializeField, Range(0f, 1f)] float oneShotVolume = 1f;
-    [SerializeField, Range(0f, 1f)] float takedownStartVolume = 1f;
 
     [Header("Conflicts")]
     [SerializeField] bool suppressAttackImpactWhenDefending;
@@ -42,28 +41,6 @@ public class CombatSfxController : MonoBehaviour
         CombatSfxSignals.OnAbilityTriggered -= HandleAbilityTriggered;
         CombatSfxSignals.OnAbility3TimeSlowBegin -= HandleAbility3TimeSlowBegin;
         CombatSfxSignals.OnAbility3TimeSlowEnd -= HandleAbility3TimeSlowEnd;
-    }
-
-    // 由暗杀/处决动画起始帧 Animation Event 调用
-    public void PlayAssassinateStartSfx()
-    {
-        PlayTakedownStartSfx(isExecute: false);
-    }
-
-    // 由暗杀/处决动画起始帧 Animation Event 调用
-    public void PlayExecuteStartSfx()
-    {
-        PlayTakedownStartSfx(isExecute: true);
-    }
-
-    void PlayTakedownStartSfx(bool isExecute)
-    {
-        if (config == null || sfxSource == null) return;
-
-        AudioClip clip = config.GetTakedownStartClip(isExecute);
-        if (clip == null) return;
-
-        sfxSource.PlayOneShot(clip, takedownStartVolume);
     }
 
     void HandleWhoosh(CombatAttackSfxKey key, Transform emitter)
