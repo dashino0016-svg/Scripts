@@ -43,8 +43,9 @@ public class CombatSfxController : MonoBehaviour
         CombatSfxSignals.OnAbility3TimeSlowEnd -= HandleAbility3TimeSlowEnd;
     }
 
-    void HandleWhoosh(CombatAttackSfxKey key)
+    void HandleWhoosh(CombatAttackSfxKey key, GameObject emitter)
     {
+        if (emitter != gameObject) return;
         if (config == null) return;
         if (!config.TryGetWhoosh(key, out var clip)) return;
         PlayOneShot(clip);
@@ -52,6 +53,7 @@ public class CombatSfxController : MonoBehaviour
 
     void HandleHitResolved(CombatSfxHitContext ctx)
     {
+        if (ctx.Attacker != gameObject && ctx.Receiver != gameObject) return;
         if (config == null) return;
 
         bool hasDefenderSfx = ctx.ResultType == HitResultType.Blocked ||
@@ -59,14 +61,17 @@ public class CombatSfxController : MonoBehaviour
                               ctx.ResultType == HitResultType.GuardBreak;
 
         bool allowImpact = !(suppressAttackImpactWhenDefending && hasDefenderSfx);
-        if (allowImpact && IsImpactResult(ctx.ResultType) &&
+        bool isAttacker = ctx.Attacker == gameObject;
+        bool isReceiver = ctx.Receiver == gameObject;
+
+        if (isAttacker && allowImpact && IsImpactResult(ctx.ResultType) &&
             CombatSfxKeyUtility.TryGetAttackKey(ctx.AttackData, out var key) &&
             config.TryGetImpact(key, out var impactClip))
         {
             PlayOneShot(impactClip);
         }
 
-        if (hasDefenderSfx)
+        if (isReceiver && hasDefenderSfx)
         {
             AudioClip defenderClip = ctx.ResultType switch
             {
