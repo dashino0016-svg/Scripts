@@ -113,9 +113,11 @@ public class EnemyFloatState : MonoBehaviour
         pendingGuardBreakAfterLand = false;
 
         if (enemyController != null)
+            enemyController.ForceEnterCombatArmedForFloat();
+
+        if (enemyController != null)
             enemyController.OnAttacked(casterTransform);
 
-        ForceEnterFloatAnim();
         DisableEnemyBehaviours();
 
         Vector3 pos = transform.position;
@@ -357,17 +359,6 @@ public class EnemyFloatState : MonoBehaviour
     bool IsDeadNow()
     {
         return stats != null && stats.IsDead;
-    }
-
-    void ForceEnterFloatAnim()
-    {
-        if (anim == null)
-            return;
-
-        if (floatLayerIndex < 0)
-            return;
-
-        anim.CrossFadeInFixedTime(floatStateName, floatCrossFade, floatLayerIndex, 0f);
     }
 
     void KeepFloatAnimLoop()

@@ -1103,6 +1103,34 @@ public class EnemyController : MonoBehaviour
         RetargetIfNeeded(true);
     }
 
+    // 浮空技能强制开战并持剑：
+    // - 无论当前是否在 Draw/Sheath 过渡，立即终止过渡锁
+    // - 立即把剑挂手并标记 IsArmed=true
+    // - 若尚未进入 Combat，强制切入 Combat
+    public void ForceEnterCombatArmedForFloat()
+    {
+        if (enemyState != null && enemyState.Current != EnemyStateType.Dead)
+            enemyState.ForceEnterCombat();
+
+        if (IsInWeaponTransition)
+            ExitWeaponTransitionLock();
+
+        if (anim != null)
+        {
+            anim.ResetTrigger("DrawSword");
+            anim.ResetTrigger("SheathSword");
+        }
+
+        if (sword != null)
+        {
+            sword.AttachToHand();
+            sword.SetArmed(true);
+        }
+
+        if (anim != null)
+            anim.SetBool("IsArmed", sword != null ? sword.IsArmed : true);
+    }
+
     public void ResetToHomeForCheckpoint(Transform homePoint)
     {
         if (enemyState == null)
