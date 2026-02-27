@@ -342,8 +342,15 @@ public class EnemyFloatState : MonoBehaviour
         if (anim != null && cachedRootMotionValid)
             anim.applyRootMotion = cachedRootMotion;
 
-        if (anim != null && cachedAnimSpeedValid)
-            anim.speed = cachedAnimSpeed;
+        if (anim != null)
+        {
+            // 浮空结束时优先对齐当前本地时间缩放，
+            // 避免把进入浮空前缓存的慢放速度（例如 0.25）回写回来，导致落地动画持续慢速。
+            if (enemyController != null)
+                anim.speed = Mathf.Clamp(enemyController.LocalTimeScale, 0.05f, 1f);
+            else if (cachedAnimSpeedValid)
+                anim.speed = cachedAnimSpeed;
+        }
 
         if (combat != null && !IsDeadNow())
             combat.enabled = cachedCombatEnabled;
