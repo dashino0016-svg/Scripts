@@ -51,7 +51,7 @@ public class PlayerMove : MonoBehaviour
     [SerializeField] string airAttackBoolParam = "IsInAirAttack";
     [SerializeField] string reactLayerName = "ReactLayer";
     [SerializeField] string reactEmptyStateName = "Empty";
-    [SerializeField] float reactEmptyCrossFade = 0.03f;
+    [SerializeField] float reactEmptyCrossFade = 0f;
 
     [Header("Root Motion (Player)")]
     [Tooltip("开启后：空中阶段不吃任何 Root Motion 位移，避免与跳跃物理叠加导致跳高飘移。")]
