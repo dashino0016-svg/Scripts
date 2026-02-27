@@ -45,7 +45,6 @@ public class AssassinationSystem : MonoBehaviour
     [SerializeField] float takedownStartHitStopTime = 0.05f;
     [SerializeField] float takedownKillHitStopTime = 0.1f;
 
-
     [Header("Transition Fallback")]
     [Tooltip("收到输入后，等待这么久仍未进入目标状态，则强制 CrossFade。建议 0.02~0.08")]
     [SerializeField] float forceStateDelay = 0.04f;

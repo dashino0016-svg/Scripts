@@ -45,10 +45,6 @@ public class CombatSfxConfig : ScriptableObject
     [Header("Abilities")]
     [SerializeField] AbilitySfxEntry[] abilitySfxEntries;
 
-    [Header("Takedown")]
-    public AudioClip assassinateStartClip;
-    public AudioClip executeStartClip;
-
     [Header("Ability3 BGM")]
     public AudioClip ability3BgmLoop;
 
@@ -104,9 +100,6 @@ public class CombatSfxConfig : ScriptableObject
                 return false;
         }
     }
-
-    public AudioClip GetTakedownStartClip(bool isExecute)
-        => isExecute ? executeStartClip : assassinateStartClip;
 
     public AudioClip GetAbilityClip(int abilityId)
     {
