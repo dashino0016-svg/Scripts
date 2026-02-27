@@ -27,7 +27,8 @@ public class EnemyFloatState : MonoBehaviour
     CombatStats stats;
 
     FloatPhase phase = FloatPhase.None;
-    float floatEndTime;
+    float floatDuration;
+    float floatElapsed;
     float targetRiseY;
     float riseSpeed;
     float fallVelocityY;
@@ -116,7 +117,8 @@ public class EnemyFloatState : MonoBehaviour
         Vector3 pos = transform.position;
         targetRiseY = pos.y + Mathf.Max(0f, riseHeight);
         riseSpeed = Mathf.Max(0.01f, riseSpeedValue);
-        floatEndTime = Time.time + Mathf.Max(0f, duration);
+        floatDuration = Mathf.Max(0f, duration);
+        floatElapsed = 0f;
 
         float configuredFall = Mathf.Min(-0.01f, initialFallVelocity);
 
@@ -151,7 +153,8 @@ public class EnemyFloatState : MonoBehaviour
     void TickRising()
     {
         Vector3 pos = transform.position;
-        float nextY = Mathf.MoveTowards(pos.y, targetRiseY, riseSpeed * Time.deltaTime);
+        float dt = GetFloatDeltaTime();
+        float nextY = Mathf.MoveTowards(pos.y, targetRiseY, riseSpeed * dt);
         Vector3 delta = new Vector3(0f, nextY - pos.y, 0f);
         cc.Move(delta);
 
@@ -174,7 +177,8 @@ public class EnemyFloatState : MonoBehaviour
             return;
         }
 
-        if (Time.time >= floatEndTime)
+        floatElapsed += GetFloatDeltaTime();
+        if (floatElapsed >= floatDuration)
             BeginFalling(immediateFallDead: false);
     }
 
@@ -308,8 +312,8 @@ public class EnemyFloatState : MonoBehaviour
             }
 
             anim.applyRootMotion = false;
-            // 浮空期间固定动画速率，避免受本地时间缩放影响导致看起来“卡在首帧”。
-            anim.speed = 1f;
+            // 浮空期间由本地时间缩放驱动动画速度，确保 ability3 时浮空动画也减速。
+            anim.speed = GetFloatAnimSpeed();
         }
     }
 
@@ -359,8 +363,21 @@ public class EnemyFloatState : MonoBehaviour
             return;
 
         // 仅维持播放速率，不在每帧强制 CrossFade，避免一直回到 Float 首帧导致“静止”。
-        if (!Mathf.Approximately(anim.speed, 1f))
-            anim.speed = 1f;
+        float targetSpeed = GetFloatAnimSpeed();
+        if (!Mathf.Approximately(anim.speed, targetSpeed))
+            anim.speed = targetSpeed;
+    }
+
+    float GetFloatDeltaTime()
+    {
+        float scale = enemyController != null ? enemyController.LocalTimeScale : 1f;
+        return Time.deltaTime * Mathf.Clamp(scale, 0.05f, 1f);
+    }
+
+    float GetFloatAnimSpeed()
+    {
+        float scale = enemyController != null ? enemyController.LocalTimeScale : 1f;
+        return Mathf.Clamp(scale, 0.05f, 1f);
     }
 
     void SetFloatAnimatorFlag(bool floating)
