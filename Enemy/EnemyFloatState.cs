@@ -105,6 +105,11 @@ public class EnemyFloatState : MonoBehaviour
         if (enemyController != null)
             enemyController.OnAttacked(casterTransform);
 
+        // ✅ 若正处于拔/收刀过渡，先强制收敛过渡锁，
+        // 避免浮空打断动画事件后卡在 IsInWeaponTransition。
+        if (enemyController != null)
+            enemyController.ForceAbortWeaponTransitionForFloat();
+
         SetFloatAnimatorFlag(true);
         DisableEnemyBehaviours();
 
