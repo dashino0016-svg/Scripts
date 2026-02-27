@@ -495,9 +495,16 @@ public class EnemyController : MonoBehaviour
         RestoreSolidCollisionAfterCheckpoint();
         enemyState.ForceResetToNotCombatForCheckpoint();
 
-        // If this enemy was dead, BeginCheckpointFreeze likely cached many components as disabled.
-        // Force caches to "enabled" so EndCheckpointFreeze can bring it back to active gameplay state.
-        if (wasDeadBeforeReset)
+        // Checkpoint reset should restore enemies to a canonical playable state.
+        // Do not trust BeginCheckpointFreeze snapshots for locomotion/nav:
+        // they may be false only because we froze mid transient lock (e.g. draw/sheath transition).
+        bool hasTransientDisableSnapshot =
+            !checkpointCachedMoveEnabled ||
+            !checkpointCachedNavigatorEnabled ||
+            !checkpointCachedAgentEnabled ||
+            !checkpointCachedCharacterControllerEnabled;
+
+        if (wasDeadBeforeReset || hasTransientDisableSnapshot)
         {
             checkpointCachedControllerEnabled = true;
             checkpointCachedNotCombatEnabled = true;
