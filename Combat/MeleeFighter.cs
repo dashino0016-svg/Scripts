@@ -347,8 +347,7 @@ public class MeleeFighter : MonoBehaviour
     // 动画事件：Whoosh（建议在动画里单独打点控制时机）
     public void Whoosh()
     {
-        bool selfIsPlayer = GetComponentInParent<PlayerController>() != null;
-        if (!selfIsPlayer || currentAttackData == null)
+        if (currentAttackData == null)
             return;
 
         if (CombatSfxKeyUtility.TryGetAttackKey(currentAttackData, out var sfxKey))

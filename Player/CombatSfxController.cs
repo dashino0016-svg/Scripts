@@ -54,13 +54,12 @@ public class CombatSfxController : MonoBehaviour
     {
         if (config == null) return;
 
-        bool hasDefenderSfx = ctx.ReceiverIsPlayer &&
-                              (ctx.ResultType == HitResultType.Blocked ||
-                               ctx.ResultType == HitResultType.PerfectBlock ||
-                               ctx.ResultType == HitResultType.GuardBreak);
+        bool hasDefenderSfx = ctx.ResultType == HitResultType.Blocked ||
+                              ctx.ResultType == HitResultType.PerfectBlock ||
+                              ctx.ResultType == HitResultType.GuardBreak;
 
         bool allowImpact = !(suppressAttackImpactWhenDefending && hasDefenderSfx);
-        if (allowImpact && ctx.AttackerIsPlayer && IsImpactResult(ctx.ResultType) &&
+        if (allowImpact && IsImpactResult(ctx.ResultType) &&
             CombatSfxKeyUtility.TryGetAttackKey(ctx.AttackData, out var key) &&
             config.TryGetImpact(key, out var impactClip))
         {
