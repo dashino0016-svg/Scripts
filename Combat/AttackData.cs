@@ -28,6 +28,7 @@ public class AttackData
     [Header("Special Gain")]
     public int specialGainOnHit = 0;
     public int specialGainOnPerfectBlock = 0;
+    public bool grantSpecialToAttackerOnHit = true;
 
     [Header("SFX")]
     public int attackSfxVariant = 1;

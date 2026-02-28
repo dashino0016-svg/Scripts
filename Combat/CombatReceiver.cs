@@ -367,6 +367,12 @@ public class CombatReceiver : MonoBehaviour, IHittable
     // ✅ 攻击型能力（Ability1/Ability2）造成的伤害不计入特殊值积累
     bool ShouldGrantSpecialFromThisAttack(AttackData attackData)
     {
+        if (attackData == null)
+            return false;
+
+        if (!attackData.grantSpecialToAttackerOnHit)
+            return false;
+
         return attackData.sourceType != AttackSourceType.Ability1Short &&
                attackData.sourceType != AttackSourceType.Ability1Long;
     }

@@ -307,6 +307,7 @@ public class BossAssistDroneController : MonoBehaviour
         d.hitStopWeight = cfg.hitStopWeight;
         d.staminaPenetrationDamage = cfg.staminaPenetrationDamage;
         d.hpPenetrationDamage = cfg.hpPenetrationDamage;
+        d.grantSpecialToAttackerOnHit = false;
         return d;
     }
 
