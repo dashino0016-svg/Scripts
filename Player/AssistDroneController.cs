@@ -567,7 +567,8 @@ public class AssistDroneController : MonoBehaviour
             hasSuperArmor = cfg.hasSuperArmor,
             hitStopWeight = cfg.hitStopWeight,
             staminaPenetrationDamage = cfg.staminaPenetrationDamage,
-            hpPenetrationDamage = cfg.hpPenetrationDamage
+            hpPenetrationDamage = cfg.hpPenetrationDamage,
+            grantSpecialToAttackerOnHit = false
         };
         return data;
     }

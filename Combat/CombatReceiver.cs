@@ -365,10 +365,26 @@ public class CombatReceiver : MonoBehaviour, IHittable
     }
 
     // ✅ 攻击型能力（Ability1/Ability2）造成的伤害不计入特殊值积累
-    bool ShouldGrantSpecialFromThisAttack(AttackData attackData)
+    bool IsSpecialGainAttackSource(AttackData attackData)
     {
+        if (attackData == null)
+            return false;
+
         return attackData.sourceType != AttackSourceType.Ability1Short &&
                attackData.sourceType != AttackSourceType.Ability1Long;
+    }
+
+    bool ShouldGrantVictimSpecialFromThisAttack(AttackData attackData)
+    {
+        return IsSpecialGainAttackSource(attackData);
+    }
+
+    bool ShouldGrantAttackerSpecialFromThisAttack(AttackData attackData)
+    {
+        if (!IsSpecialGainAttackSource(attackData))
+            return false;
+
+        return attackData.grantSpecialToAttackerOnHit;
     }
 
     void ApplyResultToStats(HitResult result, AttackData attackData)
@@ -400,19 +416,18 @@ public class CombatReceiver : MonoBehaviour, IHittable
 
                     if (stats.IsDead)
                         RaiseVoiceSignals_OnKilled(attackData);
-                    // ✅ 只有非能力攻击才加特殊值
-                    if (actualHpDamage > 0 && ShouldGrantSpecialFromThisAttack(attackData))
+                    if (actualHpDamage > 0)
                     {
                         // ✅ 改动：能量增量 = 实际扣血量 × 比例（四舍五入）
                         int victimGain = Mathf.RoundToInt(actualHpDamage * specialGainScaleVictim);
                         int attackerGain = Mathf.RoundToInt(actualHpDamage * specialGainScaleAttacker);
 
-                        // 被打者加特殊
-                        if (victimGain > 0)
+                        // 被打者加特殊（受攻击来源限制）
+                        if (victimGain > 0 && ShouldGrantVictimSpecialFromThisAttack(attackData))
                             stats.AddSpecial(victimGain);
 
-                        // 攻击者也加特殊
-                        if (attackerGain > 0)
+                        // 攻击者加特殊（可按攻击数据单独关闭）
+                        if (attackerGain > 0 && ShouldGrantAttackerSpecialFromThisAttack(attackData))
                             TryAddSpecialToAttacker(attackData.attacker, attackerGain);
                     }
 

@@ -8,6 +8,11 @@ public class LockOnSystem : MonoBehaviour
     public float lockRange = 15f;
     public LayerMask enemyMask;
 
+    [Header("Line Of Sight")]
+    [SerializeField] bool requireLineOfSight = true;
+    [Tooltip("锁定时用于检测遮挡的层。建议包含地面/墙体，通常可保留默认值。")]
+    [SerializeField] LayerMask lockOcclusionMask = ~0;
+
     [Header("Reference (usually your camera transform)")]
     [SerializeField] Transform viewTransform;
 
@@ -69,6 +74,21 @@ public class LockOnSystem : MonoBehaviour
         if (distSq > lockRange * lockRange)
         {
             ClearLock();
+            return;
+        }
+
+        // 被墙体/地形遮挡：不允许继续锁定
+        if (!HasLineOfSight(CurrentTargetStats))
+        {
+            if (autoRelockOnTargetLost)
+            {
+                if (!TryLockNearestInternal(out _))
+                    ClearLock();
+            }
+            else
+            {
+                ClearLock();
+            }
             return;
         }
     }
@@ -142,7 +162,7 @@ public class LockOnSystem : MonoBehaviour
 
     public void SetTarget(CombatStats stats)
     {
-        if (stats == null || stats.CurrentHP <= 0f)
+        if (stats == null || stats.CurrentHP <= 0f || !HasLineOfSight(stats))
         {
             ClearLock();
             return;
@@ -262,12 +282,61 @@ public class LockOnSystem : MonoBehaviour
             if (stats == null) continue;
             if (stats.transform.root == transform.root) continue;
             if (stats.CurrentHP <= 0f) continue;
+            if (!HasLineOfSight(stats)) continue;
 
             if (set.Add(stats))
                 list.Add(stats);
         }
 
         return list;
+    }
+
+
+    bool HasLineOfSight(CombatStats target)
+    {
+        if (!requireLineOfSight)
+            return true;
+
+        if (target == null)
+            return false;
+
+        Vector3 from = GetSelfWorldPoint();
+        Vector3 to = GetWorldPoint(target);
+        Vector3 dir = to - from;
+        float dist = dir.magnitude;
+
+        if (dist <= 0.001f)
+            return true;
+
+        int mask = lockOcclusionMask.value;
+        if (mask == 0)
+            return true;
+
+        var hits = Physics.RaycastAll(from, dir / dist, dist, mask, QueryTriggerInteraction.Ignore);
+        if (hits == null || hits.Length == 0)
+            return true;
+
+        Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+
+        Transform selfRoot = transform.root;
+        Transform targetRoot = target.transform.root;
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider c = hits[i].collider;
+            if (c == null)
+                continue;
+
+            Transform hitRoot = c.transform.root;
+            if (hitRoot == selfRoot)
+                continue;
+            if (hitRoot == targetRoot)
+                return true;
+
+            return false;
+        }
+
+        return true;
     }
 
     Vector3 GetReferenceForward()
