@@ -146,8 +146,8 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
     [Header("Cooldown NavMesh Safety")]
     public bool enableCooldownNavMeshSafety = true;
-    [Min(0.1f)] public float cooldownNavMeshCheckDistance = 0.9f;
-    [Min(0.05f)] public float cooldownNavMeshSampleRadius = 0.6f;
+    [Min(0.1f)] public float cooldownNavMeshCheckDistance = 0.8f;
+    [Min(0.05f)] public float cooldownNavMeshSampleRadius = 0.1f;
     public bool showCooldownNavMeshGizmos = true;
 
     [Header("Smoothing")]
