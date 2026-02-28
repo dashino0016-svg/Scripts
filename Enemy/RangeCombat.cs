@@ -40,11 +40,6 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
     Vector3 lastNavDir;
 
-    [Header("Ranged Decision")]
-    [Tooltip("AI roll interval for ranged decisions (shoot OR reposition).")]
-    public float rangedDecisionMinInterval = 0.25f;
-    public float rangedDecisionMaxInterval = 0.55f;
-
     [Range(0f, 1f)]
     public float shootChanceInShootZone = 0.75f;
 
@@ -176,9 +171,6 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     enum State { Approach, Shoot, RangedAttack, Engage, Block, Attack, Retreat, Cooldown }
     State state = State.Approach;
 
-    // ranged decision gating
-    float nextRangedDecisionTime;
-
     // melee plan runtime
     bool planIsHeavy;
     bool planAttackA;
@@ -282,8 +274,6 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
         cooldownInited = false;
         ExitCooldownPosture();
-
-        nextRangedDecisionTime = Time.time + Random.Range(rangedDecisionMinInterval, Mathf.Max(rangedDecisionMinInterval, rangedDecisionMaxInterval));
 
         if (anim != null)
         {
@@ -588,13 +578,6 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         RotateToTarget(toTarget);
         if (!CanStartAttackFacingGate())
             return;
-        if (Time.time < nextRangedDecisionTime)
-            return;
-
-        float minI = Mathf.Max(0.05f, rangedDecisionMinInterval);
-        float maxI = Mathf.Max(minI, rangedDecisionMaxInterval);
-        nextRangedDecisionTime = Time.time + Random.Range(minI, maxI);
-
         float shootChance = (z == Zone.Buffer) ? shootChanceInBufferZone : shootChanceInShootZone;
         shootChance = Mathf.Clamp01(shootChance);
 
