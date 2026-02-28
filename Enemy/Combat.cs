@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.Serialization;
 
 [RequireComponent(typeof(EnemyMove))]
@@ -151,6 +152,19 @@ public class Combat : MonoBehaviour, IEnemyCombat
     [Tooltip("Cooldown 横移/后退时，是否用“面向目标的基准轴”来生成左右/后退方向（更稳定）。")]
     public bool cooldownUseTargetBasis = true;
 
+    [Header("Cooldown NavMesh Safety")]
+    [Tooltip("开启后，Cooldown 的四向移动会先做 NavMesh 可达性检查，避免撞障碍/走出平台。")]
+    public bool cooldownRequireNavMeshSafeMove = true;
+
+    [Tooltip("每帧尝试移动时用于前瞻检测的距离（米）。")]
+    [Min(0.05f)] public float cooldownNavProbeDistance = 0.8f;
+
+    [Tooltip("NavMesh 采样半径（米）。")]
+    [Min(0.05f)] public float cooldownNavSampleRadius = 0.5f;
+
+    [Tooltip("连续检测不安全达到该时间后，立即重选 cooldown posture。")]
+    [Min(0f)] public float cooldownUnsafeRepickDelay = 0.2f;
+
     [Tooltip("默认关闭：避免 Combat 和 EnemyMove 同时写 MoveX/MoveY 导致抽搐。若你确认 EnemyMove 不写 MoveX/MoveY，再打开。")]
     public bool driveAnimatorMoveParamsInCooldown = false;
 
@@ -255,6 +269,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
     float cachedCooldownEndTime;
     float cachedCooldownPostureEndTime;
     CooldownPosture cachedCooldownPosture;
+    float cooldownUnsafeTimer;
 
     void Awake()
     {
@@ -1339,6 +1354,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
     void PickNextCooldownPosture()
     {
+        cooldownUnsafeTimer = 0f;
         float minT = Mathf.Max(0.01f, cooldownPostureMinTime);
         float maxT = Mathf.Max(minT, cooldownPostureMaxTime);
         float dur = Random.Range(minT, maxT);
@@ -1373,6 +1389,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
     void ExitCooldownPosture()
     {
+        cooldownUnsafeTimer = 0f;
         // cooldown 自己永远不占用 IsRetreating
         if (anim != null)
             anim.SetBool(AnimIsRetreating, false);
@@ -1459,10 +1476,50 @@ public class Combat : MonoBehaviour, IEnemyCombat
                 break;
         }
 
+        if (cooldownRequireNavMeshSafeMove && !IsCooldownMoveSafe(worldDir))
+        {
+            cooldownUnsafeTimer += dt;
+            StopMove();
+
+            if (cooldownUnsafeTimer >= cooldownUnsafeRepickDelay)
+                PickNextCooldownPosture();
+
+            return;
+        }
+
+        cooldownUnsafeTimer = 0f;
+
         // 走路速度（你的设计：walk = 1）
         currentSpeedLevel = Mathf.MoveTowards(currentSpeedLevel, walkSpeedLevel, speedLevelChangeRate * dt);
         move.SetMoveDirection(worldDir);
         move.SetMoveSpeedLevel(Mathf.RoundToInt(currentSpeedLevel));
+    }
+
+    bool IsCooldownMoveSafe(Vector3 worldDir)
+    {
+        Vector3 flatDir = worldDir;
+        flatDir.y = 0f;
+        if (flatDir.sqrMagnitude < 0.0001f)
+            return false;
+
+        flatDir.Normalize();
+
+        float probeDistance = Mathf.Max(0.05f, cooldownNavProbeDistance);
+        float sampleRadius = Mathf.Max(0.05f, cooldownNavSampleRadius);
+
+        Vector3 origin = transform.position;
+        Vector3 probe = origin + flatDir * probeDistance;
+
+        if (!NavMesh.SamplePosition(origin, out NavMeshHit originHit, sampleRadius, NavMesh.AllAreas))
+            return false;
+
+        if (!NavMesh.SamplePosition(probe, out NavMeshHit probeHit, sampleRadius, NavMesh.AllAreas))
+            return false;
+
+        if (NavMesh.Raycast(originHit.position, probeHit.position, out _, NavMesh.AllAreas))
+            return false;
+
+        return true;
     }
 
     bool CanStartAttackFacingGate()
