@@ -11,7 +11,7 @@ public class NotCombat : MonoBehaviour
 
     [Header("Patrol")]
     public Transform[] patrolPoints;
-    public float arriveDistance = 0.3f;
+    public float arriveDistance = 0.1f;
 
     EnemyState enemyState;
     EnemyMove move;
