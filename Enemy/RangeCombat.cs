@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 [RequireComponent(typeof(EnemyMove))]
 [RequireComponent(typeof(EnemyNavigator))]
@@ -142,6 +143,15 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     [Header("Cooldown Strafe Setup")]
     public bool cooldownUseTargetBasis = true;
     public bool driveAnimatorMoveParamsInCooldown = false;
+
+    [Header("Cooldown Safety Probe")]
+    [Tooltip("Cooldown 侧移/后退前的前探距离（米）。")]
+    public float cooldownProbeDistance = 0.8f;
+    [Tooltip("NavMesh 采样半径（米）。")]
+    public float cooldownProbeNavMeshRadius = 0.6f;
+
+    [Header("Debug")]
+    public bool showCooldownProbeGizmos = true;
 
     [Header("Smoothing")]
     public float speedLevelChangeRate = 5f;
@@ -1148,7 +1158,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         {
             cooldownInited = true;
             cooldownEndTime = Time.time + cd;
-            PickNextCooldownPosture(postureMin, postureMax, wIdle, wBack, wL, wR, wF);
+            PickNextCooldownPosture(postureMin, postureMax, wIdle, wBack, wL, wR, wF, toTarget);
         }
 
         if (cooldownContext == CooldownContext.Melee
@@ -1177,7 +1187,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         }
 
         if (Time.time >= cooldownPostureEndTime)
-            PickNextCooldownPosture(postureMin, postureMax, wIdle, wBack, wL, wR, wF);
+            PickNextCooldownPosture(postureMin, postureMax, wIdle, wBack, wL, wR, wF, toTarget);
 
         if (anim != null) anim.SetBool(AnimIsRetreating, false);
         RestoreRootMotionIfNeeded();
@@ -1196,7 +1206,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         ApplyCooldownWalk(toTarget, cooldownPosture);
     }
 
-    void PickNextCooldownPosture(float postureMin, float postureMax, float wIdle, float wBack, float wL, float wR, float wF)
+    void PickNextCooldownPosture(float postureMin, float postureMax, float wIdle, float wBack, float wL, float wR, float wF, Vector3 toTarget)
     {
         float minT = Mathf.Max(0.01f, postureMin);
         float maxT = Mathf.Max(minT, postureMax);
@@ -1209,7 +1219,12 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         wR = Mathf.Max(0f, wR);
         wF = Mathf.Max(0f, wF);
 
-        float sum = wIdle + wBack + wL + wR + wF;
+        float safeBack = IsCooldownPostureSafe(CooldownPosture.WalkBack, toTarget) ? wBack : 0f;
+        float safeLeft = IsCooldownPostureSafe(CooldownPosture.WalkLeft, toTarget) ? wL : 0f;
+        float safeRight = IsCooldownPostureSafe(CooldownPosture.WalkRight, toTarget) ? wR : 0f;
+        float safeForward = IsCooldownPostureSafe(CooldownPosture.WalkForward, toTarget) ? wF : 0f;
+
+        float sum = wIdle + safeBack + safeLeft + safeRight + safeForward;
         if (sum <= 0.0001f)
         {
             cooldownPosture = CooldownPosture.Idle;
@@ -1219,9 +1234,9 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
         float r = Random.value * sum;
         if (r < wIdle) cooldownPosture = CooldownPosture.Idle;
-        else if ((r -= wIdle) < wBack) cooldownPosture = CooldownPosture.WalkBack;
-        else if ((r -= wBack) < wL) cooldownPosture = CooldownPosture.WalkLeft;
-        else if ((r -= wL) < wR) cooldownPosture = CooldownPosture.WalkRight;
+        else if ((r -= wIdle) < safeBack) cooldownPosture = CooldownPosture.WalkBack;
+        else if ((r -= safeBack) < safeLeft) cooldownPosture = CooldownPosture.WalkLeft;
+        else if ((r -= safeLeft) < safeRight) cooldownPosture = CooldownPosture.WalkRight;
         else cooldownPosture = CooldownPosture.WalkForward;
 
         if (cooldownPosture == CooldownPosture.Idle)
@@ -1230,7 +1245,26 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
             SetCooldownMove2D(cooldownPosture);
     }
 
-    void ApplyCooldownWalk(Vector3 toTarget, CooldownPosture posture)
+    bool IsCooldownPostureSafe(CooldownPosture posture, Vector3 toTarget)
+    {
+        Vector3 worldDir = GetCooldownWorldDirection(toTarget, posture);
+        if (worldDir.sqrMagnitude < 0.0001f)
+            return posture == CooldownPosture.Idle;
+
+        float probeDistance = Mathf.Max(0.1f, cooldownProbeDistance);
+        float sampleRadius = Mathf.Max(0.1f, cooldownProbeNavMeshRadius);
+
+        if (!NavMesh.SamplePosition(transform.position, out NavMeshHit fromHit, sampleRadius, NavMesh.AllAreas))
+            return false;
+
+        Vector3 probePos = transform.position + worldDir * probeDistance;
+        if (!NavMesh.SamplePosition(probePos, out NavMeshHit toHit, sampleRadius, NavMesh.AllAreas))
+            return false;
+
+        return !NavMesh.Raycast(fromHit.position, toHit.position, out _, NavMesh.AllAreas);
+    }
+
+    Vector3 GetCooldownWorldDirection(Vector3 toTarget, CooldownPosture posture)
     {
         Vector3 fwd = toTarget;
         fwd.y = 0f;
@@ -1239,25 +1273,19 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
         Vector3 right = Vector3.Cross(Vector3.up, fwd);
 
-        Vector3 worldDir;
-        switch (posture)
+        return posture switch
         {
-            case CooldownPosture.WalkBack:
-                worldDir = cooldownUseTargetBasis ? -fwd : -transform.forward;
-                break;
-            case CooldownPosture.WalkLeft:
-                worldDir = cooldownUseTargetBasis ? -right : -transform.right;
-                break;
-            case CooldownPosture.WalkRight:
-                worldDir = cooldownUseTargetBasis ? right : transform.right;
-                break;
-            case CooldownPosture.WalkForward:
-                worldDir = cooldownUseTargetBasis ? fwd : transform.forward;
-                break;
-            default:
-                worldDir = Vector3.zero;
-                break;
-        }
+            CooldownPosture.WalkBack => cooldownUseTargetBasis ? -fwd : -transform.forward,
+            CooldownPosture.WalkLeft => cooldownUseTargetBasis ? -right : -transform.right,
+            CooldownPosture.WalkRight => cooldownUseTargetBasis ? right : transform.right,
+            CooldownPosture.WalkForward => cooldownUseTargetBasis ? fwd : transform.forward,
+            _ => Vector3.zero
+        };
+    }
+
+    void ApplyCooldownWalk(Vector3 toTarget, CooldownPosture posture)
+    {
+        Vector3 worldDir = GetCooldownWorldDirection(toTarget, posture);
 
         currentSpeedLevel = Mathf.MoveTowards(currentSpeedLevel, walkSpeedLevel, speedLevelChangeRate * dt);
         move.SetMoveDirection(worldDir);
@@ -1432,4 +1460,43 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
         anim.applyRootMotion = cachedApplyRootMotion;
     }
+
+#if UNITY_EDITOR
+    void OnDrawGizmosSelected()
+    {
+        if (!showCooldownProbeGizmos)
+            return;
+
+        Vector3 toTarget = transform.forward;
+        if (target != null)
+        {
+            Vector3 t = GetTargetPoint() - transform.position;
+            t.y = 0f;
+            if (t.sqrMagnitude > 0.0001f)
+                toTarget = t;
+        }
+
+        DrawCooldownProbeGizmo(CooldownPosture.WalkBack, toTarget);
+        DrawCooldownProbeGizmo(CooldownPosture.WalkLeft, toTarget);
+        DrawCooldownProbeGizmo(CooldownPosture.WalkRight, toTarget);
+        DrawCooldownProbeGizmo(CooldownPosture.WalkForward, toTarget);
+    }
+
+    void DrawCooldownProbeGizmo(CooldownPosture posture, Vector3 toTarget)
+    {
+        Vector3 dir = GetCooldownWorldDirection(toTarget, posture);
+        if (dir.sqrMagnitude < 0.0001f)
+            return;
+
+        dir.Normalize();
+        float probeDistance = Mathf.Max(0.1f, cooldownProbeDistance);
+        Vector3 start = transform.position + Vector3.up * 0.08f;
+        Vector3 end = start + dir * probeDistance;
+        bool safe = IsCooldownPostureSafe(posture, toTarget);
+
+        Gizmos.color = safe ? Color.green : Color.red;
+        Gizmos.DrawLine(start, end);
+        Gizmos.DrawWireSphere(end, 0.08f);
+    }
+#endif
 }
