@@ -52,7 +52,6 @@ public class MeleeFighter : MonoBehaviour
     const float CHARGE_TAIL_IGNORE_SECONDS = 0.15f; // 覆盖 CrossFade 过渡即可
 
     // ===== Ability（攻击型：Ability1/Ability2）=====
-    bool isAbility;
     AbilityType currentAbility; // ✅ 来自 CombatEnums.cs（Ability1Short/Ability1Long）
     // ✅ 仅由动画事件 AttackBegin~AttackEnd 控制：命中窗口期间锁转向
     bool isHitWindow;
@@ -319,7 +318,6 @@ public class MeleeFighter : MonoBehaviour
         if (state != AttackState.Idle) return;
 
         currentCategory = AttackCategory.Ability;
-        isAbility = true;
         currentAbility = type;
 
         CreateAbilityAttackData(type);
@@ -476,7 +474,6 @@ public class MeleeFighter : MonoBehaviour
         requestQueued = false;
 
         isHeavy = false;
-        isAbility = false;
         currentCategory = AttackCategory.Normal;
         currentAttackData = null;
 

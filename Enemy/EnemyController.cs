@@ -55,7 +55,6 @@ public class EnemyController : MonoBehaviour
     Transform target;
     CombatStats targetStats;
     float loseTimer;
-    bool targetVisibleThisFrame;
     float lastHostileStimulusTime = float.NegativeInfinity;
     float nextRetargetTime;
 
@@ -864,7 +863,6 @@ public class EnemyController : MonoBehaviour
         aggroTable.Remove(targetStats);
         target = null;
         targetStats = null;
-        targetVisibleThisFrame = false;
         loseTimer = 0f;
 
         if (enemyState.Current == EnemyStateType.Combat)
@@ -884,7 +882,6 @@ public class EnemyController : MonoBehaviour
 
     void UpdateSensor()
     {
-        targetVisibleThisFrame = false;
 
         if (stickyTargetInCombat &&
             enemyState.Current == EnemyStateType.Combat &&
@@ -892,7 +889,6 @@ public class EnemyController : MonoBehaviour
         {
             if (CanMaintainTargetInCombat(target))
             {
-                targetVisibleThisFrame = true;
                 CombatStats currentStats = targetStats != null ? targetStats : target.GetComponentInParent<CombatStats>();
                 AddAggro(currentStats, threatAddPerSecond * Time.deltaTime);
             }
@@ -926,7 +922,6 @@ public class EnemyController : MonoBehaviour
             if (!CanSeePlayer(cs.transform))
                 continue;
 
-            targetVisibleThisFrame = true;
             AddAggro(cs, threatAddPerSecond * Time.deltaTime);
         }
 
@@ -976,7 +971,6 @@ public class EnemyController : MonoBehaviour
             if (distance > radius)
                 continue;
 
-            targetVisibleThisFrame = true;
             heardAny = true;
             AddAggro(cs, threatAddPerSecond * Time.deltaTime);
         }
@@ -1035,7 +1029,6 @@ public class EnemyController : MonoBehaviour
 
         target = entry.stats.transform;
         targetStats = entry.stats;
-        targetVisibleThisFrame = true;
 
         if (enemyState.Current == EnemyStateType.Combat)
         {

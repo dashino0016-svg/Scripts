@@ -36,7 +36,6 @@ public class EnemyFloatState : MonoBehaviour
 
     bool waitingForGroundedExitAfterFallStart;
 
-    bool pendingGuardBreakAfterLand;
     bool cachedCombatEnabled;
     bool cachedRangeCombatEnabled;
     bool cachedEnemyMoveEnabled;
@@ -101,7 +100,6 @@ public class EnemyFloatState : MonoBehaviour
             return false;
 
         caster = casterTransform;
-        pendingGuardBreakAfterLand = false;
 
         if (enemyController != null)
             enemyController.OnAttacked(casterTransform);
@@ -129,13 +127,11 @@ public class EnemyFloatState : MonoBehaviour
         return true;
     }
 
-    public void NotifyHitResult(HitResultType resultType)
+    // 兼容入口：浮空阶段当前不消费具体命中结果，保留方法仅用于调用链兼容。
+    public void NotifyHitResult(HitResultType _)
     {
         if (!IsInFloatOrFalling)
             return;
-
-        if (resultType == HitResultType.GuardBreak)
-            pendingGuardBreakAfterLand = true;
     }
 
     public void NotifyHpAfterHit()
@@ -230,7 +226,6 @@ public class EnemyFloatState : MonoBehaviour
                 enemyController.ForceNextDeathToFallDeadAnimation();
         }
 
-        pendingGuardBreakAfterLand = false;
     }
 
 
@@ -244,8 +239,6 @@ public class EnemyFloatState : MonoBehaviour
 
         if (IsDeadNow())
         {
-            pendingGuardBreakAfterLand = false;
-
             if (enemyController != null)
                 enemyController.OnCharacterDead();
 
@@ -254,7 +247,6 @@ public class EnemyFloatState : MonoBehaviour
 
         EnableEnemyBehavioursAfterLanding();
 
-        pendingGuardBreakAfterLand = false;
     }
 
     void DisableEnemyBehaviours()
