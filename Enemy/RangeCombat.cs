@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 [RequireComponent(typeof(EnemyMove))]
 [RequireComponent(typeof(EnemyNavigator))]
@@ -142,6 +143,12 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     [Header("Cooldown Strafe Setup")]
     public bool cooldownUseTargetBasis = true;
     public bool driveAnimatorMoveParamsInCooldown = false;
+
+    [Header("Cooldown NavMesh Safety")]
+    public bool enableCooldownNavMeshSafety = true;
+    [Min(0.1f)] public float cooldownNavMeshCheckDistance = 0.9f;
+    [Min(0.05f)] public float cooldownNavMeshSampleRadius = 0.6f;
+    public bool showCooldownNavMeshGizmos = true;
 
     [Header("Smoothing")]
     public float speedLevelChangeRate = 5f;
@@ -1204,10 +1211,10 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         cooldownPostureEndTime = Time.time + dur;
 
         wIdle = Mathf.Max(0f, wIdle);
-        wBack = Mathf.Max(0f, wBack);
-        wL = Mathf.Max(0f, wL);
-        wR = Mathf.Max(0f, wR);
-        wF = Mathf.Max(0f, wF);
+        wBack = IsCooldownPostureSafe(CooldownPosture.WalkBack) ? Mathf.Max(0f, wBack) : 0f;
+        wL = IsCooldownPostureSafe(CooldownPosture.WalkLeft) ? Mathf.Max(0f, wL) : 0f;
+        wR = IsCooldownPostureSafe(CooldownPosture.WalkRight) ? Mathf.Max(0f, wR) : 0f;
+        wF = IsCooldownPostureSafe(CooldownPosture.WalkForward) ? Mathf.Max(0f, wF) : 0f;
 
         float sum = wIdle + wBack + wL + wR + wF;
         if (sum <= 0.0001f)
@@ -1232,6 +1239,82 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
     void ApplyCooldownWalk(Vector3 toTarget, CooldownPosture posture)
     {
+        if (!TryGetCooldownWorldDir(toTarget, posture, out var worldDir) || !IsWorldDirOnNavMesh(worldDir))
+        {
+            if (TryPickSafeCooldownPosture(toTarget, out var safePosture))
+            {
+                cooldownPosture = safePosture;
+                cooldownPostureEndTime = Time.time + 0.1f;
+                SetCooldownMove2D(cooldownPosture);
+                if (!TryGetCooldownWorldDir(toTarget, cooldownPosture, out worldDir) || !IsWorldDirOnNavMesh(worldDir))
+                {
+                    cooldownPosture = CooldownPosture.Idle;
+                    ResetCooldownMove2D();
+                    StopMove();
+                    return;
+                }
+            }
+            else
+            {
+                cooldownPosture = CooldownPosture.Idle;
+                ResetCooldownMove2D();
+                StopMove();
+                return;
+            }
+        }
+
+        currentSpeedLevel = Mathf.MoveTowards(currentSpeedLevel, walkSpeedLevel, speedLevelChangeRate * dt);
+        move.SetMoveDirection(worldDir);
+        move.SetMoveSpeedLevel(Mathf.RoundToInt(currentSpeedLevel));
+    }
+
+    bool TryPickSafeCooldownPosture(Vector3 toTarget, out CooldownPosture posture)
+    {
+        posture = CooldownPosture.Idle;
+
+        if (!enableCooldownNavMeshSafety)
+            return false;
+
+        CooldownPosture[] options =
+        {
+            CooldownPosture.WalkBack,
+            CooldownPosture.WalkLeft,
+            CooldownPosture.WalkRight,
+            CooldownPosture.WalkForward
+        };
+
+        List<CooldownPosture> safe = new List<CooldownPosture>(4);
+        for (int i = 0; i < options.Length; i++)
+        {
+            if (TryGetCooldownWorldDir(toTarget, options[i], out var dir) && IsWorldDirOnNavMesh(dir))
+                safe.Add(options[i]);
+        }
+
+        if (safe.Count <= 0)
+            return false;
+
+        posture = safe[Random.Range(0, safe.Count)];
+        return true;
+    }
+
+    bool IsCooldownPostureSafe(CooldownPosture posture)
+    {
+        if (!enableCooldownNavMeshSafety)
+            return true;
+        if (posture == CooldownPosture.Idle)
+            return true;
+        if (target == null)
+            return false;
+
+        Vector3 toTarget = target.position - transform.position;
+        if (!TryGetCooldownWorldDir(toTarget, posture, out var dir))
+            return false;
+
+        return IsWorldDirOnNavMesh(dir);
+    }
+
+    bool TryGetCooldownWorldDir(Vector3 toTarget, CooldownPosture posture, out Vector3 worldDir)
+    {
         Vector3 fwd = toTarget;
         fwd.y = 0f;
         if (fwd.sqrMagnitude < 0.0001f) fwd = transform.forward;
@@ -1239,7 +1322,6 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
         Vector3 right = Vector3.Cross(Vector3.up, fwd);
 
-        Vector3 worldDir;
         switch (posture)
         {
             case CooldownPosture.WalkBack:
@@ -1256,13 +1338,67 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
                 break;
             default:
                 worldDir = Vector3.zero;
-                break;
+                return false;
         }
 
-        currentSpeedLevel = Mathf.MoveTowards(currentSpeedLevel, walkSpeedLevel, speedLevelChangeRate * dt);
-        move.SetMoveDirection(worldDir);
-        move.SetMoveSpeedLevel(Mathf.RoundToInt(currentSpeedLevel));
+        worldDir.y = 0f;
+        return worldDir.sqrMagnitude > 0.0001f;
     }
+
+    bool IsWorldDirOnNavMesh(Vector3 worldDir)
+    {
+        return IsWorldDirOnNavMeshFromPosition(transform.position, worldDir);
+    }
+
+    bool IsWorldDirOnNavMeshFromPosition(Vector3 origin, Vector3 worldDir)
+    {
+        if (!enableCooldownNavMeshSafety)
+            return true;
+
+        Vector3 dir = worldDir;
+        dir.y = 0f;
+        if (dir.sqrMagnitude < 0.0001f)
+            return false;
+
+        dir.Normalize();
+        float checkDist = Mathf.Max(0.1f, cooldownNavMeshCheckDistance);
+        float sampleRadius = Mathf.Max(0.05f, cooldownNavMeshSampleRadius);
+        Vector3 checkPos = origin + dir * checkDist;
+        return NavMesh.SamplePosition(checkPos, out _, sampleRadius, NavMesh.AllAreas);
+    }
+
+#if UNITY_EDITOR
+    void OnDrawGizmosSelected()
+    {
+        if (!showCooldownNavMeshGizmos || !enableCooldownNavMeshSafety)
+            return;
+
+        DrawCooldownPostureGizmo(CooldownPosture.WalkBack);
+        DrawCooldownPostureGizmo(CooldownPosture.WalkLeft);
+        DrawCooldownPostureGizmo(CooldownPosture.WalkRight);
+        DrawCooldownPostureGizmo(CooldownPosture.WalkForward);
+    }
+
+    void DrawCooldownPostureGizmo(CooldownPosture posture)
+    {
+        Vector3 toTarget = (target != null) ? (target.position - transform.position) : transform.forward;
+        if (!TryGetCooldownWorldDir(toTarget, posture, out var dir))
+            return;
+
+        dir.Normalize();
+        float checkDist = Mathf.Max(0.1f, cooldownNavMeshCheckDistance);
+        float sampleRadius = Mathf.Max(0.05f, cooldownNavMeshSampleRadius);
+        Vector3 start = transform.position + Vector3.up * 0.05f;
+        Vector3 checkPos = start + dir * checkDist;
+
+        bool safe = IsWorldDirOnNavMeshFromPosition(transform.position, dir);
+        Color c = safe ? Color.green : Color.red;
+
+        Gizmos.color = c;
+        Gizmos.DrawLine(start, checkPos);
+        Gizmos.DrawWireSphere(checkPos, sampleRadius);
+    }
+#endif
 
     void ExitCooldownPosture()
     {
