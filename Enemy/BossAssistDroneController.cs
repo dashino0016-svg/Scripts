@@ -50,17 +50,13 @@ public class BossAssistDroneController : MonoBehaviour
     [SerializeField] Transform chargedMuzzle;
 
     [Header("Projectile")]
-    [SerializeField] GameObject tapProjectilePrefab;
     [SerializeField] GameObject chargedProjectilePrefab;
-    [SerializeField] AttackConfig tapAttackConfig;
     [SerializeField] AttackConfig chargedAttackConfig;
     [SerializeField, Min(0f)] float spawnForwardOffset = 0.06f;
 
     [Header("Fire Decision")]
-    [SerializeField, Min(0f)] float tapCooldown = 0.25f;
     [SerializeField, Min(0f)] float chargedCooldown = 1.2f;
     [SerializeField, Min(0.02f)] float decisionInterval = 0.2f;
-    [SerializeField, Range(0f, 1f)] float tapChancePerDecision = 0.65f;
     [SerializeField, Range(0f, 1f)] float chargedChancePerDecision = 0.20f;
 
     [Header("Charged Shot Timing")]
@@ -68,8 +64,6 @@ public class BossAssistDroneController : MonoBehaviour
     [SerializeField, Min(0f)] float chargedFireDelay = 0.25f;
 
     [Header("SFX")]
-    [Tooltip("普通点射音效。")]
-    [SerializeField] AudioClip tapShotClip;
     [Tooltip("Boss 版：蓄力与蓄力射击共用同一音效（先播，延迟后发弹）。")]
     [SerializeField] AudioClip chargedShotClip;
     [SerializeField] AudioSource chargedShotSource;
@@ -86,7 +80,6 @@ public class BossAssistDroneController : MonoBehaviour
     float orbitPhase;
     float nextTargetRefreshTime;
     float nextDecisionTime;
-    float nextTapAllowedTime;
     float nextChargedAllowedTime;
 
     bool chargedPending;
@@ -221,13 +214,7 @@ public class BossAssistDroneController : MonoBehaviour
         if (currentTarget == null) return;
 
         if (Time.time >= nextChargedAllowedTime && Random.value <= chargedChancePerDecision)
-        {
             TryStartCharged(currentTarget);
-            return;
-        }
-
-        if (Time.time >= nextTapAllowedTime && Random.value <= tapChancePerDecision)
-            TryFireTap(currentTarget);
     }
 
     void TickChargedPending()
@@ -260,24 +247,10 @@ public class BossAssistDroneController : MonoBehaviour
 
     void FireChargedNow(Transform target)
     {
-        GameObject prefab = chargedProjectilePrefab != null ? chargedProjectilePrefab : tapProjectilePrefab;
-        if (prefab == null || chargedAttackConfig == null) return;
+        if (chargedProjectilePrefab == null || chargedAttackConfig == null) return;
 
         Transform muzzle = chargedMuzzle != null ? chargedMuzzle : transform;
-        FireProjectileFromMuzzle(prefab, muzzle, target, chargedAttackConfig);
-    }
-
-    void TryFireTap(Transform target)
-    {
-        if (tapAttackConfig == null || tapProjectilePrefab == null) return;
-
-        nextTapAllowedTime = Time.time + tapCooldown;
-
-        Transform muzzle = chargedMuzzle != null ? chargedMuzzle : transform;
-        bool fired = FireProjectileFromMuzzle(tapProjectilePrefab, muzzle, target, tapAttackConfig);
-
-        if (fired && tapShotClip != null)
-            PlayOneShot(chargedShotSource, tapShotClip, muzzle != null ? muzzle.position : transform.position);
+        FireProjectileFromMuzzle(chargedProjectilePrefab, muzzle, target, chargedAttackConfig);
     }
 
     bool FireProjectileFromMuzzle(GameObject prefab, Transform muzzle, Transform target, AttackConfig cfg)
