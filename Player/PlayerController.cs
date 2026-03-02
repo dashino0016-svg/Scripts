@@ -456,6 +456,14 @@ public class PlayerController : MonoBehaviour
         isAbility = false;
         isAttacking = false;
         isLanding = false;
+        isRolling = false;
+        isDodging = false;
+        rollKeyHolding = false;
+        rollActionTriggered = false;
+
+        // ✅ 翻滚/闪避被受击打断时，IFrameEnd 事件可能丢失；此处强制清无敌，避免“受击后不掉血”。
+        if (receiver != null)
+            receiver.ForceClearIFrame();
 
         if (abilityLayerIndex >= 0)
         {

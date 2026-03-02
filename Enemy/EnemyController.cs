@@ -154,6 +154,8 @@ public class EnemyController : MonoBehaviour
     bool weaponLockRootMotionValid;
     bool weaponTransitionAllowHitRootMotion;
 
+    bool defaultApplyRootMotion;
+
     public bool IsTargetingPlayer
     {
         get
@@ -247,6 +249,8 @@ public class EnemyController : MonoBehaviour
     {
         enemyState = GetComponent<EnemyState>();
         anim = GetComponent<Animator>();
+        if (anim != null)
+            defaultApplyRootMotion = anim.applyRootMotion;
         combatStats = GetComponent<CombatStats>();
         receiver = GetComponent<CombatReceiver>();
         sword = GetComponentInChildren<SwordController>();
@@ -465,7 +469,7 @@ public class EnemyController : MonoBehaviour
         {
             anim.enabled = true;
             anim.speed = 1f;
-            anim.applyRootMotion = false;
+            anim.applyRootMotion = defaultApplyRootMotion;
 
             // Reset Animator to default states on all layers.
             anim.Rebind();
@@ -1195,7 +1199,7 @@ public class EnemyController : MonoBehaviour
             if (deathLayerIndex >= 0)
                 anim.SetLayerWeight(deathLayerIndex, 0f);
             anim.speed = 1f;
-            anim.applyRootMotion = false;
+            anim.applyRootMotion = defaultApplyRootMotion;
 
             if (anim.HasState(0, Animator.StringToHash("UnarmedLocomotion")))
                 anim.Play("UnarmedLocomotion", 0, 0f);
