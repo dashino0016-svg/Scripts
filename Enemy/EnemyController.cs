@@ -72,7 +72,6 @@ public class EnemyController : MonoBehaviour
     [SerializeField] float localTimeScale = 1f;
     public float LocalTimeScale => localTimeScale;
     Coroutine localTimeCoroutine;
-    readonly Dictionary<AudioSource, float> localAudioPitchCache = new Dictionary<AudioSource, float>();
 
     public bool IsInAssassinationLock { get; private set; }
     bool deathByAssassination;
@@ -595,8 +594,6 @@ public class EnemyController : MonoBehaviour
         enemyState.OnStateChanged -= OnStateChanged;
         if (combatStats != null)
             combatStats.OnDead -= OnCharacterDead;
-
-        RestoreLocalAudioPitch();
     }
 
     void Update()
@@ -1270,46 +1267,13 @@ public class EnemyController : MonoBehaviour
         if (anim != null)
             anim.speed = localTimeScale;
 
-        ApplyLocalAudioPitch(localTimeScale);
-
         yield return new WaitForSecondsRealtime(durationSeconds);
 
         localTimeScale = 1f;
         if (anim != null)
             anim.speed = 1f;
 
-        RestoreLocalAudioPitch();
-
         localTimeCoroutine = null;
-    }
-
-    void ApplyLocalAudioPitch(float pitch)
-    {
-        localAudioPitchCache.Clear();
-
-        AudioSource[] sources = GetComponentsInChildren<AudioSource>(true);
-        for (int i = 0; i < sources.Length; i++)
-        {
-            AudioSource source = sources[i];
-            if (source == null)
-                continue;
-
-            localAudioPitchCache[source] = source.pitch;
-            source.pitch = Mathf.Max(0.01f, localAudioPitchCache[source] * pitch);
-        }
-    }
-
-    void RestoreLocalAudioPitch()
-    {
-        foreach (var kv in localAudioPitchCache)
-        {
-            if (kv.Key == null)
-                continue;
-
-            kv.Key.pitch = kv.Value;
-        }
-
-        localAudioPitchCache.Clear();
     }
 
     // ================= Weapon Requests / Events =================
