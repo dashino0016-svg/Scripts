@@ -16,6 +16,12 @@ public class CombatSfxController : MonoBehaviour
     [Header("Optional BGM")]
     [SerializeField] BgmController bgmController;
 
+    [Header("Time Slow")]
+    [SerializeField] bool slowSfxWhenOwnerTimeSlowed = true;
+    [SerializeField, Range(0.05f, 1f)] float minSlowedPitch = 0.35f;
+
+    EnemyController enemyOwner;
+
     void Awake()
     {
         if (sfxSource == null)
@@ -23,6 +29,26 @@ public class CombatSfxController : MonoBehaviour
 
         if (bgmController == null)
             bgmController = FindObjectOfType<BgmController>();
+
+        enemyOwner = GetComponent<EnemyController>();
+    }
+
+    void Update()
+    {
+        if (sfxSource == null)
+            return;
+
+        if (!slowSfxWhenOwnerTimeSlowed || enemyOwner == null)
+        {
+            sfxSource.pitch = 1f;
+            return;
+        }
+
+        float targetPitch = enemyOwner.LocalTimeScale < 0.999f
+            ? Mathf.Clamp(enemyOwner.LocalTimeScale, minSlowedPitch, 1f)
+            : 1f;
+
+        sfxSource.pitch = targetPitch;
     }
 
     void OnEnable()
@@ -123,6 +149,7 @@ public class CombatSfxController : MonoBehaviour
     void PlayOneShot(AudioClip clip)
     {
         if (clip == null || sfxSource == null) return;
+
         sfxSource.PlayOneShot(clip, oneShotVolume);
     }
 }

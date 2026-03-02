@@ -47,23 +47,16 @@ public class BossAssistDroneController : MonoBehaviour
     [SerializeField] bool snapYaw = false;
 
     [Header("Muzzles")]
-    [SerializeField] Transform tapMuzzleA;
-    [SerializeField] Transform tapMuzzleB;
     [SerializeField] Transform chargedMuzzle;
-    [SerializeField] Transform muzzleLegacy;
 
     [Header("Projectile")]
-    [SerializeField] GameObject tapProjectilePrefab;
     [SerializeField] GameObject chargedProjectilePrefab;
-    [SerializeField] AttackConfig tapAttackConfig;
     [SerializeField] AttackConfig chargedAttackConfig;
     [SerializeField, Min(0f)] float spawnForwardOffset = 0.06f;
 
     [Header("Fire Decision")]
-    [SerializeField, Min(0f)] float tapCooldown = 0.25f;
     [SerializeField, Min(0f)] float chargedCooldown = 1.2f;
     [SerializeField, Min(0.02f)] float decisionInterval = 0.2f;
-    [SerializeField, Range(0f, 1f)] float tapChancePerDecision = 0.65f;
     [SerializeField, Range(0f, 1f)] float chargedChancePerDecision = 0.20f;
 
     [Header("Charged Shot Timing")]
@@ -71,13 +64,15 @@ public class BossAssistDroneController : MonoBehaviour
     [SerializeField, Min(0f)] float chargedFireDelay = 0.25f;
 
     [Header("SFX")]
-    [Tooltip("普通点射音效。")]
-    [SerializeField] AudioClip tapShotClip;
     [Tooltip("Boss 版：蓄力与蓄力射击共用同一音效（先播，延迟后发弹）。")]
     [SerializeField] AudioClip chargedShotClip;
-    [SerializeField] AudioSource tapShotSourceA;
-    [SerializeField] AudioSource tapShotSourceB;
     [SerializeField] AudioSource chargedShotSource;
+
+    [Header("SFX Time Slow")]
+    [SerializeField, Range(0.05f, 1f)] float slowedSfxPitch = 0.45f;
+
+    bool slowSfxByTimeSlow;
+    float chargedSourceDefaultPitch = 1f;
 
     DroneState state = DroneState.Docked;
     Transform currentTarget;
@@ -85,7 +80,6 @@ public class BossAssistDroneController : MonoBehaviour
     float orbitPhase;
     float nextTargetRefreshTime;
     float nextDecisionTime;
-    float nextTapAllowedTime;
     float nextChargedAllowedTime;
 
     bool chargedPending;
@@ -107,7 +101,22 @@ public class BossAssistDroneController : MonoBehaviour
 
         if (activeCenter == null) activeCenter = dockAnchor;
 
+        chargedSourceDefaultPitch = chargedShotSource != null ? chargedShotSource.pitch : 1f;
+
         SnapToDockPose();
+    }
+
+    void OnEnable()
+    {
+        CombatSfxSignals.OnAbility3TimeSlowBegin += HandleAbility3TimeSlowBegin;
+        CombatSfxSignals.OnAbility3TimeSlowEnd += HandleAbility3TimeSlowEnd;
+    }
+
+    void OnDisable()
+    {
+        CombatSfxSignals.OnAbility3TimeSlowBegin -= HandleAbility3TimeSlowBegin;
+        CombatSfxSignals.OnAbility3TimeSlowEnd -= HandleAbility3TimeSlowEnd;
+        RestoreSfxPitch();
     }
 
     void Update()
@@ -205,13 +214,7 @@ public class BossAssistDroneController : MonoBehaviour
         if (currentTarget == null) return;
 
         if (Time.time >= nextChargedAllowedTime && Random.value <= chargedChancePerDecision)
-        {
             TryStartCharged(currentTarget);
-            return;
-        }
-
-        if (Time.time >= nextTapAllowedTime && Random.value <= tapChancePerDecision)
-            TryFireTap(currentTarget);
     }
 
     void TickChargedPending()
@@ -244,32 +247,10 @@ public class BossAssistDroneController : MonoBehaviour
 
     void FireChargedNow(Transform target)
     {
-        GameObject prefab = chargedProjectilePrefab != null ? chargedProjectilePrefab : tapProjectilePrefab;
-        if (prefab == null || chargedAttackConfig == null) return;
+        if (chargedProjectilePrefab == null || chargedAttackConfig == null) return;
 
-        Transform muzzle = chargedMuzzle != null ? chargedMuzzle : muzzleLegacy;
-        FireProjectileFromMuzzle(prefab, muzzle, target, chargedAttackConfig);
-    }
-
-    void TryFireTap(Transform target)
-    {
-        if (tapAttackConfig == null || tapProjectilePrefab == null) return;
-
-        nextTapAllowedTime = Time.time + tapCooldown;
-
-        Transform mA = tapMuzzleA != null ? tapMuzzleA : muzzleLegacy;
-        Transform mB = tapMuzzleB;
-
-        bool firedA = FireProjectileFromMuzzle(tapProjectilePrefab, mA, target, tapAttackConfig);
-        bool firedB = FireProjectileFromMuzzle(tapProjectilePrefab, mB, target, tapAttackConfig);
-
-        if (tapShotClip != null)
-        {
-            if (firedA) PlayOneShot(tapShotSourceA, tapShotClip, mA != null ? mA.position : transform.position);
-            if (firedB) PlayOneShot(tapShotSourceB, tapShotClip, mB != null ? mB.position : transform.position);
-            if (!firedA && !firedB)
-                PlayOneShot(tapShotSourceA, tapShotClip, transform.position);
-        }
+        Transform muzzle = chargedMuzzle != null ? chargedMuzzle : transform;
+        FireProjectileFromMuzzle(chargedProjectilePrefab, muzzle, target, chargedAttackConfig);
     }
 
     bool FireProjectileFromMuzzle(GameObject prefab, Transform muzzle, Transform target, AttackConfig cfg)
@@ -440,6 +421,41 @@ public class BossAssistDroneController : MonoBehaviour
             return transform.rotation;
 
         return dockAnchor.rotation * Quaternion.Euler(dockLocalEuler);
+    }
+
+
+    void HandleAbility3TimeSlowBegin()
+    {
+        slowSfxByTimeSlow = true;
+        ApplySfxPitch();
+    }
+
+    void HandleAbility3TimeSlowEnd()
+    {
+        slowSfxByTimeSlow = false;
+        RestoreSfxPitch();
+    }
+
+    void ApplySfxPitch()
+    {
+        if (!slowSfxByTimeSlow)
+        {
+            RestoreSfxPitch();
+            return;
+        }
+
+        float targetPitch = Mathf.Clamp(slowedSfxPitch, 0.05f, 1f);
+        SetSourcePitch(chargedShotSource, targetPitch);
+    }
+
+    void RestoreSfxPitch()
+    {
+        SetSourcePitch(chargedShotSource, chargedSourceDefaultPitch);
+    }
+
+    static void SetSourcePitch(AudioSource src, float pitch)
+    {
+        if (src != null) src.pitch = pitch;
     }
 
     static void PlayOneShot(AudioSource src, AudioClip clip, Vector3 posFallback)
