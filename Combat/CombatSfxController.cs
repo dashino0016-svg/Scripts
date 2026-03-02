@@ -32,6 +32,7 @@ public class CombatSfxController : MonoBehaviour
         CombatSfxSignals.OnAbilityTriggered += HandleAbilityTriggered;
         CombatSfxSignals.OnAbility3TimeSlowBegin += HandleAbility3TimeSlowBegin;
         CombatSfxSignals.OnAbility3TimeSlowEnd += HandleAbility3TimeSlowEnd;
+        CombatSfxSignals.OnTakedownImpact += HandleTakedownImpact;
     }
 
     void OnDisable()
@@ -41,6 +42,7 @@ public class CombatSfxController : MonoBehaviour
         CombatSfxSignals.OnAbilityTriggered -= HandleAbilityTriggered;
         CombatSfxSignals.OnAbility3TimeSlowBegin -= HandleAbility3TimeSlowBegin;
         CombatSfxSignals.OnAbility3TimeSlowEnd -= HandleAbility3TimeSlowEnd;
+        CombatSfxSignals.OnTakedownImpact -= HandleTakedownImpact;
     }
 
     void HandleWhoosh(CombatAttackSfxKey key, Transform emitter)
@@ -101,6 +103,13 @@ public class CombatSfxController : MonoBehaviour
     {
         if (bgmController == null) return;
         bgmController.EndOverrideLoop();
+    }
+
+    void HandleTakedownImpact(CombatSfxTakedownType type, Transform emitter)
+    {
+        if (emitter != transform) return;
+        if (config == null) return;
+        PlayOneShot(config.GetTakedownClip(type));
     }
 
     static bool IsImpactResult(HitResultType type)
