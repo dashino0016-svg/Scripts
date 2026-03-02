@@ -30,7 +30,7 @@ public class NoiseEmitter : MonoBehaviour
                 return;
 
             bool crouching = playerController != null && playerController.IsCrouching;
-            if (crouching && playerMove.IsWalking)
+            if (crouching)
                 return;
 
             if (playerMove.IsSprinting)
