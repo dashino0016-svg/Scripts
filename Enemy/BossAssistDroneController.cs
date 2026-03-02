@@ -79,6 +79,14 @@ public class BossAssistDroneController : MonoBehaviour
     [SerializeField] AudioSource tapShotSourceB;
     [SerializeField] AudioSource chargedShotSource;
 
+    [Header("SFX Time Slow")]
+    [SerializeField, Range(0.05f, 1f)] float slowedSfxPitch = 0.45f;
+
+    bool slowSfxByTimeSlow;
+    float tapSourceADefaultPitch = 1f;
+    float tapSourceBDefaultPitch = 1f;
+    float chargedSourceDefaultPitch = 1f;
+
     DroneState state = DroneState.Docked;
     Transform currentTarget;
 
@@ -107,7 +115,24 @@ public class BossAssistDroneController : MonoBehaviour
 
         if (activeCenter == null) activeCenter = dockAnchor;
 
+        tapSourceADefaultPitch = tapShotSourceA != null ? tapShotSourceA.pitch : 1f;
+        tapSourceBDefaultPitch = tapShotSourceB != null ? tapShotSourceB.pitch : 1f;
+        chargedSourceDefaultPitch = chargedShotSource != null ? chargedShotSource.pitch : 1f;
+
         SnapToDockPose();
+    }
+
+    void OnEnable()
+    {
+        CombatSfxSignals.OnAbility3TimeSlowBegin += HandleAbility3TimeSlowBegin;
+        CombatSfxSignals.OnAbility3TimeSlowEnd += HandleAbility3TimeSlowEnd;
+    }
+
+    void OnDisable()
+    {
+        CombatSfxSignals.OnAbility3TimeSlowBegin -= HandleAbility3TimeSlowBegin;
+        CombatSfxSignals.OnAbility3TimeSlowEnd -= HandleAbility3TimeSlowEnd;
+        RestoreSfxPitch();
     }
 
     void Update()
@@ -440,6 +465,45 @@ public class BossAssistDroneController : MonoBehaviour
             return transform.rotation;
 
         return dockAnchor.rotation * Quaternion.Euler(dockLocalEuler);
+    }
+
+
+    void HandleAbility3TimeSlowBegin()
+    {
+        slowSfxByTimeSlow = true;
+        ApplySfxPitch();
+    }
+
+    void HandleAbility3TimeSlowEnd()
+    {
+        slowSfxByTimeSlow = false;
+        RestoreSfxPitch();
+    }
+
+    void ApplySfxPitch()
+    {
+        if (!slowSfxByTimeSlow)
+        {
+            RestoreSfxPitch();
+            return;
+        }
+
+        float targetPitch = Mathf.Clamp(slowedSfxPitch, 0.05f, 1f);
+        SetSourcePitch(tapShotSourceA, targetPitch);
+        SetSourcePitch(tapShotSourceB, targetPitch);
+        SetSourcePitch(chargedShotSource, targetPitch);
+    }
+
+    void RestoreSfxPitch()
+    {
+        SetSourcePitch(tapShotSourceA, tapSourceADefaultPitch);
+        SetSourcePitch(tapShotSourceB, tapSourceBDefaultPitch);
+        SetSourcePitch(chargedShotSource, chargedSourceDefaultPitch);
+    }
+
+    static void SetSourcePitch(AudioSource src, float pitch)
+    {
+        if (src != null) src.pitch = pitch;
     }
 
     static void PlayOneShot(AudioSource src, AudioClip clip, Vector3 posFallback)
