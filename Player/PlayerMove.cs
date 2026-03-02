@@ -145,10 +145,15 @@ public class PlayerMove : MonoBehaviour
     public bool AllowJump = true;
     public bool AllowRunSprint = true;
 
-    public bool IsSprinting => isSprinting;
-    public bool IsRunning => shiftHeld && !isSprinting && input.sqrMagnitude > 0.1f;
+    bool IsRunSprintStateValid => AllowRunSprint && isGrounded && input.sqrMagnitude > 0.01f;
+
+    public bool IsSprinting => isSprinting && IsRunSprintStateValid;
+    public bool IsRunning => shiftHeld && !isSprinting && IsRunSprintStateValid;
     public bool IsGrounded => isGrounded;
-    public bool IsWalking => input.sqrMagnitude > 0.01f && !isSprinting && (!shiftHeld || forceWalkThisFrame);
+    public bool IsWalking =>
+        input.sqrMagnitude > 0.01f
+        && !isSprinting
+        && (!shiftHeld || forceWalkThisFrame || !AllowRunSprint || !isGrounded);
     public bool IsMoving => input.sqrMagnitude > 0.01f;
 
     void Start()
