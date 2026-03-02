@@ -37,6 +37,10 @@ public class CombatSfxConfig : ScriptableObject
     [SerializeField] bool enableAirAttackA = true;
     [SerializeField] bool enableAirAttackB = true;
 
+    [Header("Takedown")]
+    public AudioClip assassinateClip;
+    public AudioClip executeClip;
+
     [Header("Defender")]
     public AudioClip blockedClip;
     public AudioClip perfectBlockClip;
@@ -116,4 +120,10 @@ public class CombatSfxConfig : ScriptableObject
 
         return null;
     }
+
+    public AudioClip GetTakedownClip(CombatSfxTakedownType type)
+    {
+        return type == CombatSfxTakedownType.Assassinate ? assassinateClip : executeClip;
+    }
 }
+
