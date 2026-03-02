@@ -365,7 +365,7 @@ public class AssassinationSystem : MonoBehaviour
     {
         if (!isAssassinating) return;
         if (currentType != TakedownType.Assassinate) return;
-        CombatSfxSignals.RaiseTakedownImpact(CombatSfxTakedownType.Assassinate, transform);
+        CombatSfxSignals.RaiseTakedownStart(CombatSfxTakedownType.Assassinate, transform);
         DoTakedownImpact(assassinationSpecialGain);
     }
 
@@ -373,7 +373,7 @@ public class AssassinationSystem : MonoBehaviour
     {
         if (!isAssassinating) return;
         if (currentType != TakedownType.Execute) return;
-        CombatSfxSignals.RaiseTakedownImpact(CombatSfxTakedownType.Execute, transform);
+        CombatSfxSignals.RaiseTakedownStart(CombatSfxTakedownType.Execute, transform);
         DoTakedownImpact(executeSpecialGain);
     }
 
