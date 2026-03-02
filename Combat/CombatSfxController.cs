@@ -32,7 +32,7 @@ public class CombatSfxController : MonoBehaviour
         CombatSfxSignals.OnAbilityTriggered += HandleAbilityTriggered;
         CombatSfxSignals.OnAbility3TimeSlowBegin += HandleAbility3TimeSlowBegin;
         CombatSfxSignals.OnAbility3TimeSlowEnd += HandleAbility3TimeSlowEnd;
-        CombatSfxSignals.OnTakedownImpact += HandleTakedownImpact;
+        CombatSfxSignals.OnTakedownStart += HandleTakedownStart;
     }
 
     void OnDisable()
@@ -42,7 +42,7 @@ public class CombatSfxController : MonoBehaviour
         CombatSfxSignals.OnAbilityTriggered -= HandleAbilityTriggered;
         CombatSfxSignals.OnAbility3TimeSlowBegin -= HandleAbility3TimeSlowBegin;
         CombatSfxSignals.OnAbility3TimeSlowEnd -= HandleAbility3TimeSlowEnd;
-        CombatSfxSignals.OnTakedownImpact -= HandleTakedownImpact;
+        CombatSfxSignals.OnTakedownStart -= HandleTakedownStart;
     }
 
     void HandleWhoosh(CombatAttackSfxKey key, Transform emitter)
@@ -105,7 +105,7 @@ public class CombatSfxController : MonoBehaviour
         bgmController.EndOverrideLoop();
     }
 
-    void HandleTakedownImpact(CombatSfxTakedownType type, Transform emitter)
+    void HandleTakedownStart(CombatSfxTakedownType type, Transform emitter)
     {
         if (emitter != transform) return;
         if (config == null) return;

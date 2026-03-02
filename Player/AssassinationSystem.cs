@@ -231,6 +231,11 @@ public class AssassinationSystem : MonoBehaviour
         currentEnemyController = targetEnemy;
         currentEnemyAnim = (currentEnemyController != null) ? currentEnemyController.GetComponent<Animator>() : null;
 
+        var sfxType = currentType == TakedownType.Execute
+            ? CombatSfxTakedownType.Execute
+            : CombatSfxTakedownType.Assassinate;
+        CombatSfxSignals.RaiseTakedownStart(sfxType, transform);
+
         isAssassinating = true;
 
         if (TimeController.Instance != null)
