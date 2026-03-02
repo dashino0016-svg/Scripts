@@ -28,6 +28,7 @@ public static class CombatSfxSignals
     public static event Action<int> OnAbilityTriggered;
     public static event Action OnAbility3TimeSlowBegin;
     public static event Action OnAbility3TimeSlowEnd;
+    public static event Action<CombatSfxTakedownType, Transform> OnTakedownStart;
 
     public static void RaiseAttackWhoosh(CombatAttackSfxKey key, Transform emitter)
         => OnAttackWhoosh?.Invoke(key, emitter);
@@ -43,4 +44,8 @@ public static class CombatSfxSignals
 
     public static void RaiseAbility3TimeSlowEnd()
         => OnAbility3TimeSlowEnd?.Invoke();
+
+    public static void RaiseTakedownStart(CombatSfxTakedownType type, Transform emitter)
+        => OnTakedownStart?.Invoke(type, emitter);
 }
+

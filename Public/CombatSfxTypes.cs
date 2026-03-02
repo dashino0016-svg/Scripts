@@ -14,6 +14,12 @@ public enum CombatSfxAttackGroup
     AirAttackB,
 }
 
+public enum CombatSfxTakedownType
+{
+    Assassinate,
+    Execute,
+}
+
 public readonly struct CombatAttackSfxKey
 {
     public readonly CombatSfxAttackGroup Group;
