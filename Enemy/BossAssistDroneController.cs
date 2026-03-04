@@ -59,12 +59,8 @@ public class BossAssistDroneController : MonoBehaviour
     [SerializeField, Min(0.02f)] float decisionInterval = 0.2f;
     [SerializeField, Range(0f, 1f)] float chargedChancePerDecision = 0.20f;
 
-    [Header("Charged Timing")]
-    [Tooltip("先播放音效，再在该延迟后发射子弹。")]
-    [SerializeField, Min(0f)] float chargedShotDelayAfterSfx = 0.2f;
-
     [Header("SFX")]
-    [Tooltip("Boss 版：先播放该音效，再按延迟时间发射子弹。")]
+    [Tooltip("Boss 版：取消蓄力音效，改为发射子弹瞬间播放该音效。")]
     [SerializeField] AudioClip chargedShotClip;
     [SerializeField] AudioSource chargedShotSource;
 
@@ -81,8 +77,6 @@ public class BossAssistDroneController : MonoBehaviour
     float nextTargetRefreshTime;
     float nextDecisionTime;
     float nextChargedAllowedTime;
-
-    Coroutine pendingChargedShotRoutine;
 
     Vector3 transitionStartPos;
     Quaternion transitionStartRot;
@@ -114,7 +108,6 @@ public class BossAssistDroneController : MonoBehaviour
     {
         CombatSfxSignals.OnAbility3TimeSlowBegin -= HandleAbility3TimeSlowBegin;
         CombatSfxSignals.OnAbility3TimeSlowEnd -= HandleAbility3TimeSlowEnd;
-        CancelPendingChargedShot();
         RestoreSfxPitch();
     }
 
@@ -216,38 +209,12 @@ public class BossAssistDroneController : MonoBehaviour
 
     void TryStartCharged(Transform target)
     {
-        if (chargedAttackConfig == null || target == null) return;
+        if (chargedAttackConfig == null) return;
 
         nextChargedAllowedTime = Time.time + chargedCooldown;
 
-        PlayOneShot(chargedShotSource, chargedShotClip, transform.position);
-
-        CancelPendingChargedShot();
-        pendingChargedShotRoutine = StartCoroutine(FireChargedAfterDelay(target));
-    }
-
-    System.Collections.IEnumerator FireChargedAfterDelay(Transform lockedTarget)
-    {
-        float delay = Mathf.Max(0f, chargedShotDelayAfterSfx);
-        if (delay > 0f)
-            yield return new WaitForSeconds(delay);
-
-        if (state != DroneState.Active)
-        {
-            pendingChargedShotRoutine = null;
-            yield break;
-        }
-
-        Transform target = lockedTarget != null ? lockedTarget : currentTarget;
-        FireChargedNow(target);
-        pendingChargedShotRoutine = null;
-    }
-
-    void CancelPendingChargedShot()
-    {
-        if (pendingChargedShotRoutine == null) return;
-        StopCoroutine(pendingChargedShotRoutine);
-        pendingChargedShotRoutine = null;
+        if (FireChargedNow(target))
+            PlayOneShot(chargedShotSource, chargedShotClip, transform.position);
     }
 
     bool FireChargedNow(Transform target)
@@ -388,8 +355,6 @@ public class BossAssistDroneController : MonoBehaviour
         if (state == DroneState.Returning || state == DroneState.Docked)
             return;
 
-        CancelPendingChargedShot();
-
         transitionStartPos = transform.position;
         transitionStartRot = transform.rotation;
 
@@ -405,7 +370,6 @@ public class BossAssistDroneController : MonoBehaviour
 
     void SnapToDockPose()
     {
-        CancelPendingChargedShot();
         transform.position = GetDockWorldPos();
         transform.rotation = GetDockWorldRot();
     }
