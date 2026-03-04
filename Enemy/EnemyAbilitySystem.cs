@@ -248,6 +248,8 @@ public class EnemyAbilitySystem : MonoBehaviour
             return;
         }
 
+        CombatSfxSignals.RaiseAbilityTriggered(ToSfxAbilityId(pending));
+
         switch (pending)
         {
             case AbilityType.Ability1Short:
@@ -259,6 +261,16 @@ public class EnemyAbilitySystem : MonoBehaviour
         }
 
         hasPending = false;
+    }
+
+    static int ToSfxAbilityId(AbilityType type)
+    {
+        return type switch
+        {
+            AbilityType.Ability1Short => 1,
+            AbilityType.Ability1Long => 1,
+            _ => 1,
+        };
     }
 
     public void AbilityEnd()
