@@ -12,6 +12,7 @@ public class CombatReceiver : MonoBehaviour, IHittable
     BlockController block;
     CombatStats stats;
     HitReactionFilter reactionFilter;
+    EnemyController enemyController;
     bool selfIsPlayer;
 
     Transform lastAttacker;
@@ -197,7 +198,13 @@ public class CombatReceiver : MonoBehaviour, IHittable
         if (stats != null && stats.IsDead)
             return;
 
-        if (Time.time - hitLockStartTime >= Mathf.Max(0.05f, hitLockTimeout))
+        float timeoutWorldSeconds = Mathf.Max(0.05f, hitLockTimeout);
+
+        // ✅ 敌人局部减速下，受击动画会变慢；超时兜底按局部时间等比拉长，避免 HitRecover 前被提前清锁。
+        if (enemyController != null)
+            timeoutWorldSeconds /= Mathf.Max(0.05f, enemyController.LocalTimeScale);
+
+        if (Time.time - hitLockStartTime >= timeoutWorldSeconds)
             ForceClearHitLock();
     }
 
@@ -207,6 +214,7 @@ public class CombatReceiver : MonoBehaviour, IHittable
         block = GetComponent<BlockController>();
         stats = GetComponent<CombatStats>();
         reactionFilter = GetComponent<HitReactionFilter>();
+        enemyController = GetComponent<EnemyController>();
 
         reactLayer = anim.GetLayerIndex("React Layer");
         if (reactLayer < 0) reactLayer = 0; // 找不到就回退到0层
