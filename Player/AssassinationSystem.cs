@@ -329,34 +329,31 @@ public class AssassinationSystem : MonoBehaviour
         if (t > 0f) yield return new WaitForSecondsRealtime(t);
         else yield return null;
 
-        if (anim != null)
+        string playerWant = (currentType == TakedownType.Execute) ? playerExecuteStateName : playerAssassinateStateName;
+        ForceCrossFadeToState(anim, playerWant, baseLayerOnly: true);
+
+        string enemyWant = (currentType == TakedownType.Execute) ? enemyExecutedStateName : enemyAssassinatedStateName;
+        ForceCrossFadeToState(currentEnemyAnim, enemyWant, baseLayerOnly: false);
+    }
+
+    static void ForceCrossFadeToState(Animator targetAnim, string stateName, bool baseLayerOnly)
+    {
+        if (targetAnim == null || string.IsNullOrEmpty(stateName))
+            return;
+
+        int hash = Animator.StringToHash(stateName);
+        int layerCount = baseLayerOnly ? 1 : Mathf.Max(1, targetAnim.layerCount);
+
+        for (int layer = 0; layer < layerCount; layer++)
         {
-            string want = (currentType == TakedownType.Execute) ? playerExecuteStateName : playerAssassinateStateName;
-            if (!string.IsNullOrEmpty(want))
-            {
-                int layer = 0;
-                int hash = Animator.StringToHash(want);
-                var info = anim.GetCurrentAnimatorStateInfo(layer);
+            if (!targetAnim.HasState(layer, hash))
+                continue;
 
-                bool alreadyIn = (info.shortNameHash == hash && info.normalizedTime < 0.98f);
-                if (!alreadyIn && anim.HasState(layer, hash))
-                    anim.CrossFadeInFixedTime(want, 0.02f, layer, 0f);
-            }
-        }
-
-        if (currentEnemyAnim != null)
-        {
-            string want = (currentType == TakedownType.Execute) ? enemyExecutedStateName : enemyAssassinatedStateName;
-            if (!string.IsNullOrEmpty(want))
-            {
-                int layer = 0;
-                int hash = Animator.StringToHash(want);
-                var info = currentEnemyAnim.GetCurrentAnimatorStateInfo(layer);
-
-                bool alreadyIn = (info.shortNameHash == hash && info.normalizedTime < 0.98f);
-                if (!alreadyIn && currentEnemyAnim.HasState(layer, hash))
-                    currentEnemyAnim.CrossFadeInFixedTime(want, 0.02f, layer, 0f);
-            }
+            AnimatorStateInfo info = targetAnim.GetCurrentAnimatorStateInfo(layer);
+            bool alreadyIn = (info.shortNameHash == hash && info.normalizedTime < 0.98f);
+            if (!alreadyIn)
+                targetAnim.CrossFadeInFixedTime(stateName, 0.02f, layer, 0f);
+            return;
         }
     }
 
