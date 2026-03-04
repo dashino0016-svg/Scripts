@@ -589,7 +589,7 @@ public class PlayerController : MonoBehaviour
             if (fighter != null && fighter.IsInHitWindow)
                 return;
 
-            Vector3 targetPoint = LockTargetPointUtility.GetCapsuleCenter(targetStats.transform);
+            Vector3 targetPoint = LockTargetPointUtility.GetLockPoint(targetStats.transform);
             Vector3 dir = targetPoint - transform.position;
             dir.y = 0f;
 
@@ -629,7 +629,7 @@ public class PlayerController : MonoBehaviour
         if (isAttacking)
             return;
 
-        Vector3 p = LockTargetPointUtility.GetCapsuleCenter(targetStats.transform);
+        Vector3 p = LockTargetPointUtility.GetLockPoint(targetStats.transform);
         Vector3 d = p - transform.position;
         d.y = 0f;
 

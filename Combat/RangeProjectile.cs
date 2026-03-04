@@ -313,7 +313,7 @@ public class RangeProjectile : MonoBehaviour
 
         if (aimBackToOriginalAttacker && originalAttacker != null)
         {
-            Vector3 aimPos = LockTargetPointUtility.GetCapsuleCenter(originalAttacker);
+            Vector3 aimPos = LockTargetPointUtility.GetLockPoint(originalAttacker);
             newDir = (aimPos - transform.position);   // ✅ 不抹 y
             if (newDir.sqrMagnitude < 0.001f)
                 newDir = -dir;

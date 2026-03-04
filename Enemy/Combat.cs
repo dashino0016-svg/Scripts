@@ -1692,7 +1692,7 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
     Vector3 GetTargetPoint()
     {
-        return LockTargetPointUtility.GetCapsuleCenter(target);
+        return LockTargetPointUtility.GetLockPoint(target);
     }
 
     void EnableRootMotionForRetreat()

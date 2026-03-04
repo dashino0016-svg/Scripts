@@ -1447,7 +1447,7 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
 
     Vector3 GetTargetPoint()
     {
-        return LockTargetPointUtility.GetCapsuleCenter(target);
+        return LockTargetPointUtility.GetLockPoint(target);
     }
 
     Vector3 GetAimDir3D()

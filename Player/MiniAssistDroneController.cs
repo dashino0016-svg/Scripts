@@ -526,7 +526,7 @@ public class MiniAssistDroneController : MonoBehaviour
             if (s == ownerStats) continue;
             if (s.IsDead) continue;
 
-            float sqr = (LockTargetPointUtility.GetCapsuleCenter(s.transform) - center).sqrMagnitude;
+            float sqr = (LockTargetPointUtility.GetLockPoint(s.transform) - center).sqrMagnitude;
             if (sqr < bestSqr)
             {
                 bestSqr = sqr;
@@ -747,7 +747,7 @@ public class MiniAssistDroneController : MonoBehaviour
 
         if (targetStats != null)
         {
-            Vector3 aim = LockTargetPointUtility.GetCapsuleCenter(targetStats.transform);
+            Vector3 aim = LockTargetPointUtility.GetLockPoint(targetStats.transform);
             Vector3 dir = aim - transform.position;
             dir.y = 0f;
 
@@ -871,7 +871,7 @@ public class MiniAssistDroneController : MonoBehaviour
 
         Vector3 origin = (muzzle != null) ? muzzle.position : transform.position;
 
-        Vector3 aim = LockTargetPointUtility.GetCapsuleCenter(target.transform);
+        Vector3 aim = LockTargetPointUtility.GetLockPoint(target.transform);
         Vector3 dir = aim - origin;
         if (dir.sqrMagnitude < 0.0001f) dir = transform.forward;
 

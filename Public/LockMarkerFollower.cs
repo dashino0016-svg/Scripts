@@ -96,7 +96,7 @@ public class LockMarkerFollower : MonoBehaviour
         }
 
         // 目标点 = 目标位置 + 偏移（+ 可选缓存中心偏移）
-        Vector3 targetPos = LockTargetPointUtility.GetCapsuleCenter(_target) + worldOffset;
+        Vector3 targetPos = LockTargetPointUtility.GetLockPoint(_target) + worldOffset;
         if (useRendererCenterOnce && _hasCachedOffset)
             targetPos += _cachedCenterOffset;
 

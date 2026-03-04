@@ -411,7 +411,7 @@ public class AssistDroneController : MonoBehaviour
             CombatStats stats = candidate.GetComponentInParent<CombatStats>();
             Transform root = stats != null ? stats.transform : candidate;
 
-            Vector3 pos = LockTargetPointUtility.GetCapsuleCenter(root);
+            Vector3 pos = LockTargetPointUtility.GetLockPoint(root);
             float d = (pos - transform.position).sqrMagnitude;
             if (d < bestDist)
             {
@@ -447,7 +447,7 @@ public class AssistDroneController : MonoBehaviour
         if (targetRoot == null)
             return transform.position + transform.forward;
 
-        return LockTargetPointUtility.GetCapsuleCenter(targetRoot);
+        return LockTargetPointUtility.GetLockPoint(targetRoot);
     }
 
     Vector3 GetFireForward()

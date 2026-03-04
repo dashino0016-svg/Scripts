@@ -450,7 +450,7 @@ public class PlayerAbilitySystem : MonoBehaviour
             return false;
 
         float sqrRange = ability2Range * ability2Range;
-        Vector3 to = LockTargetPointUtility.GetCapsuleCenter(floatState.transform) - transform.position;
+        Vector3 to = LockTargetPointUtility.GetLockPoint(floatState.transform) - transform.position;
         to.y = 0f;
         return to.sqrMagnitude <= sqrRange;
     }

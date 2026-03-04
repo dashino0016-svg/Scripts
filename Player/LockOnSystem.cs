@@ -26,15 +26,12 @@ public class LockOnSystem : MonoBehaviour
     public event Action<CombatStats> OnTargetChanged;
 
     Transform player;
-    CharacterController selfCC;
 
     bool hadTarget;
 
     void Awake()
     {
         player = transform;
-        selfCC = GetComponent<CharacterController>();
-
         if (viewTransform == null && Camera.main != null)
             viewTransform = Camera.main.transform;
     }
@@ -98,16 +95,13 @@ public class LockOnSystem : MonoBehaviour
     Vector3 GetSelfWorldPoint()
     {
         if (player == null) player = transform;
-        if (selfCC == null) selfCC = GetComponent<CharacterController>();
-
-        if (selfCC != null) return selfCC.bounds.center;
-        return player.position;
+        return LockTargetPointUtility.GetLockPoint(player);
     }
 
     Vector3 GetWorldPoint(CombatStats stats)
     {
         if (stats == null) return Vector3.zero;
-        return LockTargetPointUtility.GetCapsuleCenter(stats.transform);
+        return LockTargetPointUtility.GetLockPoint(stats.transform);
     }
 
     // ================= Public API =================

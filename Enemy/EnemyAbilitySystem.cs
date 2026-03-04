@@ -109,7 +109,7 @@ public class EnemyAbilitySystem : MonoBehaviour
         if (target == null) return false;
 
         Vector3 origin = transform.position;
-        Vector3 targetPoint = LockTargetPointUtility.GetCapsuleCenter(target);
+        Vector3 targetPoint = LockTargetPointUtility.GetLockPoint(target);
         Vector3 to = targetPoint - origin;
         to.y = 0f;
 
@@ -133,7 +133,7 @@ public class EnemyAbilitySystem : MonoBehaviour
         if (target == null) return false;
 
         Vector3 origin = transform.position;
-        Vector3 targetPoint = LockTargetPointUtility.GetCapsuleCenter(target);
+        Vector3 targetPoint = LockTargetPointUtility.GetLockPoint(target);
         Vector3 to = targetPoint - origin;
         to.y = 0f;
         return to.magnitude <= shockwaveLongRange;
