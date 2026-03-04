@@ -59,12 +59,8 @@ public class BossAssistDroneController : MonoBehaviour
     [SerializeField, Min(0.02f)] float decisionInterval = 0.2f;
     [SerializeField, Range(0f, 1f)] float chargedChancePerDecision = 0.20f;
 
-    [Header("Charged Shot Timing")]
-    [Tooltip("播放蓄力/蓄力射击音效后，延迟多久再真正发射子弹（用于对齐音效里后半段射击点）。")]
-    [SerializeField, Min(0f)] float chargedFireDelay = 0.25f;
-
     [Header("SFX")]
-    [Tooltip("Boss 版：蓄力与蓄力射击共用同一音效（先播，延迟后发弹）。")]
+    [Tooltip("Boss 版：取消蓄力音效，改为发射子弹瞬间播放该音效。")]
     [SerializeField] AudioClip chargedShotClip;
     [SerializeField] AudioSource chargedShotSource;
 
@@ -81,10 +77,6 @@ public class BossAssistDroneController : MonoBehaviour
     float nextTargetRefreshTime;
     float nextDecisionTime;
     float nextChargedAllowedTime;
-
-    bool chargedPending;
-    float chargedFireAt;
-    Transform chargedTarget;
 
     Vector3 transitionStartPos;
     Quaternion transitionStartRot;
@@ -202,12 +194,10 @@ public class BossAssistDroneController : MonoBehaviour
 
         FaceTargetOrBossForward();
         TickFireDecision();
-        TickChargedPending();
     }
 
     void TickFireDecision()
     {
-        if (chargedPending) return;
         if (Time.time < nextDecisionTime) return;
         nextDecisionTime = Time.time + decisionInterval;
 
@@ -217,40 +207,22 @@ public class BossAssistDroneController : MonoBehaviour
             TryStartCharged(currentTarget);
     }
 
-    void TickChargedPending()
-    {
-        if (!chargedPending) return;
-        if (Time.time < chargedFireAt) return;
-
-        chargedPending = false;
-
-        if (chargedTarget == null)
-            chargedTarget = currentTarget;
-
-        FireChargedNow(chargedTarget);
-        chargedTarget = null;
-    }
-
     void TryStartCharged(Transform target)
     {
         if (chargedAttackConfig == null) return;
 
         nextChargedAllowedTime = Time.time + chargedCooldown;
 
-        // Boss 需求：蓄力与蓄力射击同一音效；先播，再延迟发射
-        PlayOneShot(chargedShotSource, chargedShotClip, transform.position);
-
-        chargedPending = true;
-        chargedFireAt = Time.time + Mathf.Max(0f, chargedFireDelay);
-        chargedTarget = target;
+        if (FireChargedNow(target))
+            PlayOneShot(chargedShotSource, chargedShotClip, transform.position);
     }
 
-    void FireChargedNow(Transform target)
+    bool FireChargedNow(Transform target)
     {
-        if (chargedProjectilePrefab == null || chargedAttackConfig == null) return;
+        if (chargedProjectilePrefab == null || chargedAttackConfig == null) return false;
 
         Transform muzzle = chargedMuzzle != null ? chargedMuzzle : transform;
-        FireProjectileFromMuzzle(chargedProjectilePrefab, muzzle, target, chargedAttackConfig);
+        return FireProjectileFromMuzzle(chargedProjectilePrefab, muzzle, target, chargedAttackConfig);
     }
 
     bool FireProjectileFromMuzzle(GameObject prefab, Transform muzzle, Transform target, AttackConfig cfg)
@@ -383,9 +355,6 @@ public class BossAssistDroneController : MonoBehaviour
         if (state == DroneState.Returning || state == DroneState.Docked)
             return;
 
-        chargedPending = false;
-        chargedTarget = null;
-
         transitionStartPos = transform.position;
         transitionStartRot = transform.rotation;
 
@@ -403,8 +372,6 @@ public class BossAssistDroneController : MonoBehaviour
     {
         transform.position = GetDockWorldPos();
         transform.rotation = GetDockWorldRot();
-        chargedPending = false;
-        chargedTarget = null;
     }
 
     Vector3 GetDockWorldPos()
