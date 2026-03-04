@@ -9,6 +9,7 @@ public class BossAssistDroneController : MonoBehaviour
     [SerializeField] Transform bossRoot;
     [SerializeField] CombatStats bossStats;
     [SerializeField] EnemyController bossController;
+    [SerializeField] CombatStats droneStats;
 
     [Header("Anchors")]
     [Tooltip("无人机停靠点（Boss 背上挂点）。")]
@@ -49,6 +50,10 @@ public class BossAssistDroneController : MonoBehaviour
     [Header("Muzzles")]
     [SerializeField] Transform chargedMuzzle;
 
+    [Header("Targetable")]
+    [Tooltip("无人机可被玩家锁定/命中的碰撞体（通常是机身 HurtBox）。留空会自动收集子物体上的全部 Collider。")]
+    [SerializeField] Collider[] targetableColliders;
+
     [Header("Projectile")]
     [SerializeField] GameObject chargedProjectilePrefab;
     [SerializeField] AttackConfig chargedAttackConfig;
@@ -72,6 +77,7 @@ public class BossAssistDroneController : MonoBehaviour
 
     DroneState state = DroneState.Docked;
     Transform currentTarget;
+    bool retiredUntilRefresh;
 
     float orbitPhase;
     float nextTargetRefreshTime;
@@ -90,24 +96,36 @@ public class BossAssistDroneController : MonoBehaviour
         if (bossRoot == null) bossRoot = transform.root;
         if (bossStats == null) bossStats = bossRoot != null ? bossRoot.GetComponent<CombatStats>() : null;
         if (bossController == null) bossController = bossRoot != null ? bossRoot.GetComponent<EnemyController>() : null;
+        if (droneStats == null) droneStats = GetComponent<CombatStats>();
 
         if (activeCenter == null) activeCenter = dockAnchor;
 
         chargedSourceDefaultPitch = chargedShotSource != null ? chargedShotSource.pitch : 1f;
 
+        if (targetableColliders == null || targetableColliders.Length == 0)
+            targetableColliders = GetComponentsInChildren<Collider>(true);
+
         SnapToDockPose();
+        SetTargetable(false);
     }
 
     void OnEnable()
     {
         CombatSfxSignals.OnAbility3TimeSlowBegin += HandleAbility3TimeSlowBegin;
         CombatSfxSignals.OnAbility3TimeSlowEnd += HandleAbility3TimeSlowEnd;
+
+        if (droneStats != null)
+            droneStats.OnDead += HandleDroneDead;
     }
 
     void OnDisable()
     {
         CombatSfxSignals.OnAbility3TimeSlowBegin -= HandleAbility3TimeSlowBegin;
         CombatSfxSignals.OnAbility3TimeSlowEnd -= HandleAbility3TimeSlowEnd;
+
+        if (droneStats != null)
+            droneStats.OnDead -= HandleDroneDead;
+
         RestoreSfxPitch();
     }
 
@@ -115,13 +133,18 @@ public class BossAssistDroneController : MonoBehaviour
     {
         if (bossStats == null || bossStats.IsDead)
         {
+            retiredUntilRefresh = true;
             if (state != DroneState.Docked)
                 BeginReturn();
             UpdateState();
             return;
         }
 
-        bool shouldDeploy = bossStats.CurrentHP > 0 && bossStats.CurrentHP <= Mathf.CeilToInt(bossStats.maxHP * deployHpRatio);
+        bool shouldDeploy =
+            !retiredUntilRefresh &&
+            !IsDroneDead() &&
+            bossStats.CurrentHP > 0 &&
+            bossStats.CurrentHP <= Mathf.CeilToInt(bossStats.maxHP * deployHpRatio);
 
         if (shouldDeploy)
         {
@@ -168,7 +191,14 @@ public class BossAssistDroneController : MonoBehaviour
 
         state = endState;
         if (endState == DroneState.Docked)
+        {
             SnapToDockPose();
+            SetTargetable(false);
+        }
+        else if (endState == DroneState.Active)
+        {
+            SetTargetable(true);
+        }
     }
 
     void UpdateActive()
@@ -348,6 +378,7 @@ public class BossAssistDroneController : MonoBehaviour
         transitionStartTime = Time.time;
         transitionDuration = enterDuration;
         state = DroneState.Entering;
+        SetTargetable(false);
     }
 
     void BeginReturn()
@@ -366,6 +397,8 @@ public class BossAssistDroneController : MonoBehaviour
         transitionStartTime = Time.time;
         transitionDuration = returnDuration;
         state = DroneState.Returning;
+        currentTarget = null;
+        SetTargetable(false);
     }
 
     void SnapToDockPose()
@@ -388,6 +421,27 @@ public class BossAssistDroneController : MonoBehaviour
             return transform.rotation;
 
         return dockAnchor.rotation * Quaternion.Euler(dockLocalEuler);
+    }
+
+    bool IsDroneDead()
+    {
+        return droneStats != null && droneStats.IsDead;
+    }
+
+    void HandleDroneDead()
+    {
+        retiredUntilRefresh = true;
+        BeginReturn();
+    }
+
+    void SetTargetable(bool value)
+    {
+        if (targetableColliders == null) return;
+        for (int i = 0; i < targetableColliders.Length; i++)
+        {
+            if (targetableColliders[i] != null)
+                targetableColliders[i].enabled = value;
+        }
     }
 
 
