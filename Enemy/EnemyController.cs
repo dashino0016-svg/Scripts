@@ -970,7 +970,7 @@ public class EnemyController : MonoBehaviour
             if (radius <= 0f)
                 continue;
 
-            Vector3 targetPos = LockTargetPointUtility.GetCapsuleCenter(cs.transform);
+            Vector3 targetPos = LockTargetPointUtility.GetLockPoint(cs.transform);
             float distance = Vector3.Distance(transform.position, targetPos);
             if (distance > radius)
                 continue;
@@ -1052,7 +1052,7 @@ public class EnemyController : MonoBehaviour
         if (cs != null && !IsHostile(cs)) return false;
 
         Vector3 eyePos = transform.position + Vector3.up * eyeHeight;
-        Vector3 targetPos = LockTargetPointUtility.GetCapsuleCenter(t);
+        Vector3 targetPos = LockTargetPointUtility.GetLockPoint(t);
 
         Vector3 dir = targetPos - eyePos;
         dir.y = 0f;
@@ -1074,7 +1074,7 @@ public class EnemyController : MonoBehaviour
         if (cs != null && cs.IsDead) return false;
 
         Vector3 eyePos = transform.position + Vector3.up * eyeHeight;
-        Vector3 targetPos = LockTargetPointUtility.GetCapsuleCenter(playerPoint);
+        Vector3 targetPos = LockTargetPointUtility.GetLockPoint(playerPoint);
 
         Vector3 dirToTarget = targetPos - eyePos;
         dirToTarget.y = 0f;

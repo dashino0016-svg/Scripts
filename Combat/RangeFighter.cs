@@ -203,7 +203,7 @@ public class RangeFighter : MonoBehaviour
 
             CombatStats s = pendingAimTarget.GetComponentInParent<CombatStats>();
             if (s != null)
-                aimPoint = LockTargetPointUtility.GetCapsuleCenter(s.transform);
+                aimPoint = LockTargetPointUtility.GetLockPoint(s.transform);
 
             Vector3 d3 = aimPoint - muzzle.position;
             if (d3.sqrMagnitude > 0.0001f)

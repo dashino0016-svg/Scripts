@@ -131,7 +131,7 @@ public class ThirdPersonShoulderCamera : MonoBehaviour
             Vector3 pivot = target.position + pivotOffset;
 
             // 用胶囊中心做锁定点（与 LockOnSystem 距离判定一致）
-            Vector3 lockPoint = LockTargetPointUtility.GetCapsuleCenter(lockTarget);
+            Vector3 lockPoint = LockTargetPointUtility.GetLockPoint(lockTarget);
 
             Vector3 dir = lockPoint - pivot;
             if (dir.sqrMagnitude > 0.0001f)

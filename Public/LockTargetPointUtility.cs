@@ -2,19 +2,47 @@ using UnityEngine;
 
 public static class LockTargetPointUtility
 {
-    public static Vector3 GetCapsuleCenter(Transform target)
+    const string LockPointName = "LockPoint";
+
+    public static Vector3 GetLockPoint(Transform target)
     {
         if (target == null) return Vector3.zero;
 
-        // ÓÃ CharacterController.center ¼ÆËãÊÀ½ç×ø±êÖÐÐÄµã£º
-        // cc.enabled=false Ê±Ò²ÎÈ¶¨£»²»»áÏñ cc.bounds.center ÄÇÑùµôµ½½Åµ×/µØÃæÏÂ
-        CharacterController cc = target.GetComponentInParent<CharacterController>();
-        if (cc != null)
+        Transform lockPoint = FindLockPoint(target);
+        return lockPoint != null ? lockPoint.position : target.position;
+    }
+
+    // å…¼å®¹æ—§è°ƒç”¨ï¼šç»Ÿä¸€æ”¹ä¸º LockPoint é€»è¾‘ã€‚
+    public static Vector3 GetCapsuleCenter(Transform target)
+    {
+        return GetLockPoint(target);
+    }
+
+    static Transform FindLockPoint(Transform target)
+    {
+        Transform root = target.root;
+        if (root == null) root = target;
+
+        Transform lockPoint = FindChildRecursive(root, LockPointName);
+        if (lockPoint != null) return lockPoint;
+
+        return FindChildRecursive(target, LockPointName);
+    }
+
+    static Transform FindChildRecursive(Transform parent, string childName)
+    {
+        if (parent == null) return null;
+
+        if (parent.name == childName)
+            return parent;
+
+        for (int i = 0; i < parent.childCount; i++)
         {
-            return cc.transform.TransformPoint(cc.center);
+            Transform found = FindChildRecursive(parent.GetChild(i), childName);
+            if (found != null)
+                return found;
         }
 
-        // fallback
-        return target.position;
+        return null;
     }
 }

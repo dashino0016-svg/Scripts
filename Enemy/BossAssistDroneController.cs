@@ -231,7 +231,7 @@ public class BossAssistDroneController : MonoBehaviour
 
         Vector3 origin = muzzle != null ? muzzle.position : transform.position;
 
-        Vector3 aim = LockTargetPointUtility.GetCapsuleCenter(target);
+        Vector3 aim = LockTargetPointUtility.GetLockPoint(target);
         Vector3 dir = aim - origin;
         if (dir.sqrMagnitude < 0.0001f) dir = transform.forward;
 
@@ -284,7 +284,7 @@ public class BossAssistDroneController : MonoBehaviour
             if (bossStats != null && stats.gameObject.layer == bossStats.gameObject.layer)
                 continue;
 
-            float sqr = (LockTargetPointUtility.GetCapsuleCenter(stats.transform) - center).sqrMagnitude;
+            float sqr = (LockTargetPointUtility.GetLockPoint(stats.transform) - center).sqrMagnitude;
             if (sqr < bestSqr)
             {
                 bestSqr = sqr;
@@ -297,7 +297,7 @@ public class BossAssistDroneController : MonoBehaviour
     {
         if (faceLockedTarget && currentTarget != null)
         {
-            Vector3 to = LockTargetPointUtility.GetCapsuleCenter(currentTarget) - transform.position;
+            Vector3 to = LockTargetPointUtility.GetLockPoint(currentTarget) - transform.position;
             to.y = 0f;
 
             if (to.sqrMagnitude > 0.0001f)
