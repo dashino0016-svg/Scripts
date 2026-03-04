@@ -8,7 +8,6 @@ public class BossAssistDroneController : MonoBehaviour
     [Header("Refs")]
     [SerializeField] Transform bossRoot;
     [SerializeField] CombatStats bossStats;
-    [SerializeField] CombatStats droneStats;
     [SerializeField] EnemyController bossController;
 
     [Header("Anchors")]
@@ -73,7 +72,6 @@ public class BossAssistDroneController : MonoBehaviour
 
     DroneState state = DroneState.Docked;
     Transform currentTarget;
-    bool retired;
 
     float orbitPhase;
     float nextTargetRefreshTime;
@@ -91,7 +89,6 @@ public class BossAssistDroneController : MonoBehaviour
     {
         if (bossRoot == null) bossRoot = transform.root;
         if (bossStats == null) bossStats = bossRoot != null ? bossRoot.GetComponent<CombatStats>() : null;
-        if (droneStats == null) droneStats = GetComponent<CombatStats>();
         if (bossController == null) bossController = bossRoot != null ? bossRoot.GetComponent<EnemyController>() : null;
 
         if (activeCenter == null) activeCenter = dockAnchor;
@@ -116,19 +113,8 @@ public class BossAssistDroneController : MonoBehaviour
 
     void Update()
     {
-        if (retired)
+        if (bossStats == null || bossStats.IsDead)
         {
-            if (state != DroneState.Docked)
-                BeginReturn();
-            UpdateState();
-            return;
-        }
-
-        bool bossDead = bossStats == null || bossStats.IsDead;
-        bool droneDead = droneStats != null && droneStats.IsDead;
-        if (bossDead || droneDead)
-        {
-            retired = true;
             if (state != DroneState.Docked)
                 BeginReturn();
             UpdateState();
