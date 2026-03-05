@@ -83,8 +83,11 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
     // =========================
 
     [Header("Melee Engage (Only One Action Gate)")]
-    [Tooltip("Within this distance: allow block/normal/heavy decision (Combat style).")]
+    [Tooltip("Within this horizontal distance: allow block/normal/heavy decision (Combat style).")]
     public float attackDecisionDistance = 1.0f;
+
+    [Tooltip("Max allowed Y delta for melee attack decision gating.")]
+    public float attackDecisionHeightDistance = 1.0f;
 
     [Header("Normal Attacks (A1~A4 / B1~B4)")]
     [Range(0f, 1f)] public float preferAChance = 0.7f;
@@ -362,13 +365,12 @@ public class RangeCombat : MonoBehaviour, IEnemyCombat
         if (targetFighter == null || targetStats == null) CacheTargetRefs();
 
         Vector3 toTarget3D = GetTargetPoint() - transform.position;
-        float distanceXYZ = toTarget3D.magnitude;
         float distanceY = Mathf.Abs(toTarget3D.y);
 
         Vector3 toTarget = toTarget3D;  // ✅ 这个 toTarget 仍然用于转向/距离（平面）
         toTarget.y = 0f;
         float distance = toTarget.magnitude;
-        bool withinAttackDistance3D = (distanceXYZ <= attackDecisionDistance) && (distanceY <= attackDecisionDistance);
+        bool withinAttackDistance3D = (distance <= attackDecisionDistance) && (distanceY <= attackDecisionHeightDistance);
 
         navigator.SyncPosition(transform.position);
 
