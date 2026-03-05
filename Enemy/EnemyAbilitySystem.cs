@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Serialization;
 
@@ -41,6 +42,10 @@ public class EnemyAbilitySystem : MonoBehaviour
     [SerializeField, Range(10f, 180f)] float shockwaveShortAngle = 80f;
     [FormerlySerializedAs("shockwaveAoeRange")]
     [SerializeField] float shockwaveLongRange = 6f;
+
+    [Header("Target Filter")]
+    [Tooltip("能力命中检测层。0 表示不过滤层，仅按阵营(不同 layer)筛选。")]
+    [SerializeField] LayerMask abilityTargetMask;
 
     AbilityType pending;
     bool hasPending;
@@ -282,32 +287,99 @@ public class EnemyAbilitySystem : MonoBehaviour
     {
         if (!CanAbility1ShortTarget(target)) return;
 
-        IHittable hittable =
-            target.GetComponentInParent<IHittable>() ??
-            target.GetComponentInChildren<IHittable>();
+        Vector3 origin = transform.position;
 
-        if (hittable == null) return;
+        int mask = abilityTargetMask.value != 0 ? abilityTargetMask.value : Physics.AllLayers;
+        Collider[] hits = Physics.OverlapSphere(
+            origin,
+            shockwaveShortRange,
+            mask,
+            QueryTriggerInteraction.Collide
+        );
 
-        AttackData data = BuildAttackDataFromConfig(shockwaveShortAttackConfig);
-        data.attacker = transform;
+        HashSet<CombatStats> unique = new HashSet<CombatStats>();
+        AttackData template = BuildAttackDataFromConfig(shockwaveShortAttackConfig);
+        template.attacker = transform;
 
-        hittable.OnHit(data);
+        Vector3 forward = transform.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 0.0001f)
+            forward = transform.forward;
+        forward.Normalize();
+
+        foreach (var col in hits)
+        {
+            CombatStats targetStats = col.GetComponentInParent<CombatStats>();
+            if (targetStats == null) continue;
+            if (targetStats == stats) continue;
+            if (targetStats.IsDead) continue;
+            if (targetStats.gameObject.layer == gameObject.layer) continue;
+            if (!unique.Add(targetStats)) continue;
+
+            Vector3 targetPoint = LockTargetPointUtility.GetLockPoint(targetStats.transform);
+            Vector3 to = targetPoint - origin;
+            to.y = 0f;
+
+            float dist = to.magnitude;
+            if (dist > shockwaveShortRange || dist < 0.001f) continue;
+
+            float angle = Vector3.Angle(forward, to.normalized);
+            if (angle > shockwaveShortAngle * 0.5f) continue;
+
+            IHittable hittable =
+                targetStats.GetComponent<IHittable>() ??
+                targetStats.GetComponentInParent<IHittable>();
+
+            if (hittable == null) continue;
+
+            AttackData data = template;
+            data.attacker = transform;
+            hittable.OnHit(data);
+        }
     }
 
     void PerformShockwaveLong(Transform target)
     {
         if (!CanAbility1LongTarget(target)) return;
 
-        IHittable hittable =
-            target.GetComponentInParent<IHittable>() ??
-            target.GetComponentInChildren<IHittable>();
+        Vector3 origin = transform.position;
 
-        if (hittable == null) return;
+        int mask = abilityTargetMask.value != 0 ? abilityTargetMask.value : Physics.AllLayers;
+        Collider[] hits = Physics.OverlapSphere(
+            origin,
+            shockwaveLongRange,
+            mask,
+            QueryTriggerInteraction.Collide
+        );
 
-        AttackData data = BuildAttackDataFromConfig(shockwaveLongAttackConfig);
-        data.attacker = transform;
+        HashSet<CombatStats> unique = new HashSet<CombatStats>();
+        AttackData template = BuildAttackDataFromConfig(shockwaveLongAttackConfig);
+        template.attacker = transform;
 
-        hittable.OnHit(data);
+        foreach (var col in hits)
+        {
+            CombatStats targetStats = col.GetComponentInParent<CombatStats>();
+            if (targetStats == null) continue;
+            if (targetStats == stats) continue;
+            if (targetStats.IsDead) continue;
+            if (targetStats.gameObject.layer == gameObject.layer) continue;
+            if (!unique.Add(targetStats)) continue;
+
+            Vector3 targetPoint = LockTargetPointUtility.GetLockPoint(targetStats.transform);
+            Vector3 to = targetPoint - origin;
+            to.y = 0f;
+            if (to.magnitude > shockwaveLongRange) continue;
+
+            IHittable hittable =
+                targetStats.GetComponent<IHittable>() ??
+                targetStats.GetComponentInParent<IHittable>();
+
+            if (hittable == null) continue;
+
+            AttackData data = template;
+            data.attacker = transform;
+            hittable.OnHit(data);
+        }
     }
 
     AttackData BuildAttackDataFromConfig(AttackConfig cfg)
