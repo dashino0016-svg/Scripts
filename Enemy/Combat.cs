@@ -25,8 +25,11 @@ public class Combat : MonoBehaviour, IEnemyCombat
     public float outOfRangeGraceTime = 0.6f;
 
     [Header("Engage Distances (Only One Action Gate)")]
-    [Tooltip("只要进入该距离：允许防御/普通攻击/重攻击/反击等动作参与决策")]
+    [Tooltip("只要进入该水平距离：允许防御/普通攻击/重攻击/反击等动作参与决策")]
     public float attackDecisionDistance = 1.2f;
+
+    [Tooltip("攻击决策时允许的最大Y高差（与水平距离判定分离）。")]
+    public float attackDecisionHeightDistance = 1.2f;
 
     [Header("Retreat (Guard Break)")]
     [Tooltip("true=Retreat(破防/昏厥)期间锁定当前朝向(不再转向玩家)；false=保持原逻辑(持续朝向玩家)。默认 false")]
@@ -441,7 +444,8 @@ public class Combat : MonoBehaviour, IEnemyCombat
 
         UpdateRangeMode(distance);
 
-        bool withinAttackDistance3D = (distanceXYZ <= attackDecisionDistance) && (distanceY <= attackDecisionDistance);
+        // ✅ 攻击距离用“水平面距离”判定；Y 高差使用独立阈值。
+        bool withinAttackDistance3D = (distance <= attackDecisionDistance) && (distanceY <= attackDecisionHeightDistance);
 
         bool retreatActive = (selfStats != null) && selfStats.IsGuardBroken;
 
